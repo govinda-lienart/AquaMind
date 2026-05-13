@@ -3,19 +3,25 @@ site_name: AquaMind
 theme:
   name: material
 
+markdown_extensions:
+  - attr_list
+  - md_in_html
+  - pymdownx.blocks.caption
+
 nav:
   - Home: index.md
   - Introduction: introduction.md
   - Installation: installation.md
   - Pipeline Overview: pipeline-overview.md
+
   - Methods & Implementation:
       - Tank Setup: tank-setup.md
       - Stage 1 - Frame Extraction: stage_1.md
       - Stage 2 - Annotation: stage_2.md
       - Stage 3 - Dataset Class: stage_3.md
+
   - Results: results.md
   - Discussion: discussion.md
   - Contributing: contributing.md
   - About: about.md
   - References: references.md
-

@@ -1,0 +1,21 @@
+name: Deploy MkDocs # label shown in GitHub Actions tab 
+
+on:
+  push:
+    branches:
+      - main  # that means when I push to the main branch, github detects the push and launches the workflow
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest # github will spin a virtual machine (lastest ubuntu) to run the job.
+
+    steps: # sequence of actions that will run in order on the github virtual machine online
+      - uses: actions/checkout@v4 # checkout downloads everything in your repo without filtering. However,  only docs/ and mkdocs.yml are actually used
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x #install python on the virtual machine
+ 
+      - run: pip install mkdocs-material #install mkdoc library on the virtual machine 
+
+      - run: mkdocs gh-deploy -- # 1) force Builds the documentation site from my docs/ folder and mkdocs.yml  + 2) Pushes the built site to a special branch called gh-pages on your GitHub rep.  GitHub Pages then serves whatever is in my gh-pages as my live website.  note that the virtual machine is discarded after the job finishes   
