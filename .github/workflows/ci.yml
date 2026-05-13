@@ -18,4 +18,4 @@ jobs:
  
       - run: pip install mkdocs-material #install mkdoc library on the virtual machine 
 
-      - run: mkdocs gh-deploy -- # 1) force Builds the documentation site from my docs/ folder and mkdocs.yml  + 2) Pushes the built site to a special branch called gh-pages on your GitHub rep.  GitHub Pages then serves whatever is in my gh-pages as my live website.  note that the virtual machine is discarded after the job finishes   
+      - run: mkdocs gh-deploy --force # 1) force Builds the documentation site from my docs/ folder and mkdocs.yml  + 2) Pushes the built site to a special branch called gh-pages on your GitHub rep.  GitHub Pages then serves whatever is in my gh-pages as my live website.  note that the virtual machine is discarded after the job finishes   
