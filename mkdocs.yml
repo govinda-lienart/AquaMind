@@ -1,5 +1,9 @@
 site_name: AquaMind
+copyright: Govinda Lienart &mdash; AquaMind &mdash;Latest Update 13 May 2026        
 
+extra_css:                                              
+    - stylesheets/extra.css                             
+                            
 theme:
   name: material
 
