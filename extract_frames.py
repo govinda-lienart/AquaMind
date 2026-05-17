@@ -19,13 +19,15 @@ cursor = conn.cursor() # executor - queries - tele operator - action part of the
 # time_formating
 format_now = datetime.now().strftime("%Y%m%d_%H%M")
 
-# video_format
-video_path = "videos/IMG_9856.MOV"
+# video_forma
+video_path = input("Enter video path (e.g. videos/IMG_0350.MOV): ")
 video_name_ext = os.path.basename(video_path) 
 video_name = os.path.splitext(video_name_ext)[0]
 
 # time and video format
 video_folder_name = f"frames_{video_name}_{format_now}"
+annotation_folder_name = f"annotations_{video_name}_{format_now}"
+
 
 # LOADING THE VIDEO
 cap = cv2.VideoCapture(video_path) # loading the video
@@ -34,6 +36,9 @@ cap = cv2.VideoCapture(video_path) # loading the video
 os.makedirs("frames", exist_ok=True) # creat dirctory frame in case it doesnt exist
 os.makedirs(f"frames/{video_folder_name}", exist_ok=True) # creat dirctory frame in case it doesnt exist
 
+# CREATE ANNOTATION DIRECTORY
+os.makedirs("annotations", exist_ok=True)
+os.makedirs(f"annotations/{annotation_folder_name}", exist_ok=True)
 
 # EXTRACT FRAME PER SEC
 fps = round(cap.get(cv2.CAP_PROP_FPS)) # fps prints 59.92 - not round - issue with modulo - therefore round.
@@ -49,7 +54,8 @@ while True:
 
     if frame_count % fps == 0:
         print (f"saving frame {frame_count}")
-        filename = f"frames/{video_folder_name}/frame_{frame_count}.png"
+        frame_name = f"frame_{frame_count}_{video_name}_{format_now}"
+        filename = f"frames/{video_folder_name}/{frame_name}.png"
         cv2.imwrite(filename,frame)
         timestamp = frame_count / fps       
         cursor.execute(

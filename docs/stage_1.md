@@ -1,4 +1,4 @@
-# **Stage 1 — Frame Extraction and MySQL Storage**
+# Stage 1 — Frame Extraction and MySQL Storage
 
 Stage 1 implements the initial ingestion layer of the AquaMind pipeline, transforming raw aquarium video footage into a structured, frame-level dataset suitable for downstream machine learning tasks.
 
@@ -135,7 +135,7 @@ To ensure stable and predictable extraction intervals, the FPS value is wrapped 
 
 ### Sampling Strategy
 
-Frames are selected using the expression `frame_count % fps == 0`, which ensures that exactly one frame per second. The video is read frame by frame using OpenCV, which returns two values on each call: a boolean `ret` indicating whether a frame was successfully read, and `frame`, the image data itself. When `ret` becomes `False`, the video has reached its end and the loop terminates automatically.
+Frames are selected using the expression `frame_count % fps == 0`, which ensures that exactly one frame per second is extracted. The video is read frame by frame using OpenCV, which returns two values on each call: a boolean `ret` indicating whether a frame was successfully read, and `frame`, the image data itself. When `ret` becomes `False`, the video has reached its end and the loop terminates automatically.
 
 ### Frame Storage
 

@@ -12,10 +12,20 @@ conn = mysql.connector.connect( # the pipe - "phone line"
     password='aquamind',
     database='aquamind'
 )
-cursor = conn.cursor()
+
+reading_cursor = conn.cursor()
+insert_cursor = conn.cursor()
 
 # ── LOOP THROUGH LABEL FILES ───────────────────────────────────
-labels_path = "annotations/annotations_IMG_9856_20260506_0957/labels" 
+labels_path = input("Enter annotation folder path (e.g annotations_IMG_0350_20260515_2010: ")
+
+#reconstucting the video path to avoid having to ask user to add it
+split_anno = labels_path.split("_")[1:3] # ['IMG', '0350']
+join_split = "_".join(split_anno) #IMG_0350
+
+video_path = f'videos/{join_split}.MOV'
+
+# video_path = input("Enter video path (e.g. videos/IMG_0350.MOV): ") # this make sure it doesnt get asccoaited with frame nyumber from other videoss. The video_path combined with frame_number in the SELECT ensures the lookup is specific to one video, preventing frame number collisions across different videos
 listing_labeltxt = os.listdir(labels_path)   # its a list: ['e6d83681-frame_360.txt', 'e6d83681-frame_420.txt', 'e6d83681-frame_480.txt', ...] 
 
 for x in listing_labeltxt:   # e6d83681-frame_360.txt (labels) - one file at the time for each of the outer loop.
@@ -26,11 +36,12 @@ for x in listing_labeltxt:   # e6d83681-frame_360.txt (labels) - one file at the
 
 
         # ── QUERY DB → GET FRAME ID ──────────────────────────────── 
-        cursor.execute(                                                                                                                        
-        "SELECT id FROM frames WHERE frame_number = %s", (extracted_label_numb,)   # gives id from the frames table where frame_number equals the frame number I extracted from the filename  
+        reading_cursor.execute(                                                                                                                        
+        "SELECT id FROM frames WHERE frame_number = %s AND video_path = %s", (extracted_label_numb,video_path)   # gives id from the frames table where frame_number equals the frame number I extracted from the filename  
         )
 
-        frame_id = cursor.fetchone()[0] # retrieves the first row, takes the first column (id) from for example frame number: 2520 → frame_id: (104,) with [0] it becomes frame_id: 104
+        frame_id = reading_cursor.fetchone()[0] # retrieves the first row, takes the first column (id) from for example frame number: 2520 → frame_id: (104,) with [0] it becomes frame_id: 104
+        reading_cursor.fetchall()
         print()
         print(f"frame number: {extracted_label_numb} → frame_id: {frame_id}") #   frame number: 420 → frame_id: (69,)                                                                
 
@@ -50,10 +61,11 @@ for x in listing_labeltxt:   # e6d83681-frame_360.txt (labels) - one file at the
             y_center = float(list_per_line[2])                                                                  
             width = float(list_per_line[3])                                                                     
             height = float(list_per_line[4])
-            label = "fish"
+            label_map = {0: "danio_rerio", 1: "reflection"} # dictionary mapping label id
+            label = label_map[class_id]  # looking up value in dictionary o or 1
             created_at = datetime.datetime.now()
             
-            cursor.execute(
+            insert_cursor.execute(
             "INSERT INTO annotations (frame_id, class_id, label, x_center, y_center, width, height, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
             (frame_id, class_id, label, x_center, y_center, width, height, created_at)
             )
@@ -61,8 +73,3 @@ for x in listing_labeltxt:   # e6d83681-frame_360.txt (labels) - one file at the
 # ── COMMIT & CLOSE ─────────────────────────────────────────────
 conn.commit()
 conn.close()
-
-
-
-
-

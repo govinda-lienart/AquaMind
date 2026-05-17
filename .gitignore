@@ -3,7 +3,10 @@
 /notes
 /mydata
 site/
+mysql_backup/
 /chat
 claude.md
 .DS_Store 
 annotations/
+/test
+yolov5/
