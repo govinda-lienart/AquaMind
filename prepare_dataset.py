@@ -71,44 +71,68 @@ os.makedirs(f"dataset/{video_basename}/labels/train",exist_ok=True)
 os.makedirs(f"dataset/{video_basename}/labels/val",exist_ok=True)
 
 
-#Create symlinks for training images (dataset/images/train/
+#  TRAINING DATASET: CREATION OF SYMLINKS(.png) AND ANNOTATION FILES(.txt) 
 
 for train_value in select_training:
     frame_id, frame_path = train_value # extracting from the tuple only the path e.g 'frames/frames_IMG_9856_20260517_1221/frame_1080_IMG_9856_20260517_1221.png')
     frame_basename_png = os.path.basename(frame_path) # only "frame_1080_IMG_9856_20260517_1221.png"
 
-    print(f'\n\nFrame_id: {frame_id}')
     # storing the frame
+    print(f'\n\nTRAINING DATASET -> Frame_id: {frame_id}')
     os.symlink(frame_path, f"dataset/{video_basename}/images/train/{frame_basename_png}") #create a symlink pointing from src(source-the real file that already exists) to dst (destination/where the symlink will appear)
-    print(f"Registering of frame symlink -> {video_basename}/images/val/{frame_basename_png} in dataset")
+    print(f"-Registering of frame symlink -> {video_basename}/images/val/{frame_basename_png} in dataset")
 
     # pulling out from sql the the annotation row for each frame_id 
-
     reading_cursor = conn.cursor()
     reading_cursor.execute(
     "SELECT class_id, x_center, y_center, width, height FROM annotations WHERE frame_id = %s", (frame_id,)
     )
     annotations = reading_cursor.fetchall()
-    print(f"SQL Annotation Fetching ->  {annotations}")
+    print(f"-SQL Annotation Fetching ->  {annotations}")
 
     # writing the annotation data that was pulled from sql into a text file with correct basename and stored in correct folder dataset
     frame_basename = os.path.splitext(frame_basename_png)[0] 
     frame_basename_txt = f"{frame_basename}.txt" # converted filename.jpg to filename.png
     txt_file = f"dataset/{video_basename}/labels/train/{frame_basename_txt}"
 
-
     with open (txt_file, "w") as f:
         for row in annotations:
-            f.write(row)
-
+                class_id, x_center, y_center, width, height = row # unpacking row
+                str_annot = f"{class_id} {x_center} {y_center} {width} {height}\n"
+                f.write(str_annot)
+        print(f"-Storing annotation data in txt_file: {txt_file}")
+            
     
-#Create symlinks for validation images  (dataset/images/val/)
+# VALIDATION DATASET: CREATION OF SYMLINKS(.png) AND ANNOTATION FILES(.txt) FOR 
 
 for val_value in select_validation:
     frame_id, frame_path = val_value
-    frame_basename = os.path.basename(frame_path)
-    sym = os.symlink(frame_path, f"dataset/{video_basename}/images/val/{frame_basename}") 
+    frame_basename_png = os.path.basename(frame_path)
 
+    # storing the frame
+    print(f'\n\nVALIDATION DATASET -> Frame_id: {frame_id}')
+    os.symlink(frame_path, f"dataset/{video_basename}/images/val/{frame_basename_png}") #create a symlink pointing from src(source-the real file that already exists) to dst (destination/where the symlink will appear)
+    print(f"-Registering of frame symlink -> {video_basename}/images/val/{frame_basename_png} in dataset")
+
+    # pulling out from sql the the annotation row for each frame_id 
+    reading_cursor = conn.cursor()
+    reading_cursor.execute(
+    "SELECT class_id, x_center, y_center, width, height FROM annotations WHERE frame_id = %s", (frame_id,)
+    )
+    annotations = reading_cursor.fetchall()
+    print(f"-SQL Annotation Fetching ->  {annotations}")
+
+    # writing the annotation data that was pulled from sql into a text file with correct basename and stored in correct folder dataset
+    frame_basename = os.path.splitext(frame_basename_png)[0] 
+    frame_basename_txt = f"{frame_basename}.txt" # converted filename.jpg to filename.png
+    txt_file = f"dataset/{video_basename}/labels/val/{frame_basename_txt}"
+
+    with open (txt_file, "w") as f:
+        for row in annotations:
+                class_id, x_center, y_center, width, height = row # unpacking row
+                str_annot = f"{class_id} {x_center} {y_center} {width} {height}\n"
+                f.write(str_annot)
+        print(f"-Storing annotation data in txt_file: {txt_file}")
 
 
 
