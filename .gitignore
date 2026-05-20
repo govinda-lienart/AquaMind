@@ -11,3 +11,4 @@ annotations/
 /test
 yolov5/
 /dataset
+*.pt

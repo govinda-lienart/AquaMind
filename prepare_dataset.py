@@ -14,10 +14,14 @@ conn = mysql.connector.connect(
 )
 
 # creation of sql executor that will select and fetch all frames that has annotation
+created_at_input = input("please provide the created_at date (e.g: 2026-05-17 16:00:36) displayed in the annotation sql table to select the relevant annotation extraction event")
+videopath_input = input ("please provide the relative path of the video (e.g videos/IMG_0350.MOV")
+
 reading_cursor = conn.cursor()
 reading_cursor.execute(
-    'SELECT DISTINCT f.id, f.frame_path FROM annotations a JOIN frames f ON a.frame_id = f.id WHERE video_path = "videos/IMG_0350.MOV";'
-    )
+    'SELECT DISTINCT f.id, f.frame_path FROM annotations a JOIN frames f ON a.frame_id = f.id WHERE video_path = %s AND a.created_at >= %s;',
+    (videopath_input, created_at_input)
+)
 labeled_frames= reading_cursor.fetchall()
 print()
 print(f'raw tuple:\n\n{labeled_frames}')
@@ -51,51 +55,51 @@ print (f"number of validation frames: {len(select_validation)}")
 
 # create unique folder with videoname within dataset (eg. IMG_0350_20260516_2148)
 
-extract_dir_name_tuple = labeled_frames[0:training_frames_80p][0][1] # selecting the first value typle as template anse select the path so [(579, 'frames/frames_IMG_0350_20260516_2148/frame_0_IMG_0350_20260516_2148.png') which is frames_IMG_0350_20260516_2148/frame_0_IMG_0350_20260516_2148.png
+extract_dir_name_tuple = labeled_frames[0][1] # selecting the first value typle as template anse select the path so [(579, 'frames/frames_IMG_0350_20260516_2148/frame_0_IMG_0350_20260516_2148.png') which is frames_IMG_0350_20260516_2148/frame_0_IMG_0350_20260516_2148.png
 dir_basename = os.path.dirname(extract_dir_name_tuple) # extract parent folder name '
 print(f'parent directory: {dir_basename}') 
-video_basename_frames = (os.path.basename(dir_basename)) # 'frames/frames_IMG_0350_20260516_2148
-video_basename = video_basename_frames.replace("frames_", "", 1) # removed frames/ have cleaner video name frames_IMG_0350_20260516_2148 
-print(f'video base name: {video_basename}') # frames_IMG_0350_20260516_2148
+video_basename_frames = (os.path.basename(dir_basename)) #'frames_IMG_0350_20260516_2148'
+video_basename = video_basename_frames.replace("frames_", "", 1) # removed frames/ have cleaner video name IMG_0350_20260516_2148
+print(f'video base name: {video_basename}')  # → 'IMG_0350_20260516_2148'
 
 # resetting dataset folder to make sure file is clean when storing the symbiolinks
-
-if os.path.exists("dataset"):
-    shutil.rmtree("dataset")
-
 # creating directory for training and validation images..
 
-os.makedirs(f"dataset/{video_basename}/images/train/", exist_ok=True)
-os.makedirs(f"dataset/{video_basename}/images/val/",exist_ok=True)
-os.makedirs(f"dataset/{video_basename}/labels/train",exist_ok=True)
-os.makedirs(f"dataset/{video_basename}/labels/val",exist_ok=True)
+experiment_name = created_at_input.replace(" ", "_").replace(":", "-") # adding the created_at info to the label of the runned yolo dataset...so i can run several times
+if os.path.exists(f"dataset/{video_basename}_{experiment_name}"):
+    shutil.rmtree(f"dataset/{video_basename}_{experiment_name}")
+
+os.makedirs(f"dataset/{video_basename}_{experiment_name}/images/train/", exist_ok=True)
+os.makedirs(f"dataset/{video_basename}_{experiment_name}/images/val/",exist_ok=True)
+os.makedirs(f"dataset/{video_basename}_{experiment_name}/labels/train",exist_ok=True)
+os.makedirs(f"dataset/{video_basename}_{experiment_name}/labels/val",exist_ok=True)
 
 
 # FUNCTION TO GENERATE TRAINING AND VALIDATION DATASET
 
-def generate_dataset (select_frames, split, video_basename):
-
+def generate_dataset(select_frames, split, video_basename, created_at_input, experiment_name, conn):# crearted at is added to avoid pulling out duplication of data from same video.
+    reading_cursor = conn.cursor()
     for frame in select_frames:
         frame_id, frame_path = frame # extracting from the tuple only the path e.g 'frames/frames_IMG_9856_20260517_1221/frame_1080_IMG_9856_20260517_1221.png')
         frame_basename_png = os.path.basename(frame_path) # only "frame_1080_IMG_9856_20260517_1221.png"
 
         # storing the frame
         print(f'\n {split} Dataset -> Frame_id: {frame_id}')
-        os.symlink(frame_path, f"dataset/{video_basename}/images/{split}/{frame_basename_png}") #create a symlink pointing from src(source-the real file that already exists) to dst (destination/where the symlink will appear)
-        print(f"-Registering of frame symlink -> {video_basename}/images/{split}/{frame_basename_png} in dataset")
+        os.symlink(os.path.abspath(frame_path), f"dataset/{video_basename}_{experiment_name}/images/{split}/{frame_basename_png}") #create a symlink pointing from src(source-the real file that already exists) to dst (destination/where the symlink will appear) + note that symlinks should also have full patth to avoid issuers
+
+        print(f"-Registering of frame symlink -> {video_basename}_{experiment_name}/images/{split}/{frame_basename_png} in dataset")
 
         # pulling out from sql the the annotation row for each frame_id 
-        reading_cursor = conn.cursor()
         reading_cursor.execute(
-        "SELECT class_id, x_center, y_center, width, height FROM annotations WHERE frame_id = %s", (frame_id,)
-        )
+        "SELECT class_id, x_center, y_center, width, height FROM annotations WHERE frame_id = %s AND created_at >= %s",
+        (frame_id, created_at_input))
         annotations = reading_cursor.fetchall()
         print(f"-SQL Annotation Fetching ->  {annotations}")
 
         # writing the annotation data that was pulled from sql into a text file with correct basename and stored in correct folder dataset
         frame_basename = os.path.splitext(frame_basename_png)[0] 
         frame_basename_txt = f"{frame_basename}.txt" # converted filename .png to filename.txt
-        txt_file = f"dataset/{video_basename}/labels/{split}/{frame_basename_txt}"
+        txt_file = f"dataset/{video_basename}_{experiment_name}/labels/{split}/{frame_basename_txt}"
 
         with open (txt_file, "w") as f:
             for row in annotations:
@@ -104,7 +108,7 @@ def generate_dataset (select_frames, split, video_basename):
                     f.write(str_annot)
             print(f"-Storing annotation data in txt_file: {txt_file}")
 
-generate_dataset(select_training, "train", video_basename) # added video_basename to make the fucntion self contained, reusable and testable on itself
-generate_dataset(select_validation, "val", video_basename)
+generate_dataset(select_training, "train", video_basename, created_at_input, experiment_name, conn) # added video_basename to make the fucntion self contained, reusable and testable on itself
+generate_dataset(select_validation, "val", video_basename, created_at_input, experiment_name, conn )
 
-print(f"\n\033[92mDataset generated - check dataset/{video_basename}\033[0m")
+print(f"\n\033[92mDataset generated - check dataset/{video_basename}_{experiment_name}\033[0m")
