@@ -1,0 +1,7 @@
+path: dataset/IMG_0350_20260516_2148
+train: images/train
+val: images/val
+nc: 2
+names: 
+  - danio_rerio
+  - reflection
