@@ -49,14 +49,14 @@ print (f"number of validation frames: {len(select_validation)}")
         ├── train/
         └── val/"""
 
-# create unique folder 
+# create unique folder with videoname within dataset (eg. IMG_0350_20260516_2148)
 
 extract_dir_name_tuple = labeled_frames[0:training_frames_80p][0][1] # selecting the first value typle as template anse select the path so [(579, 'frames/frames_IMG_0350_20260516_2148/frame_0_IMG_0350_20260516_2148.png') which is frames_IMG_0350_20260516_2148/frame_0_IMG_0350_20260516_2148.png
 dir_basename = os.path.dirname(extract_dir_name_tuple) # extract parent folder name '
-print(f'parent directory: {dir_basename}') # 'frames/frames_IMG_0350_20260516_2148
-video_basename = (os.path.basename(dir_basename))
-print(f'video base name:s {video_basename}') # frames_IMG_0350_20260516_2148
-
+print(f'parent directory: {dir_basename}') 
+video_basename_frames = (os.path.basename(dir_basename)) # 'frames/frames_IMG_0350_20260516_2148
+video_basename = video_basename_frames.replace("frames_", "", 1) # removed frames/ have cleaner video name frames_IMG_0350_20260516_2148 
+print(f'video base name: {video_basename}') # frames_IMG_0350_20260516_2148
 
 # resetting dataset folder to make sure file is clean when storing the symbiolinks
 
@@ -69,7 +69,6 @@ os.makedirs(f"dataset/{video_basename}/images/train/", exist_ok=True)
 os.makedirs(f"dataset/{video_basename}/images/val/",exist_ok=True)
 os.makedirs(f"dataset/{video_basename}/labels/train",exist_ok=True)
 os.makedirs(f"dataset/{video_basename}/labels/val",exist_ok=True)
-
 
 #  TRAINING DATASET: CREATION OF SYMLINKS(.png) AND ANNOTATION FILES(.txt) 
 
@@ -92,7 +91,7 @@ for train_value in select_training:
 
     # writing the annotation data that was pulled from sql into a text file with correct basename and stored in correct folder dataset
     frame_basename = os.path.splitext(frame_basename_png)[0] 
-    frame_basename_txt = f"{frame_basename}.txt" # converted filename.jpg to filename.png
+    frame_basename_txt = f"{frame_basename}.txt" # converted filename .png to filename.txt
     txt_file = f"dataset/{video_basename}/labels/train/{frame_basename_txt}"
 
     with open (txt_file, "w") as f:
@@ -100,8 +99,7 @@ for train_value in select_training:
                 class_id, x_center, y_center, width, height = row # unpacking row
                 str_annot = f"{class_id} {x_center} {y_center} {width} {height}\n"
                 f.write(str_annot)
-        print(f"-Storing annotation data in txt_file: {txt_file}")
-            
+        print(f"-Storing annotation data in txt_file: {txt_file}") 
     
 # VALIDATION DATASET: CREATION OF SYMLINKS(.png) AND ANNOTATION FILES(.txt) FOR 
 
