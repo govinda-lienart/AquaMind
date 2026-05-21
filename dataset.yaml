@@ -1,4 +1,4 @@
-path: /Users/govinda-dashugolienart/Documents/Github_HD/AquaMind/dataset/IMG_0350_20260516_2148
+path: dataset/IMG_0350_20260516_2148_2026-05-17_16-00-36
 train: images/train
 val: images/val
 nc: 2
