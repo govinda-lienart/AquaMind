@@ -1,0 +1,4 @@
+[core]
+    remote = aquamind-data
+['remote "aquamind-data"']
+    url = gdrive://1T5WzLzdiCH8IaWHRu7xJum2q9sDi4l3-
