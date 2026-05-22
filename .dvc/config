@@ -3,3 +3,5 @@
 ['remote "aquamind-data"']
     url = gdrive://1T5WzLzdiCH8IaWHRu7xJum2q9sDi4l3-
     gdrive_client_id = 1033016991265-nta8e44cl0fnraa0akmosb0ca4v1ljdf.apps.googleusercontent.com
+    gdrive_use_service_account = true
+    gdrive_service_account_json_file_path = secrets/aquamind-497014-5b34149af3fb.json

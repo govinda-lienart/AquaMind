@@ -12,3 +12,4 @@ annotations/
 yolov5/
 /dataset
 *.pt
+secrets/
