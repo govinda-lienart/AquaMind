@@ -13,3 +13,4 @@ yolov5/
 /dataset
 *.pt
 secrets/
+backup_notebook_files/
