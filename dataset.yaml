@@ -1,4 +1,4 @@
-path: /content/AquaMind/dataset/IMG_0350_20260516_2148_2026-05-17_16-00-36
+path: /kaggle/working/AquaMind/dataset/IMG_0350_20260516_2148_2026-05-23_10-36-46
 train: images/train
 val: images/val
 nc: 2
