@@ -19,5 +19,4 @@ runs/
 track_deepsort.py
 output_video_bytetrack/
 output_video_deepsort/
-
-
+output_video_zebratracker/
