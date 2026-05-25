@@ -2,7 +2,7 @@ import mlflow
 import os
 import pandas as pd
 
-# ── Configuration ────────────────────────────────────────────────────────────
+# ── Configuration ────────────────────────────────────────────────────────────-
 LOCAL_MLRUNS = '/Users/govinda-dashugolienart/Documents/Github_HD/AquaMind/mlruns'
 LOCAL_RUNS   = '/Users/govinda-dashugolienart/Documents/Github_HD/AquaMind/runs'
 
