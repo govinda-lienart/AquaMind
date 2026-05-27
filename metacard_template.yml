@@ -1,0 +1,9 @@
+sources:
+  - video: videos/IMG_0350.MOV
+  - video: videos/IMG_035230.MOV
+sql_query: "SELECT * FROM annotations WHERE created_at = '2026-05-23 10:36:46'"
+dvc_hash: ""  # fill in after dvc push — found in dataset.dvc
+classes:
+  0: danio_rerio
+  1: reflection
+notes: "Fish mainly at top of tank."

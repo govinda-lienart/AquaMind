@@ -185,8 +185,9 @@ class ZebrafishTracker:
 
 input_video_path = 'videos/IMG_0350.MOV'
 model_path       = 'mlruns/743689458392478771/145ab81824c24d5da2ba0031d0de3d9b/artifacts/weights/best.pt'
-output_video_path = 'output_video_zebratracker/tracker_250526_23h03.mp4'
-max_seconds      = 10   # <-- adjust to process more or less of the video
+output_video_path = 'output_video_zebratracker/tracker_260526_09h38.mp4'
+start_seconds    = 25    # <-- skip this many seconds before starting
+end_seconds      = 35  # <-- None = until end of video, or set e.g. 30 to stop at second 30
 num_fish         = 5    # <-- number of fish in the tank
 
 # ── Load model ────────────────────────────────────────────────────────────────
@@ -201,7 +202,9 @@ cap        = cv2.VideoCapture(input_video_path)
 width      = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height     = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps        = round(cap.get(cv2.CAP_PROP_FPS))
-max_frames = max_seconds * fps
+start_frame = start_seconds * fps
+max_frames  = ((end_seconds - start_seconds) * fps) if end_seconds is not None else int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) - start_frame
+cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 out        = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
@@ -227,7 +230,8 @@ while True:
     out.write(frame)
     frame_count += 1
     if frame_count % 30 == 0:
-        print(f"Frame {frame_count}/{max_frames}  |  second {frame_count // fps}/{max_seconds}")
+        current_second = start_seconds + frame_count // fps
+        print(f"Frame {frame_count}/{max_frames}  |  second {current_second}")
 
 cap.release()
 out.release()

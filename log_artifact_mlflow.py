@@ -1,6 +1,7 @@
 import mlflow
 import os
 import pandas as pd
+import yaml
 
 # ── Configuration ────────────────────────────────────────────────────────────-
 LOCAL_MLRUNS = '/Users/govinda-dashugolienart/Documents/Github_HD/AquaMind/mlruns'
@@ -53,6 +54,20 @@ with mlflow.start_run(run_name=run_name):
             'lr1':            row['lr/pg1'],
             'lr2':            row['lr/pg2'],
         }, step=epoch)
+
+    # ── Log dataset card if present ───────────────────────────────────────────
+    dataset_card_path = os.path.join(dataset_path, 'dataset_card.yaml')
+    if os.path.exists(dataset_card_path):
+        with open(dataset_card_path, 'r') as f:
+            card = yaml.safe_load(f)
+        mlflow.log_param('dvc_hash',   card.get('dvc_hash', ''))
+        mlflow.log_param('sql_query',  card.get('sql_query', ''))
+        mlflow.log_param('notes',      card.get('notes', ''))
+        mlflow.log_param('sources',    str(card.get('sources', '')))
+        mlflow.log_artifact(dataset_card_path)
+        print(f"Dataset card logged from {dataset_card_path}")
+    else:
+        print(f"No dataset_card.yaml found in {dataset_path} — skipping.")
 
     # ── Log all artifacts (images, yaml files, weights) ───────────────────────
     run_folder = run_path

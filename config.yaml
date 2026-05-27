@@ -1,0 +1,12 @@
+# SECTION EXTRACT_FRAMES.PY
+
+extract_frames:
+  video_path: videos/IMG_0350.MOV
+  frames_dir: frames/
+
+database:
+  host: localhost
+  port: 3306
+  user: root
+  password: aquamind
+  name: aquamin
