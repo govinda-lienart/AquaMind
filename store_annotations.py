@@ -16,7 +16,7 @@ reading_cursor = conn.cursor()
 insert_cursor = conn.cursor()
 
 # ── LOOP THROUGH LABEL FILES ───────────────────────────────────
-labels_path = input("Enter annotation folder path (e.g annotations_IMG_0350_20260515_2010: ")
+labels_path = cfg['store_annotations']['labels_path']
 video_path = cfg['extract_frames']['video_path']
 
 #reconstucting the video path to avoid having to ask user to add it
@@ -24,6 +24,15 @@ split_anno = labels_path.split("_")[1:3] # ['IMG', '0350']
 join_split = "_".join(split_anno) #IMG_0350
 
 video_path = f'videos/{join_split}.MOV'
+
+# GET VIDEO ID FROM VIDEOS TABLE
+reading_cursor.execute("SELECT id FROM videos WHERE file_path = %s", (video_path,))
+row = reading_cursor.fetchone()
+if not row:
+    print(f"Video {video_path} not registered. Run register_videos.py first.")
+    conn.close()
+    exit()
+video_id = row[0]
 
 # video_path = input("Enter video path (e.g. videos/IMG_0350.MOV): ") # this make sure it doesnt get asccoaited with frame nyumber from other videoss. The video_path combined with frame_number in the SELECT ensures the lookup is specific to one video, preventing frame number collisions across different videos
 listing_labeltxt = os.listdir(labels_path)   # its a list: ['e6d83681-frame_360.txt', 'e6d83681-frame_420.txt', 'e6d83681-frame_480.txt', ...] 
@@ -36,8 +45,8 @@ for x in listing_labeltxt:   # e6d83681-frame_360.txt (labels) - one file at the
 
 
         # ── QUERY DB → GET FRAME ID ──────────────────────────────── 
-        reading_cursor.execute(                                                                                                                        
-        "SELECT id FROM frames WHERE frame_number = %s AND video_path = %s", (extracted_label_numb,video_path)   # gives id from the frames table where frame_number equals the frame number I extracted from the filename  
+        reading_cursor.execute(
+        "SELECT id FROM frames WHERE frame_number = %s AND video_id = %s", (extracted_label_numb, video_id)   # gives id from the frames table where frame_number equals the frame number I extracted from the filename
         )
 
         frame_id = reading_cursor.fetchone()[0] # retrieves the first row, takes the first column (id) from for example frame number: 2520 → frame_id: (104,) with [0] it becomes frame_id: 104

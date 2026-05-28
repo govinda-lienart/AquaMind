@@ -2,25 +2,32 @@ import mysql.connector
 import os
 import random
 import shutil # shell utilities - resetting folder - clean slate
+import yaml
 
-# Query MySQL for all labeled frame paths and their annotations
+from db import get_connection
+conn = get_connection()
 
-conn = mysql.connector.connect(
-    host='localhost',
-    port=3306,
-    user='root',
-    password='aquamind',
-    database='aquamind'
-)
+with open('config.yaml') as f:
+    cfg = yaml.safe_load(f)
 
 # creation of sql executor that will select and fetch all frames that has annotation
-created_at_input = input("please provide the created_at date (e.g: 2026-05-17 16:00:36) displayed in the annotation sql table to select the relevant annotation extraction event")
-videopath_input = input ("please provide the relative path of the video (e.g videos/IMG_0350.MOV")
+created_at_input = cfg['prepare_dataset']['created_at']
+video_path = cfg['prepare_dataset']['video_path']
 
 reading_cursor = conn.cursor()
+
+# GET VIDEO ID FROM VIDEOS TABLE
+reading_cursor.execute("SELECT id FROM videos WHERE file_path = %s", (video_path,))
+row = reading_cursor.fetchone()
+if not row:
+    print(f"Video {video_path} not registered. Run register_videos.py first.")
+    conn.close()
+    exit()
+video_id = row[0]
+
 reading_cursor.execute(
-    'SELECT DISTINCT f.id, f.frame_path FROM annotations a JOIN frames f ON a.frame_id = f.id WHERE video_path = %s AND a.created_at >= %s;',
-    (videopath_input, created_at_input)
+    'SELECT DISTINCT f.id, f.frame_path FROM annotations a JOIN frames f ON a.frame_id = f.id WHERE f.video_id = %s AND a.created_at >= %s;',
+    (video_id, created_at_input)
 )
 labeled_frames= reading_cursor.fetchall()
 print()

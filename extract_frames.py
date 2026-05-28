@@ -59,7 +59,8 @@ os.makedirs(f"{cfg['extract_frames']['frames_dir']}/{video_folder_name}", exist_
 
 # EXTRACT FRAME PER SEC
 fps = round(cap.get(cv2.CAP_PROP_FPS)) # fps prints 59.92 - not round - issue with modulo - therefore round.
-print(f"Number of frames per second: {fps}")              
+print(f"Number of frames per second: {fps}")    
+          
 # LOOP TO EXTRACT FRAME AND STORE DATA IN SQL DB
 frame_count = 0
 
@@ -69,7 +70,7 @@ while True:
     if not ret: # if returns false break
         break
 
-    if frame_count % fps == 0:
+    if frame_count % fps == 0: # selecting the 60th frame (so 1 per sec)
         print (f"saving frame {frame_count}")
         frame_name = f"frame_{frame_count}_{video_name}_{format_now}"
         filename = f"{cfg['extract_frames']['frames_dir']}/{video_folder_name}/{frame_name}.png"
