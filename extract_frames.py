@@ -15,6 +15,12 @@ conn = get_connection()
 
 # CREATE AN SQL EXECUTOR
 cursor = conn.cursor() # executor - queries - tele operator - action part of the connect pipe
+try:
+    cursor.execute("ALTER TABLE frames ADD UNIQUE unique_video_frame (video_path, frame_number)")
+except Exception as e:
+    if '1061' not in str(e):
+        raise
+    print("Unique constraint check: already in place, skipping.")
 
 # FORMATING VIDEO AND TIME NAMING
 # time_formating
@@ -27,6 +33,13 @@ video_name = os.path.splitext(video_name_ext)[0]
 
 # time and video format
 video_folder_name = f"frames_{video_name}_{format_now}"
+
+# ── CHECK IF VIDEO ALREADY EXTRACTED ──────────────────────────
+cursor.execute("SELECT COUNT(*) FROM frames WHERE video_path = %s", (video_path,))
+if cursor.fetchone()[0] > 0:
+    print(f"Frames for {video_path} already exist in the database. Delete them first if you want to re-extract.")
+    conn.close()
+    exit()
 
 # LOADING THE VIDEO
 cap = cv2.VideoCapture(video_path) # loading the video
@@ -65,6 +78,5 @@ conn.commit() # saves all the inserts to the database permanently
 # CLOSURE OF THE PIPE
 cap.release() # close video reading
 conn.close()  # closes the connection to MySQL
-print("Done")
-
+print(f"frames and sql-metadata were stored successfully with path {cfg['extract_frames']['frames_dir']}/{video_folder_name}")
 

@@ -1,12 +1,19 @@
-# SECTION EXTRACT_FRAMES.PY
-
-extract_frames:
-  video_path: videos/IMG_0350.MOV
-  frames_dir: frames/
+# SQL DATABASE
 
 database:
   host: localhost
   port: 3306
   user: root
   password: aquamind
-  name: aquamin
+  database: aquamind
+
+# extract_frames_script
+extract_frames:
+  video_path: videos/IMG_1234_test.MOV
+  frames_dir: frames
+
+# store_annotations_script
+store_annotations:
+  labels_path: labelstudio_export/(add_file_name)
+
+

@@ -2,22 +2,24 @@
 
 import os
 import datetime
-import mysql.connector
+
+# ── LOAD CONFIG ──────────────────────────────────────────────
+import yaml
+with open('config.yaml') as f:
+    cfg = yaml.safe_load(f)
 
 # ── DB CONNECTION ──────────────────────────────────────────────
-conn = mysql.connector.connect( # the pipe - "phone line"
-    host='localhost',
-    port=3306,
-    user='root',
-    password='aquamind',
-    database='aquamind'
-)
+from db import get_connection
+conn = get_connection()
+
 
 reading_cursor = conn.cursor()
 insert_cursor = conn.cursor()
 
 # ── LOOP THROUGH LABEL FILES ───────────────────────────────────
 labels_path = input("Enter annotation folder path (e.g annotations_IMG_0350_20260515_2010: ")
+video_path = cfg['extract_frames']['video_path']
+
 
 #reconstucting the video path to avoid having to ask user to add it
 split_anno = labels_path.split("_")[1:3] # ['IMG', '0350']
