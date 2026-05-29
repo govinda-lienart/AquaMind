@@ -97,7 +97,7 @@ print(f"Dataset card written to dataset/{dataset_name}/dataset_card.yaml")
 
 # ── UPDATE DATASET.YAML FOR YOLO TRAINING ────────────────────────────────────
 dataset_yaml = {
-    'path':  os.path.abspath(f"dataset/{dataset_name}"),
+    'path':  f"dataset/{dataset_name}",
     'train': 'images/train',
     'val':   'images/val',
     'nc':    2,

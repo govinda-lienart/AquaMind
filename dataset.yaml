@@ -1,4 +1,4 @@
-path: /Users/govinda-dashugolienart/Documents/Github_HD/AquaMind/dataset/aquamind_combined
+path: dataset/aquamind_combined
 train: images/train
 val: images/val
 nc: 2
