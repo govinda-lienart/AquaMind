@@ -11,9 +11,11 @@ mlflow.set_tracking_uri(LOCAL_MLRUNS)
 mlflow.set_experiment('aquamind')
 
 # ── User input ───────────────────────────────────────────────────────────────
-run_path      = input("Enter relative path to run folder (e.g. runs/aquamind_run34): ")
+with open('config.yaml') as f:
+    cfg = yaml.safe_load(f)
+run_path      = cfg['log_artifact_mlflow']['run_path']
 run_name      = run_path.strip('/').split('/')[-1]
-dataset_path  = input("Enter relative path to dataset folder (e.g. dataset/IMG_0350_...): ")
+dataset_path  = cfg['log_artifact_mlflow']['dataset_path']
 yolo_model    = "yolov8s"
 
 train_path = os.path.join(dataset_path, 'images', 'train')

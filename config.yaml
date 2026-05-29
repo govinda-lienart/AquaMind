@@ -13,11 +13,23 @@ extract_frames:
 
 # store_annotations_script
 store_annotations:
-  labels_path: labelstudio_export/(add_file_name)
+  labels_path: labelstudio_export/LABEL_IMG_0764
+  frames_folder: frames/frames_IMG_0764_20260528_2116
 
 # prepare_dataset_script
 prepare_dataset:
-  video_path: videos/IMG_0350.MOV
-  created_at: '2026-05-17 16:00:36'
+  frames_folder: frames/frames_IMG_0764_20260528_2116
 
+# log_artifact_mlflow_script
+log_artifact_mlflow:
+  run_path: yolov5/runs/train/exp8
+  dataset_path: dataset/(add_dataset_folder_name)
 
+# track_zebrafish_script
+track_zebrafish:
+  input_video_path: videos/IMG_0350.MOV
+  model_path: mlruns/743689458392478771/145ab81824c24d5da2ba0031d0de3d9b/artifacts/weights/best.pt
+  output_video_path: output_video_zebratracker/tracker_260526_09h38.mp4
+  start_seconds: 25
+  end_seconds: 35
+  num_fish: 5

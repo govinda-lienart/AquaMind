@@ -1,5 +1,6 @@
 import os
 import warnings
+import yaml
 warnings.filterwarnings('ignore')
 import cv2
 import numpy as np
@@ -183,12 +184,15 @@ class ZebrafishTracker:
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-input_video_path = 'videos/IMG_0350.MOV'
-model_path       = 'mlruns/743689458392478771/145ab81824c24d5da2ba0031d0de3d9b/artifacts/weights/best.pt'
-output_video_path = 'output_video_zebratracker/tracker_260526_09h38.mp4'
-start_seconds    = 25    # <-- skip this many seconds before starting
-end_seconds      = 35  # <-- None = until end of video, or set e.g. 30 to stop at second 30
-num_fish         = 5    # <-- number of fish in the tank
+with open('config.yaml') as f:
+    cfg = yaml.safe_load(f)
+
+input_video_path  = cfg['track_zebrafish']['input_video_path']
+model_path        = cfg['track_zebrafish']['model_path']
+output_video_path = cfg['track_zebrafish']['output_video_path']
+start_seconds     = cfg['track_zebrafish']['start_seconds']
+end_seconds       = cfg['track_zebrafish']['end_seconds']
+num_fish          = cfg['track_zebrafish']['num_fish']
 
 # ── Load model ────────────────────────────────────────────────────────────────
 
