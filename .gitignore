@@ -22,3 +22,4 @@ output_video_deepsort/
 output_video_zebratracker/
 labelstudio_export/
 __pycache__/
+open_kaggle.sh

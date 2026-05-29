@@ -18,7 +18,12 @@ store_annotations:
 
 # prepare_dataset_script
 prepare_dataset:
-  frames_folder: frames/frames_IMG_0764_20260528_2116
+  dataset_name: aquamind_combined
+  frames_folders:
+    - frames/frames_IMG_0350_20260516_2148
+    - frames/frames_IMG_0651_20260528_1412
+    - frames/frames_IMG_0764_20260528_2116
+    - frames/frames_IMG_9856_20260517_1221
 
 # log_artifact_mlflow_script
 log_artifact_mlflow:
@@ -33,3 +38,4 @@ track_zebrafish:
   start_seconds: 25
   end_seconds: 35
   num_fish: 5
+
