@@ -18,7 +18,7 @@ store_annotations:
 
 # prepare_dataset_script
 prepare_dataset:
-  dataset_name: aquamind_combined
+  dataset_name: aquamind_combined_2026_05_30_13h59
   frames_folders:
     - frames/frames_IMG_0350_20260516_2148
     - frames/frames_IMG_0651_20260528_1412
@@ -27,8 +27,7 @@ prepare_dataset:
 
 # log_artifact_mlflow_script
 log_artifact_mlflow:
-  run_path: yolov5/runs/train/exp8
-  dataset_path: dataset/(add_dataset_folder_name)
+  run_path: runs/aquamind_yolov8_IMG_0764_2026_05_30_13h25
 
 # track_zebrafish_script
 track_zebrafish:

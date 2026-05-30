@@ -15,7 +15,7 @@ with open('config.yaml') as f:
     cfg = yaml.safe_load(f)
 run_path      = cfg['log_artifact_mlflow']['run_path']
 run_name      = run_path.strip('/').split('/')[-1]
-dataset_path  = cfg['log_artifact_mlflow']['dataset_path']
+dataset_path  = f"dataset/{cfg['prepare_dataset']['dataset_name']}"
 yolo_model    = "yolov8s"
 
 train_path = os.path.join(dataset_path, 'images', 'train')

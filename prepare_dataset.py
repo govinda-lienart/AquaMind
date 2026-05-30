@@ -77,10 +77,30 @@ def generate_dataset(select_frames, split, dataset_name, conn):
 generate_dataset(select_training,   "train", dataset_name, conn)
 generate_dataset(select_validation, "val",   dataset_name, conn)
 
+# ── FETCH VIDEO METADATA FROM SQL ────────────────────────────────────────────
+meta_cursor = conn.cursor(dictionary=True)
+videos_meta = []
+for frames_folder in frames_folders:
+    frame_path_pattern = f"{frames_folder}%"
+    meta_cursor.execute(
+        """SELECT DISTINCT v.file_path, v.species, v.morph,
+                  v.tank_width_cm, v.tank_height_cm, v.tank_depth_cm,
+                  v.fps, v.resolution, v.fish_count, v.notes,
+                  CAST(v.filmed_at AS CHAR) AS filmed_at
+           FROM videos v
+           JOIN frames f ON f.video_id = v.id
+           WHERE f.frame_path LIKE %s""",
+        (frame_path_pattern,)
+    )
+    row = meta_cursor.fetchone()
+    if row:
+        videos_meta.append(row)
+
 # ── WRITE DATASET CARD ────────────────────────────────────────────────────────
 card = {
     'dataset_name':    dataset_name,
     'frames_folders':  frames_folders,
+    'videos':          videos_meta,
     'num_train':       len(select_training),
     'num_val':         len(select_validation),
     'total_frames':    len(labeled_frames),

@@ -1,4 +1,4 @@
-path: dataset/aquamind_combined
+path: dataset/aquamind_combined_2026_05_30_13h59
 train: images/train
 val: images/val
 nc: 2
