@@ -31,10 +31,12 @@ log_artifact_mlflow:
 
 # track_zebrafish_script
 track_zebrafish:
-  input_video_path: videos/IMG_0350.MOV
-  model_path: mlruns/743689458392478771/145ab81824c24d5da2ba0031d0de3d9b/artifacts/weights/best.pt
-  output_video_path: output_video_zebratracker/tracker_260526_09h38.mp4
-  start_seconds: 25
-  end_seconds: 35
+  input_video_path: videos/IMG_0867.MOV
+  model_path: mlruns/743689458392478771/06139b091bf54ead94c764df7693b7a1/artifacts/weights/best.pt
+  output_video_path: output_video_zebratracker/tracker_IMG_0867_2026_05_31_09h38.mp4
+  start_seconds: 0
+  end_seconds: 60
   num_fish: 5
+
+  
 

@@ -194,9 +194,21 @@ start_seconds     = cfg['track_zebrafish']['start_seconds']
 end_seconds       = cfg['track_zebrafish']['end_seconds']
 num_fish          = cfg['track_zebrafish']['num_fish']
 
+# ── Print configuration ───────────────────────────────────────────────────────
+
+print("=" * 50)
+print(f"  Video:   {input_video_path}")
+print(f"  Model:   {model_path}")
+print(f"  Output:  {output_video_path}")
+print(f"  Seconds: {start_seconds} → {end_seconds}")
+print(f"  Fish:    {num_fish}")
+print("=" * 50)
+input("Press Enter to confirm and start...")
+
 # ── Load model ────────────────────────────────────────────────────────────────
 
 model   = YOLO(model_path)
+model.to('mps')
 tracker = ZebrafishTracker(num_fish=num_fish, max_distance=150, confirm_hits=15, max_tentative_missing=5)
 
 # ── Open video ────────────────────────────────────────────────────────────────
