@@ -62,10 +62,6 @@ with mlflow.start_run(run_name=run_name):
     if os.path.exists(dataset_card_path):
         with open(dataset_card_path, 'r') as f:
             card = yaml.safe_load(f)
-        mlflow.log_param('dvc_hash',   card.get('dvc_hash', ''))
-        mlflow.log_param('sql_query',  card.get('sql_query', ''))
-        mlflow.log_param('notes',      card.get('notes', ''))
-        mlflow.log_param('sources',    str(card.get('sources', '')))
         mlflow.log_artifact(dataset_card_path)
         print(f"Dataset card logged from {dataset_card_path}")
     else:
