@@ -24,6 +24,11 @@ class KalmanTrack:
         self.state          = np.array([cx, cy, 0., 0.])
         self.P              = np.eye(4) * 100
         self.bbox           = bbox
+        self.origin         = (cx, cy)  # first detected position
+
+    def displacement(self):
+        cx, cy = self.state[:2]
+        return np.sqrt((cx - self.origin[0])**2 + (cy - self.origin[1])**2)
 
     @staticmethod
     def _centre(bbox):
@@ -48,6 +53,8 @@ class KalmanTrack:
 
     def mark_missing(self):
         self.missing_frames += 1
+        self.state[2] *= 0.8  # damp vx
+        self.state[3] *= 0.8  # damp vy
 
     @property
     def predicted_centre(self):
@@ -72,12 +79,13 @@ class ZebrafishTracker:
     ever created, preventing reflections and false positives from stealing slots.
     """
 
-    def __init__(self, num_fish=5, max_distance=150, confirm_hits=15, max_tentative_missing=5):
+    def __init__(self, num_fish=5, max_distance=150, confirm_hits=60, max_tentative_missing=5, min_displacement=30):
         self.num_fish              = num_fish
         self.max_distance          = max_distance
         self.confirm_hits          = confirm_hits          # frames needed to get a permanent ID
         self.max_tentative_missing = max_tentative_missing # frames before dropping a tentative track
 
+        self.min_displacement = min_displacement
         self.confirmed  = {}   # {track_id: KalmanTrack}  — permanent fish
         self.tentative  = []   # [KalmanTrack]             — candidates on probation
         self.next_id    = 1
@@ -154,9 +162,9 @@ class ZebrafishTracker:
         if not self.pool_locked:
             still_tentative = []
             for t in self.tentative:
-                if t.hits >= self.confirm_hits and self.next_id <= self.num_fish:
+                if t.hits >= self.confirm_hits and t.displacement() >= self.min_displacement and self.next_id <= self.num_fish:
                     self.confirmed[self.next_id] = t
-                    print(f"  Fish {self.next_id} confirmed after {t.hits} frames")
+                    print(f"  Fish {self.next_id} confirmed after {t.hits} frames (displacement={t.displacement():.1f}px)")
                     self.next_id += 1
                 else:
                     still_tentative.append(t)
@@ -181,27 +189,38 @@ class ZebrafishTracker:
             if t.hits >= 1
         ]
 
+    def tentative_boxes(self):
+        return [[int(v) for v in t.bbox] for t in self.tentative]
+
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 with open('config.yaml') as f:
     cfg = yaml.safe_load(f)
 
-input_video_path  = cfg['track_zebrafish']['input_video_path']
-model_path        = cfg['track_zebrafish']['model_path']
-output_video_path = cfg['track_zebrafish']['output_video_path']
-start_seconds     = cfg['track_zebrafish']['start_seconds']
-end_seconds       = cfg['track_zebrafish']['end_seconds']
-num_fish          = cfg['track_zebrafish']['num_fish']
+input_video_path    = cfg['track_zebrafish']['input_video_path']
+model_path          = cfg['track_zebrafish']['model_path']
+output_video_path   = cfg['track_zebrafish']['output_video_path']
+start_seconds       = cfg['track_zebrafish']['start_seconds']
+end_seconds         = cfg['track_zebrafish']['end_seconds']
+num_fish            = cfg['track_zebrafish']['num_fish']
+max_distance        = cfg['track_zebrafish']['max_distance']
+confirm_hits        = cfg['track_zebrafish']['confirm_hits']
+min_displacement    = cfg['track_zebrafish']['min_displacement']
+max_tentative_missing = cfg['track_zebrafish']['max_tentative_missing']
 
 # ── Print configuration ───────────────────────────────────────────────────────
 
 print("=" * 50)
-print(f"  Video:   {input_video_path}")
-print(f"  Model:   {model_path}")
-print(f"  Output:  {output_video_path}")
-print(f"  Seconds: {start_seconds} → {end_seconds}")
-print(f"  Fish:    {num_fish}")
+print(f"  Video:            {input_video_path}")
+print(f"  Model:            {model_path}")
+print(f"  Output:           {output_video_path}")
+print(f"  Seconds:          {start_seconds} → {end_seconds}")
+print(f"  Fish:             {num_fish}")
+print(f"  confirm_hits:     {confirm_hits}")
+print(f"  min_displacement: {min_displacement}px")
+print(f"  max_distance:     {max_distance}px")
+print(f"  max_tent_missing: {max_tentative_missing}")
 print("=" * 50)
 input("Press Enter to confirm and start...")
 
@@ -209,7 +228,7 @@ input("Press Enter to confirm and start...")
 
 model   = YOLO(model_path)
 model.to('mps')
-tracker = ZebrafishTracker(num_fish=num_fish, max_distance=150, confirm_hits=15, max_tentative_missing=5)
+tracker = ZebrafishTracker(num_fish=num_fish, max_distance=max_distance, confirm_hits=confirm_hits, max_tentative_missing=max_tentative_missing, min_displacement=min_displacement)
 
 # ── Open video ────────────────────────────────────────────────────────────────
 
@@ -225,6 +244,8 @@ out        = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'),
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
 
+calibration_frames = fps * 5  # 5 second calibration window
+
 frame_count = 0
 while True:
     ret, frame = cap.read()
@@ -238,13 +259,30 @@ while True:
     bboxes  = detections.xyxy.tolist() if len(detections) > 0 else []
     tracked = tracker.update(bboxes)
 
+    in_calibration = frame_count < calibration_frames
+
+    # draw tentative boxes in yellow during calibration
+    if in_calibration:
+        for x1, y1, x2, y2 in tracker.tentative_boxes():
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 215, 255), 1)
+
+    # draw confirmed boxes in green
     for track_id, x1, y1, x2, y2 in tracked:
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
         cv2.putText(frame, f"Fish {track_id}", (x1, y1 - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
+    if in_calibration:
+        cv2.putText(frame, "CALIBRATION", (20, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 165, 255), 3)
+
     out.write(frame)
     frame_count += 1
+    if frame_count == calibration_frames and not tracker.pool_locked:
+        tracker.pool_locked = True
+        tracker.tentative   = []
+        print(f"  Calibration window closed — {len(tracker.confirmed)} fish confirmed")
+
     if frame_count % 30 == 0:
         current_second = start_seconds + frame_count // fps
         print(f"Frame {frame_count}/{max_frames}  |  second {current_second}")

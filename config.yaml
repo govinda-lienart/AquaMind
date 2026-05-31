@@ -31,12 +31,16 @@ log_artifact_mlflow:
 
 # track_zebrafish_script
 track_zebrafish:
-  input_video_path: videos/IMG_0867.MOV
+  input_video_path: videos/IMG_0350.MOV
   model_path: mlruns/743689458392478771/06139b091bf54ead94c764df7693b7a1/artifacts/weights/best.pt
-  output_video_path: output_video_zebratracker/tracker_IMG_0867_2026_05_31_09h38.mp4
+  output_video_path: output_video_zebratracker/tracker_IMG_0350_2026_05_31_11h23.mp4
   start_seconds: 0
   end_seconds: 60
   num_fish: 5
+  max_distance: 150         # max pixels between prediction and detection to count as a match
+  confirm_hits: 60          # frames a detection must persist before getting a permanent fish ID (1 sec at 60fps)
+  min_displacement: 30      # min pixels a candidate must move from first detection to be confirmed (filters reflections)
+  max_tentative_missing: 5  # frames a tentative (unconfirmed) track can disappear before being dropped
 
   
 
