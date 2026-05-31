@@ -33,7 +33,7 @@ log_artifact_mlflow:
 track_zebrafish:
   input_video_path: videos/IMG_0350.MOV
   model_path: mlruns/743689458392478771/06139b091bf54ead94c764df7693b7a1/artifacts/weights/best.pt
-  output_video_path: output_video_zebratracker/tracker_IMG_0350_2026_05_31_13h54.mp4
+  output_video_path: output_video_zebratracker/tracker_IMG_0350_2026_05_31_14h38.mp4
   start_seconds: 0
   end_seconds: 60
   num_fish: 5

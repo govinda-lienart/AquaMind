@@ -28,6 +28,9 @@ class KalmanTrack:
         self.last_seen_bbox  = bbox      # last real detection (never updated during occlusion)
         self.is_lost         = False     # True when ghost box contains no detection
         self.lost_frames     = 0
+        x1, y1, x2, y2      = bbox
+        self.typical_w       = float(x2 - x1)
+        self.typical_h       = float(y2 - y1)
 
     def displacement(self):
         cx, cy = self.state[:2]
@@ -50,6 +53,9 @@ class KalmanTrack:
         K      = self.P @ self.H.T @ np.linalg.inv(S)
         self.state          = self.state + K @ y
         self.P              = (np.eye(4) - K @ self.H) @ self.P
+        x1, y1, x2, y2      = bbox
+        self.typical_w       = 0.05 * (x2 - x1) + 0.95 * self.typical_w
+        self.typical_h       = 0.05 * (y2 - y1) + 0.95 * self.typical_h
         self.bbox            = bbox
         self.last_seen_bbox  = bbox  # update only on real detections
         self.hits           += 1
@@ -61,6 +67,15 @@ class KalmanTrack:
         self.missing_frames += 1
         self.state[2] *= 0.8  # damp vx
         self.state[3] *= 0.8  # damp vy
+
+    def clip_to_typical(self, bbox, size_ratio=1.8):
+        x1, y1, x2, y2 = bbox
+        w, h = x2 - x1, y2 - y1
+        if w * h > self.typical_w * self.typical_h * size_ratio:
+            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+            hw, hh = self.typical_w / 2, self.typical_h / 2
+            return [cx - hw, cy - hh, cx + hw, cy + hh]
+        return bbox
 
     @staticmethod
     def iou(bbox_a, bbox_b):
@@ -143,15 +158,32 @@ class ZebrafishTracker:
                 else self.confirmed[tid].predicted_centre
                 for tid in conf_ids
             ])
-            cost         = np.linalg.norm(conf_centres[:, np.newaxis] - det_centres[np.newaxis, :], axis=2)
+            dist_cost = np.linalg.norm(conf_centres[:, np.newaxis] - det_centres[np.newaxis, :], axis=2)
+
+            # IoU between each predicted box and each detection — better at crossings
+            iou_mat = np.zeros((len(conf_ids), len(bboxes)))
+            for i, tid in enumerate(conf_ids):
+                for j, b in enumerate(bboxes):
+                    iou_mat[i, j] = KalmanTrack.iou(self.confirmed[tid].predicted_bbox, b)
+
+            # Where boxes overlap use IoU cost, otherwise fall back to distance
+            cost     = np.where(iou_mat > 0, (1 - iou_mat) * self.max_distance, dist_cost)
             r_idx, c_idx = linear_sum_assignment(cost)
 
             matched_conf = set()
             for ri, ci in zip(r_idx, c_idx):
                 if cost[ri, ci] > self.max_distance:
                     continue
-                self.confirmed[conf_ids[ri]].update(bboxes[ci])
-                matched_conf.add(conf_ids[ri])
+                tid  = conf_ids[ri]
+                bbox = bboxes[ci]
+                # Clip oversized detection when another confirmed track is nearby
+                other_centres = [self.confirmed[o].predicted_centre for o in conf_ids if o != tid]
+                det_cx, det_cy = KalmanTrack._centre(bbox)
+                if any(np.linalg.norm([det_cx - ox, det_cy - oy]) < self.max_distance
+                       for ox, oy in other_centres):
+                    bbox = self.confirmed[tid].clip_to_typical(bbox)
+                self.confirmed[tid].update(bbox)
+                matched_conf.add(tid)
                 matched_dets.add(ci)
 
             for tid in conf_ids:
