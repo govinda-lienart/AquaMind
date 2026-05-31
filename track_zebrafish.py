@@ -23,8 +23,11 @@ class KalmanTrack:
         cx, cy              = self._centre(bbox)
         self.state          = np.array([cx, cy, 0., 0.])
         self.P              = np.eye(4) * 100
-        self.bbox           = bbox
-        self.origin         = (cx, cy)  # first detected position
+        self.bbox            = bbox
+        self.origin          = (cx, cy)  # first detected position
+        self.last_seen_bbox  = bbox      # last real detection (never updated during occlusion)
+        self.is_lost         = False     # True when ghost box contains no detection
+        self.lost_frames     = 0
 
     def displacement(self):
         cx, cy = self.state[:2]
@@ -47,14 +50,36 @@ class KalmanTrack:
         K      = self.P @ self.H.T @ np.linalg.inv(S)
         self.state          = self.state + K @ y
         self.P              = (np.eye(4) - K @ self.H) @ self.P
-        self.bbox           = bbox
-        self.hits          += 1
-        self.missing_frames = 0
+        self.bbox            = bbox
+        self.last_seen_bbox  = bbox  # update only on real detections
+        self.hits           += 1
+        self.missing_frames  = 0
+        self.is_lost         = False
+        self.lost_frames     = 0
 
     def mark_missing(self):
         self.missing_frames += 1
         self.state[2] *= 0.8  # damp vx
         self.state[3] *= 0.8  # damp vy
+
+    @staticmethod
+    def iou(bbox_a, bbox_b):
+        ax1, ay1, ax2, ay2 = bbox_a
+        bx1, by1, bx2, by2 = bbox_b
+        ix1 = max(ax1, bx1); iy1 = max(ay1, by1)
+        ix2 = min(ax2, bx2); iy2 = min(ay2, by2)
+        inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+        if inter == 0:
+            return 0.0
+        return inter / ((ax2-ax1)*(ay2-ay1) + (bx2-bx1)*(by2-by1) - inter)
+
+    @property
+    def predicted_bbox(self):
+        cx, cy = self.state[:2]
+        x1, y1, x2, y2 = self.last_seen_bbox
+        hw = (x2 - x1) / 2
+        hh = (y2 - y1) / 2
+        return [cx - hw, cy - hh, cx + hw, cy + hh]
 
     @property
     def predicted_centre(self):
@@ -112,7 +137,12 @@ class ZebrafishTracker:
         # 2. Match detections to CONFIRMED tracks first (priority)
         if self.confirmed:
             conf_ids     = list(self.confirmed.keys())
-            conf_centres = np.array([self.confirmed[tid].predicted_centre for tid in conf_ids])
+            conf_centres = np.array([
+                KalmanTrack._centre(self.confirmed[tid].last_seen_bbox)
+                if self.confirmed[tid].missing_frames > 30
+                else self.confirmed[tid].predicted_centre
+                for tid in conf_ids
+            ])
             cost         = np.linalg.norm(conf_centres[:, np.newaxis] - det_centres[np.newaxis, :], axis=2)
             r_idx, c_idx = linear_sum_assignment(cost)
 
@@ -127,6 +157,36 @@ class ZebrafishTracker:
             for tid in conf_ids:
                 if tid not in matched_conf:
                     self.confirmed[tid].mark_missing()
+
+            # 2b. Classify unmatched confirmed as lost or occluded
+            for tid in conf_ids:
+                if tid not in matched_conf:
+                    t = self.confirmed[tid]
+                    max_iou = max((KalmanTrack.iou(t.predicted_bbox, b) for b in bboxes), default=0.0)
+                    if max_iou < 0.1:
+                        t.is_lost    = True
+                        t.lost_frames += 1
+                    else:
+                        t.is_lost = False  # something is in the predicted area — occluded, not lost
+
+            # 2c. Recovery pass: re-match lost tracks against unclaimed detections
+            lost_ids       = [tid for tid in conf_ids if self.confirmed[tid].is_lost]
+            unmatched_now  = [i for i in range(len(bboxes)) if i not in matched_dets]
+
+            if lost_ids and unmatched_now:
+                lost_centres = np.array([
+                    KalmanTrack._centre(self.confirmed[tid].last_seen_bbox) for tid in lost_ids
+                ])
+                rem_centres = det_centres[unmatched_now]
+                cost        = np.linalg.norm(lost_centres[:, np.newaxis] - rem_centres[np.newaxis, :], axis=2)
+                r_idx, c_idx = linear_sum_assignment(cost)
+                for ri, ci in zip(r_idx, c_idx):
+                    if cost[ri, ci] > self.max_distance * 3:
+                        continue
+                    tid = lost_ids[ri]
+                    print(f"  Fish {tid} recovered after {self.confirmed[tid].lost_frames} lost frames")
+                    self.confirmed[tid].update(bboxes[unmatched_now[ci]])
+                    matched_dets.add(unmatched_now[ci])
 
         # 3. Match remaining detections to TENTATIVE tracks
         remaining_dets = [i for i in range(len(bboxes)) if i not in matched_dets]
@@ -191,6 +251,9 @@ class ZebrafishTracker:
 
     def tentative_boxes(self):
         return [[int(v) for v in t.bbox] for t in self.tentative]
+
+    def lost_ids(self):
+        return {tid for tid, t in self.confirmed.items() if t.is_lost}
 
 
 # ── Configuration ─────────────────────────────────────────────────────────────
@@ -266,11 +329,14 @@ while True:
         for x1, y1, x2, y2 in tracker.tentative_boxes():
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 215, 255), 1)
 
-    # draw confirmed boxes in green
+    # draw confirmed boxes — green if tracked, orange if lost and searching
+    lost = tracker.lost_ids()
     for track_id, x1, y1, x2, y2 in tracked:
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(frame, f"Fish {track_id}", (x1, y1 - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        colour = (0, 140, 255) if track_id in lost else (0, 255, 0)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), colour, 2)
+        label  = f"Fish {track_id} [?]" if track_id in lost else f"Fish {track_id}"
+        cv2.putText(frame, label, (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, colour, 2)
 
     if in_calibration:
         cv2.putText(frame, "CALIBRATION", (20, 50),
