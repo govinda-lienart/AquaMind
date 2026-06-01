@@ -24,7 +24,6 @@ prepare_dataset:
     - frames/frames_IMG_0350_20260516_2148
     - frames/frames_IMG_0651_20260528_1412
     - frames/frames_IMG_0764_20260528_2116
-    - frames/frames_IMG_9856_20260517_1221
 
 # log_artifact_mlflow_script
 log_artifact_mlflow:
