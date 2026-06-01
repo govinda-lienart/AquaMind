@@ -119,9 +119,10 @@ class ZebrafishTracker:
     ever created, preventing reflections and false positives from stealing slots.
     """
 
-    def __init__(self, num_fish=5, max_distance=150, confirm_hits=60, max_tentative_missing=5, min_displacement=30):
+    def __init__(self, num_fish=5, max_distance=150, max_frame_step=60, confirm_hits=60, max_tentative_missing=5, min_displacement=30):
         self.num_fish              = num_fish
         self.max_distance          = max_distance
+        self.max_frame_step        = max_frame_step
         self.confirm_hits          = confirm_hits          # frames needed to get a permanent ID
         self.max_tentative_missing = max_tentative_missing # frames before dropping a tentative track
 
@@ -176,6 +177,12 @@ class ZebrafishTracker:
                     continue
                 tid  = conf_ids[ri]
                 bbox = bboxes[ci]
+                # Reject if the fish would jump more than max_frame_step in one frame
+                pcx, pcy   = self.confirmed[tid].predicted_centre
+                dcx, dcy   = KalmanTrack._centre(bbox)
+                frame_dist = np.linalg.norm([dcx - pcx, dcy - pcy])
+                if frame_dist > self.max_frame_step:
+                    continue
                 # Clip oversized detection when another confirmed track is nearby
                 other_centres = [self.confirmed[o].predicted_centre for o in conf_ids if o != tid]
                 det_cx, det_cy = KalmanTrack._centre(bbox)
@@ -300,6 +307,7 @@ start_seconds       = cfg['track_zebrafish']['start_seconds']
 end_seconds         = cfg['track_zebrafish']['end_seconds']
 num_fish            = cfg['track_zebrafish']['num_fish']
 max_distance        = cfg['track_zebrafish']['max_distance']
+max_frame_step      = cfg['track_zebrafish']['max_frame_step']
 confirm_hits        = cfg['track_zebrafish']['confirm_hits']
 min_displacement    = cfg['track_zebrafish']['min_displacement']
 max_tentative_missing = cfg['track_zebrafish']['max_tentative_missing']
@@ -315,6 +323,7 @@ print(f"  Fish:             {num_fish}")
 print(f"  confirm_hits:     {confirm_hits}")
 print(f"  min_displacement: {min_displacement}px")
 print(f"  max_distance:     {max_distance}px")
+print(f"  max_frame_step:   {max_frame_step}px")
 print(f"  max_tent_missing: {max_tentative_missing}")
 print("=" * 50)
 input("Press Enter to confirm and start...")
@@ -323,7 +332,7 @@ input("Press Enter to confirm and start...")
 
 model   = YOLO(model_path)
 model.to('mps')
-tracker = ZebrafishTracker(num_fish=num_fish, max_distance=max_distance, confirm_hits=confirm_hits, max_tentative_missing=max_tentative_missing, min_displacement=min_displacement)
+tracker = ZebrafishTracker(num_fish=num_fish, max_distance=max_distance, max_frame_step=max_frame_step, confirm_hits=confirm_hits, max_tentative_missing=max_tentative_missing, min_displacement=min_displacement)
 
 # ── Open video ────────────────────────────────────────────────────────────────
 

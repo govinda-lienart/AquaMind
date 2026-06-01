@@ -10,18 +10,21 @@ conn = get_connection()
 with open('config.yaml') as f:
     cfg = yaml.safe_load(f)
 
+session_id     = cfg['prepare_dataset']['annotation_session_id']
 dataset_name   = cfg['prepare_dataset']['dataset_name']
 frames_folders = cfg['prepare_dataset']['frames_folders']
 
+print(f"Building dataset from session: {session_id}")
+
 reading_cursor = conn.cursor()
 
-# ── COLLECT ALL ANNOTATED FRAMES FROM ALL VIDEOS ──────────────────────────────
+# ── COLLECT ALL ANNOTATED FRAMES FROM SELECTED SESSION ───────────────────────
 labeled_frames = []
 for frames_folder in frames_folders:
     frame_path_pattern = f"{frames_folder}%"
     reading_cursor.execute(
-        'SELECT DISTINCT f.id, f.frame_path FROM annotations a JOIN frames f ON a.frame_id = f.id WHERE f.frame_path LIKE %s',
-        (frame_path_pattern,)
+        'SELECT DISTINCT f.id, f.frame_path FROM annotations a JOIN frames f ON a.frame_id = f.id WHERE f.frame_path LIKE %s AND a.session_id = %s',
+        (frame_path_pattern, session_id)
     )
     rows = reading_cursor.fetchall()
     print(f"{frames_folder} → {len(rows)} annotated frames")
@@ -98,16 +101,17 @@ for frames_folder in frames_folders:
 
 # ── WRITE DATASET CARD ────────────────────────────────────────────────────────
 card = {
-    'dataset_name':    dataset_name,
-    'frames_folders':  frames_folders,
-    'videos':          videos_meta,
-    'num_train':       len(select_training),
-    'num_val':         len(select_validation),
-    'total_frames':    len(labeled_frames),
-    'classes':         {0: 'danio_rerio', 1: 'reflection'},
-    'split':           '80/20 train/val',
-    'random_seed':     42,
-    'created_at':      str(__import__('datetime').datetime.now()),
+    'dataset_name':         dataset_name,
+    'annotation_session_id': session_id,
+    'frames_folders':       frames_folders,
+    'videos':               videos_meta,
+    'num_train':            len(select_training),
+    'num_val':              len(select_validation),
+    'total_frames':         len(labeled_frames),
+    'classes':              {0: 'danio_rerio', 1: 'reflection'},
+    'split':                '80/20 train/val',
+    'random_seed':          42,
+    'created_at':           str(__import__('datetime').datetime.now()),
 }
 
 with open(f"dataset/{dataset_name}/dataset_card.yaml", "w") as f:
