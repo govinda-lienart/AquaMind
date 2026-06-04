@@ -1,15 +1,21 @@
 import mysql.connector
-import yaml
 import cv2
 import os
 from datetime import datetime
+from dotenv import load_dotenv
+
 
 # connect with sql
 
-def get_connection(): # defining a function to use in any script to connect with database sql
-    with open('config.yaml') as f: # converting config.yaml into a dict
-        cfg = yaml.safe_load(f)
-    return mysql.connector.connect(**cfg['database']) # grabs the database key from dict / ** unpack meaning dict becomes var (eg. {host:'localhost} -> host='localhost')
+def get_connection():
+    load_dotenv()
+    return mysql.connector.connect(
+        host     = os.getenv("DB_HOST"),
+        port     = int(os.getenv("DB_PORT")),
+        user     = os.getenv("DB_USER"),
+        password = os.getenv("DB_PASSWORD"),
+        database = os.getenv("DB_NAME")
+    )
 
 # REGISTER A VIDEO IN SQL
 

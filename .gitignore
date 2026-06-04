@@ -25,3 +25,4 @@ __pycache__/
 open_links.sh
 *.xlsx
 sync_videos.py
+.env

@@ -1,14 +1,7 @@
-# sql database
-database:
-  host: localhost
-  port: 3306
-  user: root
-  password: aquamind
-  database: aquamind
 
 # extract_frames_script
 extract_frames:
-  video_path: videos/IMG_0764.MOV
+  video_path: videos/IMG_0909.MOV
   frames_dir: frames
 
 # store_annotations_script
