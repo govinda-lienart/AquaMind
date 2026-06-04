@@ -2,6 +2,7 @@ import mlflow
 import os
 import pandas as pd
 import yaml
+from db import get_connection
 
 # ── Configuration ────────────────────────────────────────────────────────────-
 LOCAL_MLRUNS = '/Users/govinda-dashugolienart/Documents/Github_HD/AquaMind/mlruns'
@@ -66,6 +67,30 @@ with mlflow.start_run(run_name=run_name):
         print(f"Dataset card logged from {dataset_card_path}")
     else:
         print(f"No dataset_card.yaml found in {dataset_path} — skipping.")
+
+    # ── Pull video metadata for videos used in this dataset ──────────────────
+    with get_connection() as conn:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT DISTINCT v.file_path, v.filmed_at, v.session_type, v.obstacles, v.fish_count, v.notes
+            FROM videos v
+            JOIN frames fr ON fr.video_id = v.id
+            JOIN annotations a ON a.frame_id = fr.id
+            WHERE a.session_id LIKE %s
+        """, (f"{cfg['prepare_dataset']['annotation_session_id']}%",))
+        video_sources = cursor.fetchall()
+
+    # convert datetime to string for yaml serialisation
+    for row in video_sources:
+        if row['filmed_at']:
+            row['filmed_at'] = str(row['filmed_at'])
+
+    video_sources_path = 'video_sources.yaml'
+    with open(video_sources_path, 'w') as f:
+        yaml.dump({'videos': video_sources}, f, default_flow_style=False)
+    mlflow.log_artifact(video_sources_path)
+    os.remove(video_sources_path)
+    print(f"Video sources logged: {len(video_sources)} videos")
 
     # ── Log all artifacts (images, yaml files, weights) ───────────────────────
     run_folder = run_path

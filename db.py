@@ -21,14 +21,14 @@ def get_connection():
 
 def register_video(file_path, session_type, obstacles, fish_count, notes=None,
                    species='danio_rerio', morph=None,
-                   tank_width_cm=None, tank_height_cm=None, tank_depth_cm=None):
+                   tank_width_cm=None, tank_height_cm=None, tank_depth_cm=None,
+                   filmed_at=None):
     cap = cv2.VideoCapture(file_path)
     fps         = int(cap.get(cv2.CAP_PROP_FPS))
     width       = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     resolution  = '4K' if width >= 3840 else '1080p' if width >= 1920 else '720p'
     cap.release()
 
-    filmed_at = datetime.fromtimestamp(os.path.getctime(file_path))
 
     conn   = get_connection()
     cursor = conn.cursor()
@@ -37,7 +37,7 @@ def register_video(file_path, session_type, obstacles, fish_count, notes=None,
                                    species, morph, tank_width_cm, tank_height_cm, tank_depth_cm)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (file_path, fps, resolution, session_type, obstacles, fish_count, notes, filmed_at,
-          species, morph, tank_width_cm, tank_height_cm, tank_depth_cm)) # ignore  works because I used ALTER TABLE videos ADD UNIQUE (file_path)
+          species, morph, tank_width_cm, tank_height_cm, tank_depth_cm))
     conn.commit()
     video_id = cursor.lastrowid
     cursor.close()

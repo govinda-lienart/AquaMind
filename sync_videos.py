@@ -23,6 +23,7 @@ for row in ws.iter_rows(min_row=2, values_only=True):
         tank_width_cm  = data['tank_width_cm'],
         tank_height_cm = data['tank_height_cm'],
         tank_depth_cm  = data['tank_depth_cm'],
+        filmed_at      = data.get('filmed_at'),
     )
 
     if video_id:

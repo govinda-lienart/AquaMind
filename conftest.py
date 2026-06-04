@@ -1,5 +1,5 @@
 import pytest
-import subprocess
+import subprocess # is a Python standard library module — built into Python, no pip install needed. It lets you run terminal commands from within a Python script.
 
 # autouse=True means pytest runs this automatically before every test — no need to call it manually
 @pytest.fixture(autouse=True)
@@ -13,3 +13,7 @@ def reset_test_db():
     # load fake test rows (one video, one frame) into the tables
     subprocess.run(["mysql", "-u", "root", "-paquamind", "--protocol=TCP", "aquamind_test"],
                    stdin=open("fixtures/fixtures.sql"))
+
+
+
+ 
