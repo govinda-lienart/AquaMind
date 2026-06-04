@@ -6,8 +6,8 @@ extract_frames:
 
 # store_annotations_script
 store_annotations:
-  labels_path: labelstudio_export/LABEL_IMG_0764
-  frames_folder: frames/frames_IMG_0764_20260528_2116
+  labels_path: fixtures/labels
+  frames_folder: frames/frames_test
 
 # prepare_dataset_script
 prepare_dataset:
