@@ -1,5 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.dirname(__file__))
 import mlflow
-import os
 import pandas as pd
 import yaml
 from db import get_connection

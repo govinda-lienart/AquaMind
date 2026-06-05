@@ -1,9 +1,11 @@
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'scripts'))
 import subprocess
 from db import get_connection
 
 def test_annotations_inserted():
     # run the script against aquamind_test
-    subprocess.run(["python", "store_annotations.py"])
+    subprocess.run(["python", "scripts/store_annotations.py"])
 
     with get_connection() as conn:
         cursor = conn.cursor()
