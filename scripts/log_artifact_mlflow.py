@@ -1,9 +1,8 @@
-import sys, os
-sys.path.insert(0, os.path.dirname(__file__))
+import os
 import mlflow
 import pandas as pd
 import yaml
-from db import get_connection
+from scripts.db import get_connection
 
 # ── Configuration ────────────────────────────────────────────────────────────-
 LOCAL_MLRUNS = '/Users/govinda-dashugolienart/Documents/Github_HD/AquaMind/mlruns'

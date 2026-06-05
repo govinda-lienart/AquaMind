@@ -1,10 +1,9 @@
-import sys, os
-sys.path.insert(0, os.path.dirname(__file__))
+import os
 import random
 import shutil
 import yaml
 
-from db import get_connection
+from scripts.db import get_connection
 
 with open('config.yaml') as f:
     cfg = yaml.safe_load(f)

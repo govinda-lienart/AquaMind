@@ -1,7 +1,5 @@
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'scripts'))
 import subprocess
-from db import get_connection
+from scripts.db import get_connection
 
 def test_annotations_inserted():
     # run the script against aquamind_test

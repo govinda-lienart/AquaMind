@@ -1,8 +1,6 @@
 # IMPORTS
 
-import sys, os
-sys.path.insert(0, os.path.dirname(__file__))
-
+import os
 import cv2
 from datetime import datetime
 import yaml
@@ -22,7 +20,7 @@ video_name = os.path.splitext(video_name_ext)[0]                # 'IMG_0909'
 frame_folder_name = f"frames_{video_name}_{format_now}"         # 'frames_IMG_0909_20260602_1435'
 
 # CONNECTING WITH MYSQL — context manager closes connection automatically at end of block
-from db import get_connection
+from scripts.db import get_connection
 with get_connection() as conn:
     cursor = conn.cursor()
     print("SQL Connection:", conn.is_connected())

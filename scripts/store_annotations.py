@@ -1,7 +1,6 @@
 # IMPORTS
 
-import sys, os
-sys.path.insert(0, os.path.dirname(__file__))
+import os
 import datetime
 
 # ── LOAD CONFIG ──────────────────────────────────────────────
@@ -10,7 +9,7 @@ with open('config.yaml') as f:
     cfg = yaml.safe_load(f)
 
 # ── DB CONNECTION ──────────────────────────────────────────────
-from db import get_connection
+from scripts.db import get_connection
 
 with get_connection() as conn:
     reading_cursor = conn.cursor()
