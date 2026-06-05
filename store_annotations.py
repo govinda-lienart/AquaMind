@@ -39,6 +39,10 @@ with get_connection() as conn:
 
     listing_labeltxt = os.listdir(labels_path)   # ['e6d83681-frame_360.txt', ...]
 
+    total_frames      = 0
+    total_annotations = 0
+    total_keypoints   = 0
+
     for x in listing_labeltxt:
 
         # ── PARSE FILENAME → FRAME NUMBER ─────────────────────────
@@ -52,6 +56,7 @@ with get_connection() as conn:
         )
         frame_id = reading_cursor.fetchone()[0]
         reading_cursor.fetchall()
+        total_frames += 1
         print()
         print(f"frame number: {extracted_label_numb} → frame_id: {frame_id}")
 
@@ -101,6 +106,7 @@ with get_connection() as conn:
                 (frame_id, class_id, label, x_center, y_center, width, height, created_at, session_id)
             )
             annotation_id = insert_cursor.lastrowid
+            total_annotations += 1
 
             # ── INSERT KEYPOINT IF PRESENT ────────────────────────
             if has_keypoint and label == 'danio_rerio':
@@ -108,10 +114,26 @@ with get_connection() as conn:
                     "INSERT INTO keypoints (annotation_id, name, x, y, visible, created_at) VALUES (%s, %s, %s, %s, %s, %s)",
                     (annotation_id, 'eye', kp_x, kp_y, kp_visible, created_at)
                 )
+                total_keypoints += 1
                 print(f"  keypoint eye → ({kp_x:.4f}, {kp_y:.4f}) visible={kp_visible}")
 
             print(values)
 
     # ── COMMIT ─────────────────────────────────────────────────
     conn.commit()
-    print("\nAnnotations stored successfully.")
+
+    print("\n" + "─" * 50)
+    print("  SUMMARY")
+    print("─" * 50)
+    print(f"  Session ID   : {session_id}")
+    print(f"  Created at   : {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"  Labels path  : {labels_path}")
+    print(f"  Frames folder: {frames_folder}")
+    print(f"  Frames processed : {total_frames}")
+    print(f"  Annotations inserted : {total_annotations}")
+    print(f"  Keypoints inserted   : {total_keypoints}")
+    print("─" * 50)
+    print(f"\n  Cross-check in SQL:")
+    print(f"  SELECT COUNT(*) FROM annotations WHERE session_id = '{session_id}';")
+    print(f"  SELECT COUNT(*) FROM keypoints k JOIN annotations a ON a.id = k.annotation_id WHERE a.session_id = '{session_id}';")
+    print("─" * 50)

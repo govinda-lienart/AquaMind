@@ -24,9 +24,12 @@ val_path   = os.path.join(dataset_path, 'images', 'val')
 num_train  = len([f for f in os.listdir(train_path) if f.endswith('.png')])
 num_val    = len([f for f in os.listdir(val_path)   if f.endswith('.png')])
 
-print(f"Dataset : {dataset_path}")
-print(f"Train   : {num_train} images")
-print(f"Val     : {num_val} images")
+print("─" * 50)
+print("  DATASET")
+print("─" * 50)
+print(f"  Path  : {dataset_path}")
+print(f"  Train : {num_train} images")
+print(f"  Val   : {num_val} images")
 
 # ── Log metrics from results.csv ─────────────────────────────────────────────
 results_path = os.path.join(run_path, 'results.csv')
@@ -35,10 +38,14 @@ df.columns = df.columns.str.strip()
 
 with mlflow.start_run(run_name=run_name):
 
+    print("─" * 50)
+    print("  PARAMETERS")
+    print("─" * 50)
     mlflow.log_param('yolo_model',     yolo_model)
     mlflow.log_param('dataset_folder', dataset_path)
     mlflow.log_param('num_train',      num_train)
     mlflow.log_param('num_val',        num_val)
+    print(f"  model={yolo_model}  train={num_train}  val={num_val}")
 
     for _, row in df.iterrows():
         epoch = int(row['epoch'])
@@ -58,7 +65,15 @@ with mlflow.start_run(run_name=run_name):
             'lr2':            row['lr/pg2'],
         }, step=epoch)
 
+    print("─" * 50)
+    print("  METRICS")
+    print("─" * 50)
+    print(f"  {len(df)} epochs logged")
+
     # ── Log dataset card if present ───────────────────────────────────────────
+    print("─" * 50)
+    print("  ARTIFACTS")
+    print("─" * 50)
     dataset_card_path = os.path.join(dataset_path, 'dataset_card.yaml')
     if os.path.exists(dataset_card_path):
         with open(dataset_card_path, 'r') as f:
@@ -68,6 +83,9 @@ with mlflow.start_run(run_name=run_name):
     else:
         print(f"No dataset_card.yaml found in {dataset_path} — skipping.")
 
+    print("─" * 50)
+    print("  VIDEO SOURCES")
+    print("─" * 50)
     # ── Pull video metadata for videos used in this dataset ──────────────────
     with get_connection() as conn:
         cursor = conn.cursor(dictionary=True)
@@ -90,10 +108,14 @@ with mlflow.start_run(run_name=run_name):
         yaml.dump({'videos': video_sources}, f, default_flow_style=False)
     mlflow.log_artifact(video_sources_path)
     os.remove(video_sources_path)
-    print(f"Video sources logged: {len(video_sources)} videos")
+    for v in video_sources:
+        print(f"  {v['file_path']}  filmed={v['filmed_at']}  fish={v['fish_count']}  obstacles={v['obstacles']}")
 
     # ── Log all artifacts (images, yaml files, weights) ───────────────────────
     run_folder = run_path
     mlflow.log_artifacts(run_folder)
 
-print("All metrics and artifacts logged. You can now delete the runs/ folder.")
+print("─" * 50)
+print("  DONE")
+print("─" * 50)
+print("  All metrics and artifacts logged. You can now delete the runs/ folder.")

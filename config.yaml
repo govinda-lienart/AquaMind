@@ -1,24 +1,22 @@
 
-
-
 # extract_frames_script
 extract_frames:
-  video_path: videos/IMG_0909.MOV
+  video_path: videos/IMG_1122.MOV
   frames_dir: frames
 
 # store_annotations_script
 store_annotations:
-  labels_path: fixtures/labels
-  frames_folder: frames/frames_test
+  labels_path: labelstudio_export/studio_label_IMG_0909_2026_06_05_at_11_14 # test -> fixtures/labels
+  frames_folder: frames/frames_IMG_0909_20260601_2109 # test -> frames/frames_test
 
 # prepare_dataset_script
 prepare_dataset:
-  dataset_name: aquamind_combined_2026_05_30_13h59
-  annotation_session_id: annot_20260523
-  frames_folders:
-    - frames/frames_IMG_0350_20260516_2148
-    - frames/frames_IMG_0651_20260528_1412
-    - frames/frames_IMG_0764_20260528_2116
+  dataset_name: aquamind_combined_2026_06_05
+  mode: bbox # change to 'pose' for pose training
+  annotation_sessions:
+    - annot_20260523
+    - annot_20260529
+    - annot_20260605_1521
 
 # log_artifact_mlflow_script
 log_artifact_mlflow:
