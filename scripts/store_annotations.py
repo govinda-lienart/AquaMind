@@ -1,135 +1,71 @@
-# IMPORTS
+# ── IMPORTS ───────────────────────────────────────────────────────────────────
 
 import os
 import datetime
 
-# ── LOAD CONFIG ──────────────────────────────────────────────
 import yaml
-with open('config.yaml') as f:
-    cfg = yaml.safe_load(f)
 
-# ── DB CONNECTION ──────────────────────────────────────────────
 from scripts.db import get_connection
 
-with get_connection() as conn:
-    reading_cursor = conn.cursor()
-    insert_cursor  = conn.cursor()
 
-    # ── GENERATE SESSION ID ────────────────────────────────────────
-    session_id = 'annot_' + datetime.datetime.now().strftime('%Y%m%d_%H%M')
-    print(f"Session ID: {session_id}")
+# ── CONSTANTS ─────────────────────────────────────────────────────────────────
 
-    # ── ENSURE KEYPOINTS TABLE EXISTS ─────────────────────────────
-    insert_cursor.execute("""
-        CREATE TABLE IF NOT EXISTS keypoints (
-            id            INT AUTO_INCREMENT PRIMARY KEY,
-            annotation_id INT NOT NULL,
-            name          VARCHAR(50) NOT NULL,
-            x             FLOAT NOT NULL,
-            y             FLOAT NOT NULL,
-            visible       INT NOT NULL DEFAULT 2,
-            created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (annotation_id) REFERENCES annotations(id)
-        )
-    """)
+CONFIG_PATH = 'config.yaml'
 
-    # ── LOOP THROUGH LABEL FILES ───────────────────────────────────
-    labels_path   = cfg['store_annotations']['labels_path']
-    frames_folder = cfg['store_annotations']['frames_folder']
+LABEL_MAP = {0: "danio_rerio", 1: "reflection"}
 
-    listing_labeltxt = os.listdir(labels_path)   # ['e6d83681-frame_360.txt', ...]
 
-    total_frames      = 0
-    total_annotations = 0
-    total_keypoints   = 0
+# ── HELPERS ───────────────────────────────────────────────────────────────────
 
-    for x in listing_labeltxt:
+def parse_frame_number(label_file):
+    stem = os.path.splitext(label_file.split("-")[1])[0]  # 'e6d83681-frame_360.txt' → 'frame_360'
+    return int(stem.split("_")[1])                         # 'frame_360' → 360
 
-        # ── PARSE FILENAME → FRAME NUMBER ─────────────────────────
-        extract_frame_numb   = x.split("-")[1]                                        # frame_360.txt
-        extracted_label_numb = int(os.path.splitext(extract_frame_numb)[0].split("_")[1])  # 360
 
-        # ── QUERY DB → GET FRAME ID ────────────────────────────────
-        frame_path_pattern = f"{frames_folder}/frame_{extracted_label_numb}%.png"
-        reading_cursor.execute(
-            "SELECT id FROM frames WHERE frame_path LIKE %s", (frame_path_pattern,)
-        )
-        frame_id = reading_cursor.fetchone()[0]
-        reading_cursor.fetchall()
-        total_frames += 1
-        print()
-        print(f"frame number: {extracted_label_numb} → frame_id: {frame_id}")
+def get_frame_id(cursor, frames_folder, frame_number):
+    pattern = f"{frames_folder}/frame_{frame_number}%.png"
+    cursor.execute("SELECT id FROM frames WHERE frame_path LIKE %s", (pattern,))
+    row = cursor.fetchone()
+    cursor.fetchall()  # drain cursor before reusing
+    if row is None:
+        raise ValueError(f"No DB record found for frame_{frame_number} in {frames_folder}")
+    return row[0]
 
-        # ── READ ANNOTATION FILE ───────────────────────────────────
-        annotation_txt = os.path.join(labels_path, x)
-        with open(annotation_txt, 'r') as f:
-            lines = f.readlines()
-        print(lines)
 
-        # ── PARSE EACH LINE ────────────────────────────────────────
-        label_map = {0: "danio_rerio", 1: "reflection"}
+def parse_annotation_line(tokens):
+    if len(tokens) == 5:
+        return {
+            'class_id':     int(tokens[0]),
+            'x_center':     float(tokens[1]),
+            'y_center':     float(tokens[2]),
+            'width':        float(tokens[3]),
+            'height':       float(tokens[4]),
+            'has_keypoint': False,
+        }
+    if len(tokens) == 8:
+        return {
+            'class_id':     int(tokens[0]),
+            'x_center':     float(tokens[1]),
+            'y_center':     float(tokens[2]),
+            'width':        float(tokens[3]),
+            'height':       float(tokens[4]),
+            'kp_x':         float(tokens[5]),
+            'kp_y':         float(tokens[6]),
+            'kp_visible':   int(tokens[7]),   # visibility flag: 2 = visible, 0 = not visible
+            'has_keypoint': True,
+        }
+    return None
 
-        for value in lines:
-            values = value.split()  # splits on whitespace, strips \n
 
-            if len(values) == 5:
-                # bbox only: class_id x y w h
-                class_id = int(values[0])
-                x_center = float(values[1])
-                y_center = float(values[2])
-                width    = float(values[3])
-                height   = float(values[4])
-                has_keypoint = False
-
-            elif len(values) == 8:
-                # bbox + eye keypoint: class_id x y w h kp_x kp_y visible
-                class_id     = int(values[0])
-                x_center     = float(values[1])
-                y_center     = float(values[2])
-                width        = float(values[3])
-                height       = float(values[4])
-                kp_x         = float(values[5])
-                kp_y         = float(values[6])
-                kp_visible   = int(values[7])
-                has_keypoint = True
-
-            else:
-                print(f"WARNING: {x} has {len(values)} values — expected 5 or 8. Skipping.")
-                continue
-
-            label      = label_map[class_id]
-            created_at = datetime.datetime.now()
-
-            # ── INSERT BBOX INTO ANNOTATIONS ──────────────────────
-            insert_cursor.execute(
-                "INSERT INTO annotations (frame_id, class_id, label, x_center, y_center, width, height, created_at, session_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (frame_id, class_id, label, x_center, y_center, width, height, created_at, session_id)
-            )
-            annotation_id = insert_cursor.lastrowid
-            total_annotations += 1
-
-            # ── INSERT KEYPOINT IF PRESENT ────────────────────────
-            if has_keypoint and label == 'danio_rerio':
-                insert_cursor.execute(
-                    "INSERT INTO keypoints (annotation_id, name, x, y, visible, created_at) VALUES (%s, %s, %s, %s, %s, %s)",
-                    (annotation_id, 'eye', kp_x, kp_y, kp_visible, created_at)
-                )
-                total_keypoints += 1
-                print(f"  keypoint eye → ({kp_x:.4f}, {kp_y:.4f}) visible={kp_visible}")
-
-            print(values)
-
-    # ── COMMIT ─────────────────────────────────────────────────
-    conn.commit()
-
+def print_summary(session_id, labels_path, frames_folder, total_frames, total_annotations, total_keypoints):
     print("\n" + "─" * 50)
     print("  SUMMARY")
     print("─" * 50)
-    print(f"  Session ID   : {session_id}")
-    print(f"  Created at   : {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"  Labels path  : {labels_path}")
-    print(f"  Frames folder: {frames_folder}")
-    print(f"  Frames processed : {total_frames}")
+    print(f"  Session ID       : {session_id}")
+    print(f"  Created at       : {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"  Labels path      : {labels_path}")
+    print(f"  Frames folder    : {frames_folder}")
+    print(f"  Frames processed     : {total_frames}")
     print(f"  Annotations inserted : {total_annotations}")
     print(f"  Keypoints inserted   : {total_keypoints}")
     print("─" * 50)
@@ -137,3 +73,74 @@ with get_connection() as conn:
     print(f"  SELECT COUNT(*) FROM annotations WHERE session_id = '{session_id}';")
     print(f"  SELECT COUNT(*) FROM keypoints k JOIN annotations a ON a.id = k.annotation_id WHERE a.session_id = '{session_id}';")
     print("─" * 50)
+
+
+# ── MAIN ──────────────────────────────────────────────────────────────────────
+
+def main():
+
+    with open(CONFIG_PATH) as f:
+        cfg = yaml.safe_load(f)
+
+    labels_path   = cfg['store_annotations']['labels_path']
+    frames_folder = cfg['store_annotations']['frames_folder']
+    session_id    = 'annot_' + datetime.datetime.now().strftime('%Y%m%d_%H%M')
+
+    print(f"Session ID: {session_id}")
+
+    total_frames      = 0
+    total_annotations = 0
+    total_keypoints   = 0
+
+    with get_connection() as conn:
+        reading_cursor = conn.cursor()
+        insert_cursor  = conn.cursor()
+
+        for label_file in os.listdir(labels_path):
+
+            frame_number = parse_frame_number(label_file)
+            frame_id     = get_frame_id(reading_cursor, frames_folder, frame_number)
+            total_frames += 1
+            print(f"\nframe number: {frame_number} → frame_id: {frame_id}")
+
+            annotation_path = os.path.join(labels_path, label_file)
+            with open(annotation_path) as f:
+                lines = f.readlines()
+
+            for line in lines:
+                tokens = line.split()
+                ann    = parse_annotation_line(tokens)
+
+                if ann is None:
+                    print(f"WARNING: {label_file} — {len(tokens)} tokens, expected 5 or 8. Skipping.")
+                    continue
+
+                label      = LABEL_MAP[ann['class_id']]
+                created_at = datetime.datetime.now()
+
+                insert_cursor.execute(
+                    "INSERT INTO annotations (frame_id, class_id, label, x_center, y_center, width, height, created_at, session_id) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (frame_id, ann['class_id'], label, ann['x_center'], ann['y_center'], ann['width'], ann['height'], created_at, session_id)
+                )
+                annotation_id  = insert_cursor.lastrowid
+                total_annotations += 1
+
+                if ann['has_keypoint'] and label == 'danio_rerio':
+                    insert_cursor.execute(
+                        "INSERT INTO keypoints (annotation_id, name, x, y, visible, created_at) "
+                        "VALUES (%s, %s, %s, %s, %s, %s)",
+                        (annotation_id, 'eye', ann['kp_x'], ann['kp_y'], ann['kp_visible'], created_at)
+                    )
+                    total_keypoints += 1
+                    print(f"  keypoint eye → ({ann['kp_x']:.4f}, {ann['kp_y']:.4f}) visible={ann['kp_visible']}")
+
+        conn.commit()
+
+    print_summary(session_id, labels_path, frames_folder, total_frames, total_annotations, total_keypoints)
+
+
+# ── ENTRY POINT ───────────────────────────────────────────────────────────────
+
+if __name__ == '__main__':
+    main()
