@@ -6,7 +6,7 @@ import datetime
 import cv2
 import yaml
 
-from scripts.db import get_connection
+from scripts.db import get_connection, get_video_id
 
 
 # ── CONSTANTS ─────────────────────────────────────────────────────────────────
@@ -21,14 +21,6 @@ def ensure_unique_constraint(cursor):
         cursor.execute("ALTER TABLE frames ADD UNIQUE unique_video_frame (video_id, frame_number);")
     except Exception:
         print("Unique constraint already exists — continuing")
-
-
-def get_video_id(cursor, video_path):
-    cursor.execute("SELECT id FROM videos WHERE file_path = %s", (video_path,))
-    row = cursor.fetchone()
-    if not row:
-        raise ValueError(f"Video {video_path} not registered. Run sync_videos.py first.")
-    return row[0]
 
 
 def frames_already_extracted(cursor, video_id):

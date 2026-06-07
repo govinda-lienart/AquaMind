@@ -5,7 +5,7 @@ import datetime
 
 import yaml
 
-from scripts.db import get_connection
+from scripts.db import get_connection, get_frame_id
 
 
 # ── CONSTANTS ─────────────────────────────────────────────────────────────────
@@ -20,16 +20,6 @@ LABEL_MAP = {0: "danio_rerio", 1: "reflection"}
 def parse_frame_number(label_file):
     stem = os.path.splitext(label_file.split("-")[1])[0]  # 'e6d83681-frame_360.txt' → 'frame_360'
     return int(stem.split("_")[1])                         # 'frame_360' → 360
-
-
-def get_frame_id(cursor, frames_folder, frame_number):
-    pattern = f"{frames_folder}/frame_{frame_number}%.png"
-    cursor.execute("SELECT id FROM frames WHERE frame_path LIKE %s", (pattern,))
-    row = cursor.fetchone()
-    cursor.fetchall()  # drain cursor before reusing
-    if row is None:
-        raise ValueError(f"No DB record found for frame_{frame_number} in {frames_folder}")
-    return row[0]
 
 
 def parse_annotation_line(tokens):
