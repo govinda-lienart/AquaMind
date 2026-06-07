@@ -1,15 +1,26 @@
+# ── IMPORTS ───────────────────────────────────────────────────────────────────
+
 import os
 import warnings
-import yaml
-warnings.filterwarnings('ignore')
+
 import cv2
 import numpy as np
 import supervision as sv
-from ultralytics import YOLO
+import yaml
 from scipy.optimize import linear_sum_assignment
+from ultralytics import YOLO
+
+warnings.filterwarnings('ignore')
 
 
-# ── Kalman track ──────────────────────────────────────────────────────────────
+# ── CONSTANTS ─────────────────────────────────────────────────────────────────
+
+CONFIG_PATH        = 'config.yaml'
+DEVICE             = 'mps'
+CALIBRATION_SECS   = 5
+
+
+# ── CLASSES ───────────────────────────────────────────────────────────────────
 
 class KalmanTrack:
     F = np.array([[1,0,1,0],[0,1,0,1],[0,0,1,0],[0,0,0,1]], dtype=float)
@@ -24,9 +35,9 @@ class KalmanTrack:
         self.state          = np.array([cx, cy, 0., 0.])
         self.P              = np.eye(4) * 100
         self.bbox            = bbox
-        self.origin          = (cx, cy)  # first detected position
-        self.last_seen_bbox  = bbox      # last real detection (never updated during occlusion)
-        self.is_lost         = False     # True when ghost box contains no detection
+        self.origin          = (cx, cy)
+        self.last_seen_bbox  = bbox
+        self.is_lost         = False
         self.lost_frames     = 0
         x1, y1, x2, y2      = bbox
         self.typical_w       = float(x2 - x1)
@@ -57,7 +68,7 @@ class KalmanTrack:
         self.typical_w       = 0.05 * (x2 - x1) + 0.95 * self.typical_w
         self.typical_h       = 0.05 * (y2 - y1) + 0.95 * self.typical_h
         self.bbox            = bbox
-        self.last_seen_bbox  = bbox  # update only on real detections
+        self.last_seen_bbox  = bbox
         self.hits           += 1
         self.missing_frames  = 0
         self.is_lost         = False
@@ -65,8 +76,8 @@ class KalmanTrack:
 
     def mark_missing(self):
         self.missing_frames += 1
-        self.state[2] *= 0.8  # damp vx
-        self.state[3] *= 0.8  # damp vy
+        self.state[2] *= 0.8
+        self.state[3] *= 0.8
 
     def clip_to_typical(self, bbox, size_ratio=1.8):
         x1, y1, x2, y2 = bbox
@@ -101,8 +112,6 @@ class KalmanTrack:
         return self.state[:2]
 
 
-# ── Zebrafish tracker ─────────────────────────────────────────────────────────
-
 class ZebrafishTracker:
     """
     Two-phase tracker for a fixed known population of zebrafish.
@@ -123,17 +132,15 @@ class ZebrafishTracker:
         self.num_fish              = num_fish
         self.max_distance          = max_distance
         self.max_frame_step        = max_frame_step
-        self.confirm_hits          = confirm_hits          # frames needed to get a permanent ID
-        self.max_tentative_missing = max_tentative_missing # frames before dropping a tentative track
-
-        self.min_displacement = min_displacement
-        self.confirmed  = {}   # {track_id: KalmanTrack}  — permanent fish
-        self.tentative  = []   # [KalmanTrack]             — candidates on probation
-        self.next_id    = 1
-        self.pool_locked = False
+        self.confirm_hits          = confirm_hits
+        self.max_tentative_missing = max_tentative_missing
+        self.min_displacement      = min_displacement
+        self.confirmed             = {}
+        self.tentative             = []
+        self.next_id               = 1
+        self.pool_locked           = False
 
     def update(self, bboxes):
-        # 1. Predict positions for all tracks
         for t in self.confirmed.values():
             t.predict()
         for t in self.tentative:
@@ -150,7 +157,6 @@ class ZebrafishTracker:
         det_centres = np.array([[(b[0]+b[2])/2, (b[1]+b[3])/2] for b in bboxes])
         matched_dets = set()
 
-        # 2. Match detections to CONFIRMED tracks first (priority)
         if self.confirmed:
             conf_ids     = list(self.confirmed.keys())
             conf_centres = np.array([
@@ -161,14 +167,12 @@ class ZebrafishTracker:
             ])
             dist_cost = np.linalg.norm(conf_centres[:, np.newaxis] - det_centres[np.newaxis, :], axis=2)
 
-            # IoU between each predicted box and each detection — better at crossings
             iou_mat = np.zeros((len(conf_ids), len(bboxes)))
             for i, tid in enumerate(conf_ids):
                 for j, b in enumerate(bboxes):
                     iou_mat[i, j] = KalmanTrack.iou(self.confirmed[tid].predicted_bbox, b)
 
-            # Where boxes overlap use IoU cost, otherwise fall back to distance
-            cost     = np.where(iou_mat > 0, (1 - iou_mat) * self.max_distance, dist_cost)
+            cost         = np.where(iou_mat > 0, (1 - iou_mat) * self.max_distance, dist_cost)
             r_idx, c_idx = linear_sum_assignment(cost)
 
             matched_conf = set()
@@ -177,13 +181,11 @@ class ZebrafishTracker:
                     continue
                 tid  = conf_ids[ri]
                 bbox = bboxes[ci]
-                # Reject if the fish would jump more than max_frame_step in one frame
                 pcx, pcy   = self.confirmed[tid].predicted_centre
                 dcx, dcy   = KalmanTrack._centre(bbox)
                 frame_dist = np.linalg.norm([dcx - pcx, dcy - pcy])
                 if frame_dist > self.max_frame_step:
                     continue
-                # Clip oversized detection when another confirmed track is nearby
                 other_centres = [self.confirmed[o].predicted_centre for o in conf_ids if o != tid]
                 det_cx, det_cy = KalmanTrack._centre(bbox)
                 if any(np.linalg.norm([det_cx - ox, det_cy - oy]) < self.max_distance
@@ -197,7 +199,6 @@ class ZebrafishTracker:
                 if tid not in matched_conf:
                     self.confirmed[tid].mark_missing()
 
-            # 2b. Classify unmatched confirmed as lost or occluded
             for tid in conf_ids:
                 if tid not in matched_conf:
                     t = self.confirmed[tid]
@@ -206,18 +207,17 @@ class ZebrafishTracker:
                         t.is_lost    = True
                         t.lost_frames += 1
                     else:
-                        t.is_lost = False  # something is in the predicted area — occluded, not lost
+                        t.is_lost = False
 
-            # 2c. Recovery pass: re-match lost tracks against unclaimed detections
-            lost_ids       = [tid for tid in conf_ids if self.confirmed[tid].is_lost]
-            unmatched_now  = [i for i in range(len(bboxes)) if i not in matched_dets]
+            lost_ids      = [tid for tid in conf_ids if self.confirmed[tid].is_lost]
+            unmatched_now = [i for i in range(len(bboxes)) if i not in matched_dets]
 
             if lost_ids and unmatched_now:
                 lost_centres = np.array([
                     KalmanTrack._centre(self.confirmed[tid].last_seen_bbox) for tid in lost_ids
                 ])
-                rem_centres = det_centres[unmatched_now]
-                cost        = np.linalg.norm(lost_centres[:, np.newaxis] - rem_centres[np.newaxis, :], axis=2)
+                rem_centres  = det_centres[unmatched_now]
+                cost         = np.linalg.norm(lost_centres[:, np.newaxis] - rem_centres[np.newaxis, :], axis=2)
                 r_idx, c_idx = linear_sum_assignment(cost)
                 for ri, ci in zip(r_idx, c_idx):
                     if cost[ri, ci] > self.max_distance * 3:
@@ -227,7 +227,6 @@ class ZebrafishTracker:
                     self.confirmed[tid].update(bboxes[unmatched_now[ci]])
                     matched_dets.add(unmatched_now[ci])
 
-        # 3. Match remaining detections to TENTATIVE tracks
         remaining_dets = [i for i in range(len(bboxes)) if i not in matched_dets]
 
         if self.tentative and remaining_dets:
@@ -251,13 +250,11 @@ class ZebrafishTracker:
             for t in self.tentative:
                 t.mark_missing()
 
-        # 4. Unmatched detections → new tentative tracks (if pool not locked)
         if not self.pool_locked:
             for i in range(len(bboxes)):
                 if i not in matched_dets:
                     self.tentative.append(KalmanTrack(bboxes[i]))
 
-        # 5. Promote tentative → confirmed if they have enough hits
         if not self.pool_locked:
             still_tentative = []
             for t in self.tentative:
@@ -271,11 +268,9 @@ class ZebrafishTracker:
 
         if self.next_id > self.num_fish:
             self.pool_locked = True
-            self.tentative   = []  # no more candidates needed
+            self.tentative   = []
 
-        # 6. Remove tentative tracks that disappeared quickly (false positives)
         self._prune_tentative()
-
         return self._output()
 
     def _prune_tentative(self):
@@ -295,105 +290,129 @@ class ZebrafishTracker:
         return {tid for tid, t in self.confirmed.items() if t.is_lost}
 
 
-# ── Configuration ─────────────────────────────────────────────────────────────
+# ── HELPERS ───────────────────────────────────────────────────────────────────
 
-with open('config.yaml') as f:
-    cfg = yaml.safe_load(f)
+def load_tracker_params(cfg):
+    t = cfg['track_zebrafish']
+    return {
+        'input_video_path':      t['input_video_path'],
+        'model_path':            t['model_path'],
+        'output_video_path':     t['output_video_path'],
+        'start_seconds':         t['start_seconds'],
+        'end_seconds':           t['end_seconds'],
+        'num_fish':              t['num_fish'],
+        'max_distance':          t['max_distance'],
+        'max_frame_step':        t['max_frame_step'],
+        'confirm_hits':          t['confirm_hits'],
+        'min_displacement':      t['min_displacement'],
+        'max_tentative_missing': t['max_tentative_missing'],
+    }
 
-input_video_path    = cfg['track_zebrafish']['input_video_path']
-model_path          = cfg['track_zebrafish']['model_path']
-output_video_path   = cfg['track_zebrafish']['output_video_path']
-start_seconds       = cfg['track_zebrafish']['start_seconds']
-end_seconds         = cfg['track_zebrafish']['end_seconds']
-num_fish            = cfg['track_zebrafish']['num_fish']
-max_distance        = cfg['track_zebrafish']['max_distance']
-max_frame_step      = cfg['track_zebrafish']['max_frame_step']
-confirm_hits        = cfg['track_zebrafish']['confirm_hits']
-min_displacement    = cfg['track_zebrafish']['min_displacement']
-max_tentative_missing = cfg['track_zebrafish']['max_tentative_missing']
 
-# ── Print configuration ───────────────────────────────────────────────────────
+def print_run_config(p):
+    print("=" * 50)
+    print(f"  Video:            {p['input_video_path']}")
+    print(f"  Model:            {p['model_path']}")
+    print(f"  Output:           {p['output_video_path']}")
+    print(f"  Seconds:          {p['start_seconds']} → {p['end_seconds']}")
+    print(f"  Fish:             {p['num_fish']}")
+    print(f"  confirm_hits:     {p['confirm_hits']}")
+    print(f"  min_displacement: {p['min_displacement']}px")
+    print(f"  max_distance:     {p['max_distance']}px")
+    print(f"  max_frame_step:   {p['max_frame_step']}px")
+    print(f"  max_tent_missing: {p['max_tentative_missing']}")
+    print("=" * 50)
+    input("Press Enter to confirm and start...")
 
-print("=" * 50)
-print(f"  Video:            {input_video_path}")
-print(f"  Model:            {model_path}")
-print(f"  Output:           {output_video_path}")
-print(f"  Seconds:          {start_seconds} → {end_seconds}")
-print(f"  Fish:             {num_fish}")
-print(f"  confirm_hits:     {confirm_hits}")
-print(f"  min_displacement: {min_displacement}px")
-print(f"  max_distance:     {max_distance}px")
-print(f"  max_frame_step:   {max_frame_step}px")
-print(f"  max_tent_missing: {max_tentative_missing}")
-print("=" * 50)
-input("Press Enter to confirm and start...")
 
-# ── Load model ────────────────────────────────────────────────────────────────
+def open_video_io(input_path, output_path, start_seconds, end_seconds):
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    cap    = cv2.VideoCapture(input_path)
+    width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps    = round(cap.get(cv2.CAP_PROP_FPS))
+    start_frame = start_seconds * fps
+    max_frames  = int(((end_seconds - start_seconds) * fps) if end_seconds is not None else cap.get(cv2.CAP_PROP_FRAME_COUNT) - start_frame)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+    out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+    return cap, out, fps, max_frames
 
-model   = YOLO(model_path)
-model.to('mps')
-tracker = ZebrafishTracker(num_fish=num_fish, max_distance=max_distance, max_frame_step=max_frame_step, confirm_hits=confirm_hits, max_tentative_missing=max_tentative_missing, min_displacement=min_displacement)
 
-# ── Open video ────────────────────────────────────────────────────────────────
-
-os.makedirs(os.path.dirname(output_video_path), exist_ok=True)
-cap        = cv2.VideoCapture(input_video_path)
-width      = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-height     = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-fps        = round(cap.get(cv2.CAP_PROP_FPS))
-start_frame = start_seconds * fps
-max_frames  = ((end_seconds - start_seconds) * fps) if end_seconds is not None else int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) - start_frame
-cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
-out        = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
-
-# ── Main loop ─────────────────────────────────────────────────────────────────
-
-calibration_frames = fps * 5  # 5 second calibration window
-
-frame_count = 0
-while True:
-    ret, frame = cap.read()
-    if not ret or frame_count >= max_frames:
-        break
-
-    results    = model(frame, verbose=False)
-    detections = sv.Detections.from_ultralytics(results[0])
-    detections = detections[detections.class_id == 0]  # danio_rerio only
-
-    bboxes  = detections.xyxy.tolist() if len(detections) > 0 else []
-    tracked = tracker.update(bboxes)
-
-    in_calibration = frame_count < calibration_frames
-
-    # draw tentative boxes in yellow during calibration
+def draw_frame(frame, tracked, tentative_boxes, lost_ids, in_calibration):
     if in_calibration:
-        for x1, y1, x2, y2 in tracker.tentative_boxes():
+        for x1, y1, x2, y2 in tentative_boxes:
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 215, 255), 1)
 
-    # draw confirmed boxes — green if tracked, orange if lost and searching
-    lost = tracker.lost_ids()
     for track_id, x1, y1, x2, y2 in tracked:
-        colour = (0, 140, 255) if track_id in lost else (0, 255, 0)
+        colour = (0, 140, 255) if track_id in lost_ids else (0, 255, 0)
         cv2.rectangle(frame, (x1, y1), (x2, y2), colour, 2)
-        label  = f"Fish {track_id} [?]" if track_id in lost else f"Fish {track_id}"
-        cv2.putText(frame, label, (x1, y1 - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, colour, 2)
+        label = f"Fish {track_id} [?]" if track_id in lost_ids else f"Fish {track_id}"
+        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, colour, 2)
 
     if in_calibration:
-        cv2.putText(frame, "CALIBRATION", (20, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 165, 255), 3)
+        cv2.putText(frame, "CALIBRATION", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 165, 255), 3)
 
-    out.write(frame)
-    frame_count += 1
-    if frame_count == calibration_frames and not tracker.pool_locked:
-        tracker.pool_locked = True
-        tracker.tentative   = []
-        print(f"  Calibration window closed — {len(tracker.confirmed)} fish confirmed")
 
-    if frame_count % 30 == 0:
-        current_second = start_seconds + frame_count // fps
-        print(f"Frame {frame_count}/{max_frames}  |  second {current_second}")
+# ── MAIN ──────────────────────────────────────────────────────────────────────
 
-cap.release()
-out.release()
-print(f"Done. Saved to {output_video_path}")
+def main():
+
+    with open(CONFIG_PATH) as f:
+        cfg = yaml.safe_load(f)
+
+    p = load_tracker_params(cfg)
+    print_run_config(p)
+
+    model   = YOLO(p['model_path'])
+    model.to(DEVICE)
+    tracker = ZebrafishTracker(
+        num_fish              = p['num_fish'],
+        max_distance          = p['max_distance'],
+        max_frame_step        = p['max_frame_step'],
+        confirm_hits          = p['confirm_hits'],
+        min_displacement      = p['min_displacement'],
+        max_tentative_missing = p['max_tentative_missing'],
+    )
+
+    cap, out, fps, max_frames = open_video_io(
+        p['input_video_path'], p['output_video_path'],
+        p['start_seconds'],    p['end_seconds']
+    )
+    calibration_frames = fps * CALIBRATION_SECS
+
+    frame_count = 0
+    while True:
+        ret, frame = cap.read()
+        if not ret or frame_count >= max_frames:
+            break
+
+        results    = model(frame, verbose=False)
+        detections = sv.Detections.from_ultralytics(results[0])
+        detections = detections[detections.class_id == 0]
+        bboxes     = detections.xyxy.tolist() if len(detections) > 0 else []
+        tracked    = tracker.update(bboxes)
+
+        in_calibration = frame_count < calibration_frames
+        draw_frame(frame, tracked, tracker.tentative_boxes(), tracker.lost_ids(), in_calibration)
+        out.write(frame)
+
+        frame_count += 1
+
+        if frame_count == calibration_frames and not tracker.pool_locked:
+            tracker.pool_locked = True
+            tracker.tentative   = []
+            print(f"  Calibration window closed — {len(tracker.confirmed)} fish confirmed")
+
+        if frame_count % 30 == 0:
+            current_second = p['start_seconds'] + frame_count // fps
+            print(f"Frame {frame_count}/{max_frames}  |  second {current_second}")
+
+    cap.release()
+    out.release()
+    print(f"Done. Saved to {p['output_video_path']}")
+
+
+# ── ENTRY POINT ───────────────────────────────────────────────────────────────
+
+if __name__ == '__main__':
+    main()
