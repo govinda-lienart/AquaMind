@@ -1,3 +1,11 @@
+"""
+Queries MySQL for annotated frames and builds a YOLO-ready dataset folder.
+
+Input  : annotation session IDs from config.yaml
+Needs  : annotations stored in MySQL (run store_annotations.py first)
+Output : dataset/{name}/images + labels folders, dataset_card.yaml, dataset.yaml
+"""
+
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
 
 import os
@@ -36,6 +44,7 @@ def split_train_val(frames):
 
 
 def create_dataset_dirs(dataset_name):
+    """Creates the YOLO folder structure — deletes existing dataset folder first if present."""
     dataset_path = f"dataset/{dataset_name}"
     if os.path.exists(dataset_path):
         shutil.rmtree(dataset_path)
@@ -44,6 +53,7 @@ def create_dataset_dirs(dataset_name):
 
 
 def generate_dataset(frames, split, dataset_name, conn, mode):
+    """Symlinks images and writes YOLO label files for one split (train or val)."""
     reading_cursor = conn.cursor()
     kp_cursor      = conn.cursor()
     for frame_id, frame_path in frames:

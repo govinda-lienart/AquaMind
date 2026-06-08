@@ -1,7 +1,7 @@
 
 # extract_frames_script
 extract_frames:
-  video_path: videos/IMG_1122.MOV
+  video_path: videos/IMG_0909.MOV # videos/test.MOV
   frames_dir: frames
 
 # store_annotations_script

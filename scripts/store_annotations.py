@@ -1,3 +1,11 @@
+"""
+Parses a LabelStudio YOLO export and stores bboxes and eye keypoints in MySQL.
+
+Input  : label .txt files from config labels_path
+Needs  : frames already extracted and registered in MySQL
+Output : rows inserted into annotations and keypoints tables
+"""
+
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
 
 import os
@@ -18,11 +26,13 @@ LABEL_MAP = {0: "danio_rerio", 1: "reflection"}
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
 def parse_frame_number(label_file):
+    """Extracts frame number from a LabelStudio filename: 'e6d83681-frame_360.txt' → 360."""
     stem = os.path.splitext(label_file.split("-")[1])[0]  # 'e6d83681-frame_360.txt' → 'frame_360'
     return int(stem.split("_")[1])                         # 'frame_360' → 360
 
 
 def parse_annotation_line(tokens):
+    """Parses one YOLO label line into a dict. Returns None if token count is unrecognised."""
     if len(tokens) == 5:
         return {
             'class_id':     int(tokens[0]),

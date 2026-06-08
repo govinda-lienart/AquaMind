@@ -1,3 +1,10 @@
+"""
+Shared database utilities for the AquaMind pipeline.
+
+Provides get_connection() and reusable query helpers imported by all scripts.
+Credentials are read from .env (DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME).
+"""
+
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
 
 import os
@@ -19,11 +26,21 @@ def get_connection():
         database = os.getenv("DB_NAME")
     )
 
+def aquatest_connection():
+    load_dotenv()
+    return mysql.connector.connect(
+        host     = os.getenv("DB_HOST"),
+        port     = int(os.getenv("DB_PORT")),
+        user     = os.getenv("DB_USER"),
+        password = os.getenv("DB_PASSWORD"),
+        database = 'aquamind_test'
+    )
 
 def register_video(file_path, session_type, obstacles, fish_count, notes=None,
                    species='danio_rerio', morph=None,
                    tank_width_cm=None, tank_height_cm=None, tank_depth_cm=None,
                    filmed_at=None):
+    """Registers a video in MySQL — reads FPS and resolution directly from the video file."""
     cap        = cv2.VideoCapture(file_path)
     fps        = int(cap.get(cv2.CAP_PROP_FPS))
     width      = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))

@@ -1,3 +1,11 @@
+"""
+Logs a YOLO training run (metrics, artifacts, video metadata) to MLflow.
+
+Input  : YOLO run folder path from config.yaml (contains results.csv + weights)
+Needs  : dataset folder present, MySQL running for video metadata
+Output : MLflow experiment run with params, per-epoch metrics, and artifacts
+"""
+
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
 
 import os
@@ -24,6 +32,7 @@ def count_images(folder):
 
 
 def load_results_csv(run_path):
+    """Loads YOLO results.csv — strips whitespace from column names (YOLO adds leading spaces)."""
     df = pd.read_csv(os.path.join(run_path, 'results.csv'))
     df.columns = df.columns.str.strip()
     return df
@@ -76,6 +85,7 @@ def fetch_video_sources(conn, session_prefix):
 
 
 def log_video_sources(video_sources):
+    """Serialises video metadata to a temp YAML, logs it as an artifact, then deletes the temp file."""
     path = 'video_sources.yaml'
     with open(path, 'w') as f:
         yaml.dump({'videos': video_sources}, f, default_flow_style=False)
