@@ -80,65 +80,66 @@ def print_summary(session_id, labels_path, frames_folder, total_frames, total_an
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
-def main():
+def main(conn=None, labels_path=None, frames_folder=None):
+    if labels_path is None:
+        with open(CONFIG_PATH) as f:
+            cfg = yaml.safe_load(f)
+        labels_path   = cfg['store_annotations']['labels_path']
+        frames_folder = cfg['store_annotations']['frames_folder']
 
-    with open(CONFIG_PATH) as f:
-        cfg = yaml.safe_load(f)
-
-    labels_path   = cfg['store_annotations']['labels_path']
-    frames_folder = cfg['store_annotations']['frames_folder']
-    session_id    = 'annot_' + datetime.datetime.now().strftime('%Y%m%d_%H%M')
-
+    session_id = 'annot_' + datetime.datetime.now().strftime('%Y%m%d_%H%M')
     logger.info(f"session_id={session_id}, labels_path={labels_path}, frames_folder={frames_folder}")
 
     total_frames      = 0
     total_annotations = 0
     total_keypoints   = 0
 
-    with get_connection() as conn:
-        reading_cursor = conn.cursor()
-        insert_cursor  = conn.cursor()
+    if conn is None:
+        conn = get_connection()
 
-        for label_file in os.listdir(labels_path):
+    reading_cursor = conn.cursor()
+    insert_cursor  = conn.cursor()
 
-            frame_number = parse_frame_number(label_file)
-            frame_id     = get_frame_id(reading_cursor, frames_folder, frame_number)
-            total_frames += 1
-            logger.debug(f"frame_number={frame_number} → frame_id={frame_id}")
+    for label_file in os.listdir(labels_path):
 
-            annotation_path = os.path.join(labels_path, label_file)
-            with open(annotation_path) as f:
-                lines = f.readlines()
+        frame_number = parse_frame_number(label_file)
+        frame_id     = get_frame_id(reading_cursor, frames_folder, frame_number)
+        total_frames += 1
+        logger.debug(f"frame_number={frame_number} → frame_id={frame_id}")
 
-            for line in lines:
-                tokens = line.split()
-                ann    = parse_annotation_line(tokens)
+        annotation_path = os.path.join(labels_path, label_file)
+        with open(annotation_path) as f:
+            lines = f.readlines()
 
-                if ann is None:
-                    logger.warning(f"{label_file} — {len(tokens)} tokens, expected 5 or 8. Skipping.")
-                    continue
+        for line in lines:
+            tokens = line.split()
+            ann    = parse_annotation_line(tokens)
 
-                label      = LABEL_MAP[ann['class_id']]
-                created_at = datetime.datetime.now()
+            if ann is None:
+                logger.warning(f"{label_file} — {len(tokens)} tokens, expected 5 or 8. Skipping.")
+                continue
 
+            label      = LABEL_MAP[ann['class_id']]
+            created_at = datetime.datetime.now()
+
+            insert_cursor.execute(
+                "INSERT INTO annotations (frame_id, class_id, label, x_center, y_center, width, height, created_at, session_id) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (frame_id, ann['class_id'], label, ann['x_center'], ann['y_center'], ann['width'], ann['height'], created_at, session_id)
+            )
+            annotation_id  = insert_cursor.lastrowid
+            total_annotations += 1
+
+            if ann['has_keypoint'] and label == 'danio_rerio':
                 insert_cursor.execute(
-                    "INSERT INTO annotations (frame_id, class_id, label, x_center, y_center, width, height, created_at, session_id) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                    (frame_id, ann['class_id'], label, ann['x_center'], ann['y_center'], ann['width'], ann['height'], created_at, session_id)
+                    "INSERT INTO keypoints (annotation_id, name, x, y, visible, created_at) "
+                    "VALUES (%s, %s, %s, %s, %s, %s)",
+                    (annotation_id, 'eye', ann['kp_x'], ann['kp_y'], ann['kp_visible'], created_at)
                 )
-                annotation_id  = insert_cursor.lastrowid
-                total_annotations += 1
+                total_keypoints += 1
+                logger.debug(f"keypoint eye → ({ann['kp_x']:.4f}, {ann['kp_y']:.4f}) visible={ann['kp_visible']}")
 
-                if ann['has_keypoint'] and label == 'danio_rerio':
-                    insert_cursor.execute(
-                        "INSERT INTO keypoints (annotation_id, name, x, y, visible, created_at) "
-                        "VALUES (%s, %s, %s, %s, %s, %s)",
-                        (annotation_id, 'eye', ann['kp_x'], ann['kp_y'], ann['kp_visible'], created_at)
-                    )
-                    total_keypoints += 1
-                    logger.debug(f"keypoint eye → ({ann['kp_x']:.4f}, {ann['kp_y']:.4f}) visible={ann['kp_visible']}")
-
-        conn.commit()
+    conn.commit()
 
     print_summary(session_id, labels_path, frames_folder, total_frames, total_annotations, total_keypoints)
 
@@ -149,3 +150,38 @@ if __name__ == '__main__':
     from scripts.logger import setup_logging
     setup_logging()
     main()
+
+# ── TESTS ─────────────────────────────────────────────────────────────────────
+#  pytest scripts/store_annotations.py -v -s
+
+def test_parse_frame_number():
+    print("\n*****************************************************")
+    print("\n--- testing: parse_frame_number ---")
+    assert parse_frame_number('e6d83681-frame_360.txt') == 360
+    assert parse_frame_number('abc12345-frame_0.txt')   == 0
+
+def test_parse_annotation_line():
+    print("\n*****************************************************")
+    print("\n--- testing: parse_annotation_line ---")
+    bbox_only = parse_annotation_line(['0', '0.5', '0.4', '0.1', '0.08'])
+    assert bbox_only['class_id']     == 0
+    assert bbox_only['has_keypoint'] == False
+
+    with_keypoint = parse_annotation_line(['0', '0.5', '0.4', '0.1', '0.08', '0.31', '0.58', '2'])
+    assert with_keypoint['has_keypoint'] == True
+    assert with_keypoint['kp_x']         == 0.31
+
+    assert parse_annotation_line(['0', '0.5']) is None  # unknown token count → None
+
+def test_main():
+    print("\n*****************************************************")
+    print("\n--- testing: main ---")
+    from scripts.db import aquatest_connection
+    conn = aquatest_connection()
+    try:
+        main(conn, labels_path='fixtures/labels', frames_folder='frames/frames_IMG_0350_20260101_2000')
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM annotations")
+        assert cursor.fetchone()[0] == 2  # fixtures/labels has 1 file with 2 annotation lines
+    finally:
+        conn.close()
