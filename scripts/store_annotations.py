@@ -8,6 +8,7 @@ Output : rows inserted into annotations and keypoints tables
 
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
 
+import logging
 import os
 import datetime
 
@@ -17,6 +18,8 @@ from scripts.db import get_connection, get_frame_id
 
 
 # ── CONSTANTS ─────────────────────────────────────────────────────────────────
+
+logger = logging.getLogger(__name__)
 
 CONFIG_PATH = 'config.yaml'
 
@@ -86,7 +89,7 @@ def main():
     frames_folder = cfg['store_annotations']['frames_folder']
     session_id    = 'annot_' + datetime.datetime.now().strftime('%Y%m%d_%H%M')
 
-    print(f"Session ID: {session_id}")
+    logger.info(f"session_id={session_id}, labels_path={labels_path}, frames_folder={frames_folder}")
 
     total_frames      = 0
     total_annotations = 0
@@ -101,7 +104,7 @@ def main():
             frame_number = parse_frame_number(label_file)
             frame_id     = get_frame_id(reading_cursor, frames_folder, frame_number)
             total_frames += 1
-            print(f"\nframe number: {frame_number} → frame_id: {frame_id}")
+            logger.debug(f"frame_number={frame_number} → frame_id={frame_id}")
 
             annotation_path = os.path.join(labels_path, label_file)
             with open(annotation_path) as f:
@@ -112,7 +115,7 @@ def main():
                 ann    = parse_annotation_line(tokens)
 
                 if ann is None:
-                    print(f"WARNING: {label_file} — {len(tokens)} tokens, expected 5 or 8. Skipping.")
+                    logger.warning(f"{label_file} — {len(tokens)} tokens, expected 5 or 8. Skipping.")
                     continue
 
                 label      = LABEL_MAP[ann['class_id']]
@@ -133,7 +136,7 @@ def main():
                         (annotation_id, 'eye', ann['kp_x'], ann['kp_y'], ann['kp_visible'], created_at)
                     )
                     total_keypoints += 1
-                    print(f"  keypoint eye → ({ann['kp_x']:.4f}, {ann['kp_y']:.4f}) visible={ann['kp_visible']}")
+                    logger.debug(f"keypoint eye → ({ann['kp_x']:.4f}, {ann['kp_y']:.4f}) visible={ann['kp_visible']}")
 
         conn.commit()
 
@@ -143,4 +146,6 @@ def main():
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
+    from scripts.logger import setup_logging
+    setup_logging()
     main()

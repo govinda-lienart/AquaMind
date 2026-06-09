@@ -1,8 +1,8 @@
-import logging
 import pytest
 import subprocess
+from scripts.logger import setup_logging
 
-logging.basicConfig(level=logging.DEBUG, format='%(levelname)s | %(funcName)s | %(message)s')
+setup_logging()
 
 def _kill_connections_to_test_db():
     """Kill any sleeping connections to aquamind_test so DROP DATABASE never blocks."""
@@ -18,12 +18,12 @@ def _kill_connections_to_test_db():
 
 @pytest.fixture(autouse=True)
 def reset_test_db():
-    _kill_connections_to_test_db()
-    subprocess.run(["mysql", "-u", "root", "-paquamind", "--protocol=TCP", "-e",
+    _kill_connections_to_test_db() # Kills lingering connections
+    subprocess.run(["mysql", "-u", "root", "-paquamind", "--protocol=TCP", "-e", # Drops and recreates aquamind_test — guaranteed clean slate
                     "DROP DATABASE IF EXISTS aquamind_test; CREATE DATABASE aquamind_test;"])
-    subprocess.run(["mysql", "-u", "root", "-paquamind", "--protocol=TCP", "aquamind_test"],
+    subprocess.run(["mysql", "-u", "root", "-paquamind", "--protocol=TCP", "aquamind_test"], # Loads table structure from aquamind_schema.sql
                    stdin=open("fixtures/aquamind_schema.sql"))
-    subprocess.run(["mysql", "-u", "root", "-paquamind", "--protocol=TCP", "aquamind_test"],
+    subprocess.run(["mysql", "-u", "root", "-paquamind", "--protocol=TCP", "aquamind_test"], # Loads test data from fixtures.sql (one video, one frame)
                    stdin=open("fixtures/fixtures.sql"))
 
 

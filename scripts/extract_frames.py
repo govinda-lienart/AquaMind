@@ -1,3 +1,11 @@
+"""
+Extracts/stores one frame per second from a video and stores the frame paths in MySQL.
+
+Input  : video file registered in the videos table (run sync_videos.py first)
+Output : PNG files on disk + rows inserted into the frames table
+Guards : unique constraint (no duplicates), video must be registered, skips if already extracted
+"""
+
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
 
 import datetime
@@ -103,11 +111,12 @@ def main(conn, video_path=None, frames_dir=None):
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG, format='%(levelname)s | %(funcName)s | %(message)s')
+    from scripts.logger import setup_logging
+    setup_logging()
     main(get_connection())
 
 # ── TESTS ─────────────────────────────────────────────────────────────────────
-#  pytest extract_practice.py -v -s
+#  pytest scripts/extract_frames.py -v -s
 
 def test_main():
     print ("\n*****************************************************")
