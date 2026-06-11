@@ -14,7 +14,7 @@ import re
 import yaml
 import os
 import cv2
-from scripts.db import get_connection, aquatest_connection, get_video_id
+from scripts.db import get_connection, get_video_id
 
 # ── LOGGER ────────────────────────────────────────────────────────────────────
 
@@ -118,32 +118,24 @@ if __name__ == '__main__':
 # ── TESTS ─────────────────────────────────────────────────────────────────────
 #  pytest scripts/extract_frames.py -v -s
 
-def test_main():
+def test_main(db_conn):
     print ("\n*****************************************************")
     print("\n--- testing: main ---")
-    conn = aquatest_connection()
-    main(conn, video_path='videos/IMG_0350.MOV', frames_dir='frames')
-    conn.close()
+    main(db_conn, video_path='videos/IMG_0350.MOV', frames_dir='frames')
 
-def test_ensure_unique_constraint():
+def test_ensure_unique_constraint(db_conn):
     print ("\n*****************************************************")
     print("\n--- testing: ensure_unique_constraint ---")
-    conn = aquatest_connection()
-    cursor = conn.cursor()
+    cursor = db_conn.cursor()
     ensure_unique_constraint(cursor)
     ensure_unique_constraint(cursor)
-    conn.close()
 
-def test_frames_already_extracted():
+def test_frames_already_extracted(db_conn):
     print("\n*****************************************************")
     print("\n--- testing: frames_already_extracted ---")
-    conn = aquatest_connection()
-    try:
-        cursor = conn.cursor()
-        assert frames_already_extracted(cursor, 9999) == False  # unknown video_id → no frames
-        assert frames_already_extracted(cursor, 19)   == True   # fixtures.sql seeds frames for video_id=19
-    finally:
-        conn.close()
+    cursor = db_conn.cursor()
+    assert frames_already_extracted(cursor, 9999) == False  # unknown video_id → no frames
+    assert frames_already_extracted(cursor, 19)   == True   # fixtures.sql seeds frames for video_id=19
 
 def test_build_path_storage_frames():
     print ("\n*****************************************************")

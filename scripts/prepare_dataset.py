@@ -8,10 +8,11 @@ Output : dataset/{name}/images + labels folders, dataset_card.yaml, dataset.yaml
 
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
 
+import datetime
+import logging
 import os
 import random
 import shutil
-import datetime
 
 import yaml
 
@@ -20,9 +21,11 @@ from scripts.db import get_connection
 
 # ── CONSTANTS ─────────────────────────────────────────────────────────────────
 
-CONFIG_PATH = 'config.yaml'
-TRAIN_SPLIT = 0.8
-RANDOM_SEED = 42
+logger = logging.getLogger(__name__)
+
+CONFIG_PATH  = 'config.yaml'
+TRAIN_SPLIT  = 0.8
+RANDOM_SEED  = 42
 
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -50,6 +53,7 @@ def create_dataset_dirs(dataset_name):
         shutil.rmtree(dataset_path)
     for subfolder in ['images/train', 'images/val', 'labels/train', 'labels/val']:
         os.makedirs(f"{dataset_path}/{subfolder}", exist_ok=True)
+    logger.debug(f"dataset dirs created: {dataset_path}")
 
 
 def generate_dataset(frames, split, dataset_name, conn, mode):
@@ -58,17 +62,17 @@ def generate_dataset(frames, split, dataset_name, conn, mode):
     kp_cursor      = conn.cursor()
     for frame_id, frame_path in frames:
         frame_basename_png = os.path.basename(frame_path)
-        print(f'\n{split} → frame_id: {frame_id}')
+        logger.debug(f"{split} → frame_id={frame_id}")
 
         os.symlink(os.path.abspath(frame_path), f"dataset/{dataset_name}/images/{split}/{frame_basename_png}")
-        print(f"  symlink → {dataset_name}/images/{split}/{frame_basename_png}")
+        logger.debug(f"symlink → {dataset_name}/images/{split}/{frame_basename_png}")
 
         reading_cursor.execute(
             "SELECT id, class_id, x_center, y_center, width, height FROM annotations WHERE frame_id = %s",
             (frame_id,)
         )
         annotations = reading_cursor.fetchall()
-        print(f"  annotations → {annotations}")
+        logger.debug(f"annotations → {annotations}")
 
         frame_basename = os.path.splitext(frame_basename_png)[0]
         txt_file       = f"dataset/{dataset_name}/labels/{split}/{frame_basename}.txt"
@@ -86,7 +90,7 @@ def generate_dataset(frames, split, dataset_name, conn, mode):
                 else:
                     f.write(f"{class_id} {x_center} {y_center} {width} {height}\n")
 
-        print(f"  label file → {txt_file}")
+        logger.debug(f"label file → {txt_file}")
 
 
 def fetch_video_metadata(cursor, sessions):
@@ -122,7 +126,7 @@ def write_dataset_card(dataset_name, mode, sessions, videos_meta, n_train, n_val
     path = f"dataset/{dataset_name}/dataset_card.yaml"
     with open(path, 'w') as f:
         yaml.dump(card, f, default_flow_style=False, sort_keys=False)
-    print(f"Dataset card written to {path}")
+    logger.info(f"dataset card → {path}")
 
 
 def write_yolo_yaml(dataset_name, mode):
@@ -134,16 +138,15 @@ def write_yolo_yaml(dataset_name, mode):
         'names': ['danio_rerio', 'reflection'],
     }
     if mode == 'pose':
-        dataset_yaml['kpt_shape'] = [1, 3]  # 1 keypoint (eye), 3 values (x, y, visible)
+        dataset_yaml['kpt_shape'] = [1, 3]
     with open('dataset.yaml', 'w') as f:
         yaml.dump(dataset_yaml, f, default_flow_style=False, sort_keys=False)
-    print(f"dataset.yaml updated → {dataset_name}")
+    logger.info(f"dataset.yaml updated → {dataset_name}")
 
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
-def main():
-
+def main(conn=None):
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
 
@@ -151,33 +154,97 @@ def main():
     dataset_name = cfg['prepare_dataset']['dataset_name']
     mode         = cfg['prepare_dataset'].get('mode', 'bbox')
 
-    print(f"Building dataset from sessions: {sessions}")
-    print(f"Mode: {mode}")
+    logger.info(f"sessions={sessions}, dataset_name={dataset_name}, mode={mode}")
 
-    with get_connection() as conn:
-        reading_cursor = conn.cursor()
+    if conn is None:
+        conn = get_connection()
 
-        frames                   = fetch_annotated_frames(reading_cursor, sessions)
-        train_frames, val_frames = split_train_val(frames)
+    reading_cursor = conn.cursor()
 
-        print(f"Total annotated frames : {len(frames)}")
-        print(f"Train: {len(train_frames)} | Val: {len(val_frames)}")
+    frames                   = fetch_annotated_frames(reading_cursor, sessions)
+    train_frames, val_frames = split_train_val(frames)
 
-        create_dataset_dirs(dataset_name)
+    logger.info(f"total={len(frames)} | train={len(train_frames)} | val={len(val_frames)}")
 
-        generate_dataset(train_frames, 'train', dataset_name, conn, mode)
-        generate_dataset(val_frames,   'val',   dataset_name, conn, mode)
+    create_dataset_dirs(dataset_name)
 
-        meta_cursor = conn.cursor(dictionary=True)
-        videos_meta = fetch_video_metadata(meta_cursor, sessions)
+    generate_dataset(train_frames, 'train', dataset_name, conn, mode)
+    generate_dataset(val_frames,   'val',   dataset_name, conn, mode)
+
+    meta_cursor = conn.cursor(dictionary=True)
+    videos_meta = fetch_video_metadata(meta_cursor, sessions)
 
     write_dataset_card(dataset_name, mode, sessions, videos_meta, len(train_frames), len(val_frames))
     write_yolo_yaml(dataset_name, mode)
 
-    print(f"\033[92mDataset generated — check dataset/{dataset_name}\033[0m")
+    logger.info(f"dataset generated → dataset/{dataset_name}")
 
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
+    from scripts.logger import setup_logging
+    setup_logging()
     main()
+
+
+# ── TESTS ─────────────────────────────────────────────────────────────────────
+#  pytest scripts/prepare_dataset.py -v -s
+
+def test_split_train_val():
+    print("\n*****************************************************")
+    print("\n--- testing: split_train_val ---")
+    frames = [(i, f'frame_{i}.png') for i in range(10)]
+    train, val = split_train_val(frames)
+    assert len(train) == 8
+    assert len(val)   == 2
+    assert len(train) + len(val) == len(frames)
+
+def test_create_dataset_dirs(tmp_path, monkeypatch):
+    print("\n*****************************************************")
+    print("\n--- testing: create_dataset_dirs ---")
+    monkeypatch.chdir(tmp_path)
+    create_dataset_dirs('test_ds')
+    assert os.path.isdir('dataset/test_ds/images/train')
+    assert os.path.isdir('dataset/test_ds/images/val')
+    assert os.path.isdir('dataset/test_ds/labels/train')
+    assert os.path.isdir('dataset/test_ds/labels/val')
+
+def test_write_dataset_card(tmp_path, monkeypatch):
+    print("\n*****************************************************")
+    print("\n--- testing: write_dataset_card ---")
+    monkeypatch.chdir(tmp_path)
+    os.makedirs('dataset/test_ds')
+    write_dataset_card('test_ds', 'bbox', ['annot_test'], [], n_train=8, n_val=2)
+    with open('dataset/test_ds/dataset_card.yaml') as f:
+        card = yaml.safe_load(f)
+    assert card['dataset_name'] == 'test_ds'
+    assert card['num_train']    == 8
+    assert card['num_val']      == 2
+    assert card['mode']         == 'bbox'
+
+def test_write_yolo_yaml(tmp_path, monkeypatch):
+    print("\n*****************************************************")
+    print("\n--- testing: write_yolo_yaml ---")
+    monkeypatch.chdir(tmp_path)
+    write_yolo_yaml('test_ds', 'bbox')
+    with open('dataset.yaml') as f:
+        data = yaml.safe_load(f)
+    assert data['nc']    == 2
+    assert data['names'] == ['danio_rerio', 'reflection']
+
+def test_write_yolo_yaml_pose(tmp_path, monkeypatch):
+    print("\n*****************************************************")
+    print("\n--- testing: write_yolo_yaml pose mode ---")
+    monkeypatch.chdir(tmp_path)
+    write_yolo_yaml('test_ds', 'pose')
+    with open('dataset.yaml') as f:
+        data = yaml.safe_load(f)
+    assert data['kpt_shape'] == [1, 3]
+
+def test_main(db_conn, tmp_path, monkeypatch):
+    print("\n*****************************************************")
+    print("\n--- testing: main ---")
+    shutil.copy('config.yaml', tmp_path)
+    monkeypatch.chdir(tmp_path)
+    main(db_conn)  # sessions from config won't match aquamind_test → 0 frames, pipeline still runs

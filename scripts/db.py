@@ -7,6 +7,7 @@ Credentials are read from .env (DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME)
 
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
 
+import logging
 import os
 
 import cv2
@@ -14,27 +15,25 @@ import mysql.connector
 from dotenv import load_dotenv
 
 
+# ── CONSTANTS ─────────────────────────────────────────────────────────────────
+
+logger = logging.getLogger(__name__)
+
+
 # ── FUNCTIONS ─────────────────────────────────────────────────────────────────
 
 def get_connection():
     load_dotenv()
+    db_name = os.getenv("DB_NAME")
+    logger.debug(f"connecting to database={db_name}")
     return mysql.connector.connect(
         host     = os.getenv("DB_HOST"),
         port     = int(os.getenv("DB_PORT")),
         user     = os.getenv("DB_USER"),
         password = os.getenv("DB_PASSWORD"),
-        database = os.getenv("DB_NAME")
+        database = db_name
     )
 
-def aquatest_connection():
-    load_dotenv()
-    return mysql.connector.connect(
-        host     = os.getenv("DB_HOST"),
-        port     = int(os.getenv("DB_PORT")),
-        user     = os.getenv("DB_USER"),
-        password = os.getenv("DB_PASSWORD"),
-        database = 'aquamind_test'
-    )
 
 def register_video(file_path, session_type, obstacles, fish_count, notes=None,
                    species='danio_rerio', morph=None,
@@ -46,6 +45,7 @@ def register_video(file_path, session_type, obstacles, fish_count, notes=None,
     width      = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     resolution = '4K' if width >= 3840 else '1080p' if width >= 1920 else '720p'
     cap.release()
+    logger.debug(f"registering {file_path} fps={fps} resolution={resolution}")
 
     conn   = get_connection()
     cursor = conn.cursor()
@@ -59,6 +59,7 @@ def register_video(file_path, session_type, obstacles, fish_count, notes=None,
     video_id = cursor.lastrowid
     cursor.close()
     conn.close()
+    logger.debug(f"register_video result: video_id={video_id}")
     return video_id
 
 
@@ -67,6 +68,7 @@ def get_video_id(cursor, video_path):
     row = cursor.fetchone()
     if row is None:
         raise ValueError(f"Video {video_path} not registered. Run sync_videos.py first.")
+    logger.debug(f"get_video_id: {video_path} → id={row[0]}")
     return row[0]
 
 
@@ -77,4 +79,5 @@ def get_frame_id(cursor, frames_folder, frame_number):
     cursor.fetchall()  # drain cursor before reusing
     if row is None:
         raise ValueError(f"No DB record found for frame_{frame_number} in {frames_folder}")
+    logger.debug(f"get_frame_id: frame_{frame_number} → id={row[0]}")
     return row[0]

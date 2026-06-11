@@ -8,6 +8,7 @@ Output : MLflow experiment run with params, per-epoch metrics, and artifacts
 
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
 
+import logging
 import os
 
 import mlflow
@@ -18,6 +19,8 @@ from scripts.db import get_connection
 
 
 # ── CONSTANTS ─────────────────────────────────────────────────────────────────
+
+logger = logging.getLogger(__name__)
 
 CONFIG_PATH = 'config.yaml'
 MLRUNS_PATH = '/Users/govinda-dashugolienart/Documents/Github_HD/AquaMind/mlruns'
@@ -56,16 +59,16 @@ def log_epoch_metrics(df):
             'lr1':            row['lr/pg1'],
             'lr2':            row['lr/pg2'],
         }, step=epoch)
-    print(f"  {len(df)} epochs logged")
+    logger.info(f"{len(df)} epochs logged")
 
 
 def log_dataset_card(dataset_path):
     card_path = os.path.join(dataset_path, 'dataset_card.yaml')
     if os.path.exists(card_path):
         mlflow.log_artifact(card_path)
-        print(f"  Dataset card logged from {card_path}")
+        logger.info(f"dataset card logged from {card_path}")
     else:
-        print(f"  No dataset_card.yaml found in {dataset_path} — skipping.")
+        logger.warning(f"no dataset_card.yaml found in {dataset_path} — skipping")
 
 
 def fetch_video_sources(conn, session_prefix):
@@ -92,7 +95,7 @@ def log_video_sources(video_sources):
     mlflow.log_artifact(path)
     os.remove(path)
     for v in video_sources:
-        print(f"  {v['file_path']}  filmed={v['filmed_at']}  fish={v['fish_count']}  obstacles={v['obstacles']}")
+        logger.info(f"{v['file_path']}  filmed={v['filmed_at']}  fish={v['fish_count']}  obstacles={v['obstacles']}")
 
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
@@ -110,12 +113,7 @@ def main():
     num_train = count_images(os.path.join(dataset_path, 'images', 'train'))
     num_val   = count_images(os.path.join(dataset_path, 'images', 'val'))
 
-    print("─" * 50)
-    print("  DATASET")
-    print("─" * 50)
-    print(f"  Path  : {dataset_path}")
-    print(f"  Train : {num_train} images")
-    print(f"  Val   : {num_val} images")
+    logger.info(f"dataset path={dataset_path} train={num_train} val={num_val}")
 
     df = load_results_csv(run_path)
 
@@ -124,41 +122,27 @@ def main():
 
     with mlflow.start_run(run_name=run_name):
 
-        print("─" * 50)
-        print("  PARAMETERS")
-        print("─" * 50)
         mlflow.log_param('yolo_model',     YOLO_MODEL)
         mlflow.log_param('dataset_folder', dataset_path)
         mlflow.log_param('num_train',      num_train)
         mlflow.log_param('num_val',        num_val)
-        print(f"  model={YOLO_MODEL}  train={num_train}  val={num_val}")
+        logger.info(f"params logged: model={YOLO_MODEL} train={num_train} val={num_val}")
 
-        print("─" * 50)
-        print("  METRICS")
-        print("─" * 50)
         log_epoch_metrics(df)
-
-        print("─" * 50)
-        print("  ARTIFACTS")
-        print("─" * 50)
         log_dataset_card(dataset_path)
 
-        print("─" * 50)
-        print("  VIDEO SOURCES")
-        print("─" * 50)
         with get_connection() as conn:
             video_sources = fetch_video_sources(conn, session_prefix)
         log_video_sources(video_sources)
 
         mlflow.log_artifacts(run_path)
 
-    print("─" * 50)
-    print("  DONE")
-    print("─" * 50)
-    print("  All metrics and artifacts logged. You can now delete the runs/ folder.")
+    logger.info("all metrics and artifacts logged — you can now delete the runs/ folder")
 
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
+    from scripts.logger import setup_logging
+    setup_logging()
     main()

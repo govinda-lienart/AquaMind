@@ -11,6 +11,7 @@ Output : rows inserted into annotations and keypoints tables
 import logging
 import os
 import datetime
+from pathlib import Path
 
 import yaml
 
@@ -87,7 +88,8 @@ def main(conn=None, labels_path=None, frames_folder=None):
         labels_path   = cfg['store_annotations']['labels_path']
         frames_folder = cfg['store_annotations']['frames_folder']
 
-    session_id = 'annot_' + datetime.datetime.now().strftime('%Y%m%d_%H%M')
+    p          = Path(labels_path)
+    session_id = p.parent.name if p.name == 'labels' else p.name
     logger.info(f"session_id={session_id}, labels_path={labels_path}, frames_folder={frames_folder}")
 
     total_frames      = 0
@@ -173,15 +175,10 @@ def test_parse_annotation_line():
 
     assert parse_annotation_line(['0', '0.5']) is None  # unknown token count → None
 
-def test_main():
+def test_main(db_conn):
     print("\n*****************************************************")
     print("\n--- testing: main ---")
-    from scripts.db import aquatest_connection
-    conn = aquatest_connection()
-    try:
-        main(conn, labels_path='fixtures/labels', frames_folder='frames/frames_IMG_0350_20260101_2000')
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM annotations")
-        assert cursor.fetchone()[0] == 2  # fixtures/labels has 1 file with 2 annotation lines
-    finally:
-        conn.close()
+    main(db_conn, labels_path='fixtures/labels', frames_folder='frames/frames_IMG_0350_20260101_2000')
+    cursor = db_conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM annotations")
+    assert cursor.fetchone()[0] == 2  # fixtures/labels has 1 file with 2 annotation lines

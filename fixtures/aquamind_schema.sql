@@ -24,15 +24,15 @@ DROP TABLE IF EXISTS `annotations`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `annotations` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `frame_id` int DEFAULT NULL,
-  `class_id` int DEFAULT NULL,
+  `frame_id` int NOT NULL,
+  `class_id` int NOT NULL,
   `label` varchar(255) DEFAULT NULL,
-  `x_center` float DEFAULT NULL,
-  `y_center` float DEFAULT NULL,
-  `width` float DEFAULT NULL,
-  `height` float DEFAULT NULL,
+  `x_center` float NOT NULL,
+  `y_center` float NOT NULL,
+  `width` float NOT NULL,
+  `height` float NOT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
-  `session_id` varchar(30) DEFAULT NULL,
+  `session_id` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `fk_annotations_frame` (`frame_id`),
   CONSTRAINT `annotations_ibfk_1` FOREIGN KEY (`frame_id`) REFERENCES `frames` (`id`)

@@ -1,17 +1,11 @@
 import subprocess
-from scripts.db import get_connection
 
-def test_annotations_inserted():
-    # run the script against aquamind_test
+def test_annotations_inserted(db_conn):
     subprocess.run(["python", "scripts/store_annotations.py"])
 
-    with get_connection() as conn:
-        cursor = conn.cursor()
+    cursor = db_conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM annotations")
+    assert cursor.fetchone()[0] == 2
 
-        # verify 2 annotation rows were inserted (one bbox-only, one bbox+keypoint)
-        cursor.execute("SELECT COUNT(*) FROM annotations")
-        assert cursor.fetchone()[0] == 2
-
-        # verify 1 keypoint row was inserted (only danio_rerio with 8 values gets one)
-        cursor.execute("SELECT COUNT(*) FROM keypoints")
-        assert cursor.fetchone()[0] == 1
+    cursor.execute("SELECT COUNT(*) FROM keypoints")
+    assert cursor.fetchone()[0] == 1
