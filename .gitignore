@@ -25,4 +25,4 @@ __pycache__/
 open_links.sh
 *.xlsx
 .env
-.env.testgit 
+.env.test
