@@ -24,7 +24,5 @@ labelstudio_export/
 __pycache__/
 open_links.sh
 *.xlsx
-sync_videos.py
-scripts/export_labelstudio.py
 .env
-.env.test
+.env.testgit 
