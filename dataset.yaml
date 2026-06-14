@@ -1,7 +1,10 @@
-path: dataset/aquamind_combined_2026_05_30_13h59
+path: dataset/aquamind_dataset_IMG_0350_0764_0909
 train: images/train
 val: images/val
 nc: 2
 names:
 - danio_rerio
 - reflection
+kpt_shape:
+- 1
+- 3
