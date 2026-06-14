@@ -14,27 +14,24 @@ from datetime import datetime
 from pathlib import Path
 
 import requests
+import yaml
 from dotenv import load_dotenv
 
+CONFIG_PATH = 'config.yaml'
 
-# ══════════════════════════════════════════════════════════════════════════════
-# CONFIGURATION — edit here before running
-# ══════════════════════════════════════════════════════════════════════════════
+with open(CONFIG_PATH) as f:
+    _cfg = yaml.safe_load(f)['export_labelstudio']
 
-PROJECT_NAME = "AquaMind_IMG_0909"               # Label Studio project name ["AquaMind_IMG_0350, AquaMind_IMG_0764, AquaMind_IMG_0909]
-EXPORT_TYPE  = "pose"                            # "pose" or "bbox"
-MIN_TASK_ID  = None                              # export from this task ID (None = no lower limit)
-MAX_TASK_ID  = None                               # export up to this task ID (None = no upper limit)
+PROJECT_NAME = _cfg['project_name']
+EXPORT_TYPE  = _cfg['export_type']
+MIN_TASK_ID  = _cfg.get('min_task_id') or None
+MAX_TASK_ID  = _cfg.get('max_task_id') or None
+MODE         = _cfg.get('mode', 'export')
+SEARCH_TERM  = _cfg.get('search_term', '')
 
-MODE         = "export"                          # "export" or "search"
-SEARCH_TERM  = "frame_2220"                      # used only when MODE = "search"
-
-# ── auto-generated from above — do not edit ──
-_video_name = PROJECT_NAME.split("_", 1)[1]      # "AquaMind_IMG_0350" → "IMG_0350"
+_video_name = PROJECT_NAME.split("_", 1)[1]
 _ts         = datetime.now().strftime("%d%m%Y_%Hh%M")
 OUTPUT_DIR  = f"labelstudio_export/labelstudio_{EXPORT_TYPE}_{_video_name}_{_ts}"
-
-# ══════════════════════════════════════════════════════════════════════════════
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +108,28 @@ def export_yolo(project_id, task_ids, output_dir):
     with zipfile.ZipFile(zip_path, "r") as z:
         z.extractall(output_dir)
     os.remove(zip_path)
-    logger.info(f"done — files extracted to {output_dir}")
+
+    labels_dir    = os.path.join(output_dir, "labels")
+    txt_files     = [f for f in os.listdir(labels_dir) if f.endswith('.txt')]
+    total_bbox    = 0
+    total_kp      = 0
+    for txt in txt_files:
+        for line in open(os.path.join(labels_dir, txt)).readlines():
+            tokens = line.split()
+            if len(tokens) == 8:
+                total_kp   += 1
+            elif len(tokens) == 5:
+                total_bbox += 1
+
+    print("\n" + "─" * 50)
+    print("  EXPORT SUMMARY")
+    print("─" * 50)
+    print(f"  Frames exported      : {len(txt_files)}")
+    print(f"  Bbox annotations     : {total_bbox + total_kp}")
+    print(f"  With keypoints       : {total_kp}")
+    print(f"  Without keypoints    : {total_bbox}")
+    print(f"  Output               : {output_dir}")
+    print("─" * 50)
 
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────

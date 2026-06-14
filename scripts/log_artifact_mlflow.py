@@ -71,15 +71,17 @@ def log_dataset_card(dataset_path):
         logger.warning(f"no dataset_card.yaml found in {dataset_path} — skipping")
 
 
-def fetch_video_sources(conn, session_prefix):
+def fetch_video_sources(conn, sessions):
+    placeholders = ','.join(['%s'] * len(sessions))
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT DISTINCT v.file_path, v.filmed_at, v.session_type, v.obstacles, v.fish_count, v.notes
-        FROM videos v
-        JOIN frames fr ON fr.video_id = v.id
-        JOIN annotations a ON a.frame_id = fr.id
-        WHERE a.session_id LIKE %s
-    """, (f"{session_prefix}%",))
+    cursor.execute(
+        f"""SELECT DISTINCT v.file_path, v.filmed_at, v.session_type, v.obstacles, v.fish_count, v.notes
+            FROM videos v
+            JOIN frames fr ON fr.video_id = v.id
+            JOIN annotations a ON a.frame_id = fr.id
+            WHERE a.session_id IN ({placeholders})""",
+        sessions
+    )
     rows = cursor.fetchall()
     for row in rows:
         if row['filmed_at']:
@@ -105,10 +107,10 @@ def main():
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
 
-    run_path       = cfg['log_artifact_mlflow']['run_path']
-    run_name       = run_path.strip('/').split('/')[-1]
-    dataset_path   = f"dataset/{cfg['prepare_dataset']['dataset_name']}"
-    session_prefix = cfg['prepare_dataset']['annotation_session_id']
+    run_path     = cfg['log_artifact_mlflow']['run_path']
+    run_name     = run_path.strip('/').split('/')[-1]
+    dataset_path = f"dataset/{cfg['prepare_dataset']['dataset_name']}"
+    sessions     = cfg['prepare_dataset']['annotation_sessions']
 
     num_train = count_images(os.path.join(dataset_path, 'images', 'train'))
     num_val   = count_images(os.path.join(dataset_path, 'images', 'val'))
@@ -132,7 +134,7 @@ def main():
         log_dataset_card(dataset_path)
 
         with get_connection() as conn:
-            video_sources = fetch_video_sources(conn, session_prefix)
+            video_sources = fetch_video_sources(conn, sessions)
         log_video_sources(video_sources)
 
         mlflow.log_artifacts(run_path)

@@ -26,3 +26,5 @@ open_links.sh
 .env
 .env.test
 /dataset
+AquaMind/
+scripts/trigger_kaggle.py

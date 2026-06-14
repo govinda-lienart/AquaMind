@@ -4,23 +4,33 @@ extract_frames:
   video_path: videos/IMG_1189.MOV # videos/test.MOV
   frames_dir: frames
 
+# export_labelstudio_script
+export_labelstudio:
+  project_name: AquaMind_IMG_0764     # Label Studio project name
+  export_type: pose                      # pose or bbox
+  min_task_id:                           # leave empty for no lower limit
+  max_task_id:                            # leave empty for no upper limit
+  mode: export                           # export or search
+  search_term: frame_2220                # used only when mode = search
+
 # store_annotations_script
 store_annotations:
-  labels_path: labelstudio_export/labelstudio_pose_IMG_0350_11062026_08h50/labels # test -> fixtures/labels
-  frames_folder: frames/frames_IMG_0350_20260516_2148 # test -> frames/frames_test
+  labels_path: labelstudio_export/labelstudio_pose_IMG_0764_11062026_11h04/labels # test -> fixtures/labels
+  frames_folder: frames/frames_IMG_0764_20260528_2116 # test -> frames/frames_test
 
 # prepare_dataset_script
 prepare_dataset:
-  dataset_name: aquamind_combined_2026_06_05
-  mode: bbox # change to 'pose' for pose training
+  dataset_name: aquamind_dataset_IMG_0350_2026_07_14_1457
+  mode: pose  # change to 'pose' for pose training or 'bbox'
+  
   annotation_sessions:
-    - annot_20260523
-    - annot_20260529
-    - annot_20260605_1521
+    - labelstudio_pose_IMG_0350_11062026_08h50
+    - labelstudio_pose_IMG_0764_11062026_11h04
+    - labelstudio_pose_IMG_0909_11062026_10h35
 
 # log_artifact_mlflow_script
 log_artifact_mlflow:
-  run_path: runs/aquamind_yolov8_IMG_0764_2026_05_30_13h25
+  run_path: runs/aquamind_yolov8_run1_20260614_1446
 
 # track_zebrafish_script
 track_zebrafish:

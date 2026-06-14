@@ -57,15 +57,15 @@ def create_dataset_dirs(dataset_name):
 
 
 def generate_dataset(frames, split, dataset_name, conn, mode):
-    """Symlinks images and writes YOLO label files for one split (train or val)."""
+    """Copies images and writes YOLO label files for one split (train or val)."""
     reading_cursor = conn.cursor()
     kp_cursor      = conn.cursor()
     for frame_id, frame_path in frames:
         frame_basename_png = os.path.basename(frame_path)
         logger.debug(f"{split} → frame_id={frame_id}")
 
-        os.symlink(os.path.abspath(frame_path), f"dataset/{dataset_name}/images/{split}/{frame_basename_png}")
-        logger.debug(f"symlink → {dataset_name}/images/{split}/{frame_basename_png}")
+        shutil.copy2(frame_path, f"dataset/{dataset_name}/images/{split}/{frame_basename_png}")
+        logger.debug(f"copy → {dataset_name}/images/{split}/{frame_basename_png}")
 
         reading_cursor.execute(
             "SELECT id, class_id, x_center, y_center, width, height FROM annotations WHERE frame_id = %s",
@@ -79,13 +79,16 @@ def generate_dataset(frames, split, dataset_name, conn, mode):
 
         with open(txt_file, 'w') as f:
             for annotation_id, class_id, x_center, y_center, width, height in annotations:
-                if mode == 'pose' and class_id == 0:
-                    kp_cursor.execute(
-                        "SELECT x, y, visible FROM keypoints WHERE annotation_id = %s AND name = 'eye'",
-                        (annotation_id,)
-                    )
-                    kp = kp_cursor.fetchone()
-                    kp_x, kp_y, kp_v = kp if kp else (0.0, 0.0, 0)
+                if mode == 'pose':
+                    if class_id == 0:
+                        kp_cursor.execute(
+                            "SELECT x, y, visible FROM keypoints WHERE annotation_id = %s AND name = 'eye'",
+                            (annotation_id,)
+                        )
+                        kp = kp_cursor.fetchone()
+                        kp_x, kp_y, kp_v = kp if kp else (0.0, 0.0, 0)
+                    else:
+                        kp_x, kp_y, kp_v = 0.0, 0.0, 0
                     f.write(f"{class_id} {x_center} {y_center} {width} {height} {kp_x} {kp_y} {kp_v}\n")
                 else:
                     f.write(f"{class_id} {x_center} {y_center} {width} {height}\n")
@@ -177,7 +180,19 @@ def main(conn=None):
     write_dataset_card(dataset_name, mode, sessions, videos_meta, len(train_frames), len(val_frames))
     write_yolo_yaml(dataset_name, mode)
 
-    logger.info(f"dataset generated → dataset/{dataset_name}")
+    print("\n" + "─" * 50)
+    print("  DATASET SUMMARY")
+    print("─" * 50)
+    print(f"  Dataset              : {dataset_name}")
+    print(f"  Mode                 : {mode}")
+    print(f"  Sessions             : {len(sessions)}")
+    for s in sessions:
+        print(f"    - {s}")
+    print(f"  Total frames         : {len(frames)}")
+    print(f"  Train                : {len(train_frames)}")
+    print(f"  Val                  : {len(val_frames)}")
+    print(f"  Output               : dataset/{dataset_name}")
+    print("─" * 50)
 
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
