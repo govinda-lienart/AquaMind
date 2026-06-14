@@ -10,7 +10,6 @@ claude.md
 annotations/
 /test
 yolov5/
-/dataset
 *.pt
 secrets/
 backup_notebook_files/
@@ -26,3 +25,4 @@ open_links.sh
 *.xlsx
 .env
 .env.test
+/dataset
