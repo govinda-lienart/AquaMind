@@ -16,20 +16,12 @@ warnings.filterwarnings('ignore')
 
 CONFIG_PATH = 'config.yaml'
 DEVICE      = 'mps'
+HISTORY_LEN    = 20   # observed positions kept per track for polyfit
+PROJ_AHEAD     = 60   # frames to project arrow forward for visualisation (~1 sec at 60fps)
+CROSS_DISTANCE = 80   # px — centroid distance below which two tracks are considered crossing
 
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
-
-def get_eye_position(keypoints, bbox):
-    """2 eyes → average, 1 eye → use it, 0 eyes → bbox centre."""
-    valid = [(x, y) for x, y in keypoints if x > 0 and y > 0]
-    if len(valid) == 2:
-        return ((valid[0][0] + valid[1][0]) / 2, (valid[0][1] + valid[1][1]) / 2)
-    if len(valid) == 1:
-        return valid[0]
-    x1, y1, x2, y2 = bbox
-    return ((x1 + x2) / 2, (y1 + y2) / 2)
-
 
 def load_config():
     with open(CONFIG_PATH) as f:
@@ -78,7 +70,7 @@ def open_video_io(input_path, output_path, start_seconds, end_seconds):
     return cap, out, fps, max_frames
 
 
-def draw_frame(frame, confirmed_tracks, tentative_boxes, in_calibration, eye_positions=None):
+def draw_frame(frame, confirmed_tracks, tentative_boxes, in_calibration, history=None):
     if in_calibration:
         for x1, y1, x2, y2 in tentative_boxes:
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 215, 255), 1)
@@ -88,9 +80,19 @@ def draw_frame(frame, confirmed_tracks, tentative_boxes, in_calibration, eye_pos
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
         cv2.putText(frame, f"Fish {tid}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
-    if eye_positions:
-        for ex, ey in eye_positions:
-            cv2.circle(frame, (int(ex), int(ey)), 4, (0, 255, 255), -1)
+    if history:
+        for tid, x1, y1, x2, y2 in confirmed_tracks:
+            pts = history.get(tid, [])
+            if len(pts) < 2:
+                continue
+            t_vals = np.arange(len(pts))
+            px     = np.polyfit(t_vals, [p[0] for p in pts], 1)
+            py     = np.polyfit(t_vals, [p[1] for p in pts], 1)
+            t_proj = len(pts) - 1 + PROJ_AHEAD
+            x_proj = int(np.polyval(px, t_proj))
+            y_proj = int(np.polyval(py, t_proj))
+            cx_now, cy_now = int(pts[-1][0]), int(pts[-1][1])
+            cv2.arrowedLine(frame, (cx_now, cy_now), (x_proj, y_proj), (0, 255, 255), 2, tipLength=0.3)
 
 
 # ── KALMAN TRACK ──────────────────────────────────────────────────────────────
@@ -145,21 +147,40 @@ class ZebrafishTracker:
     After calibration_secs, any track with enough hits is confirmed with a
     permanent ID. Once num_fish IDs exist, the pool locks and no new IDs
     are created, blocking reflections and false positives.
+
+    After calibration, crossing detection monitors centroid distances between
+    confirmed tracks. When two fish overlap, their pre-crossing Kalman velocities
+    are snapshotted. When they separate, if both velocities reversed direction
+    relative to the snapshot, the IDs are swapped back.
     """
 
     def __init__(self, num_fish, max_distance, confirm_hits, max_missing):
-        self.num_fish     = num_fish
-        self.max_distance = max_distance
-        self.confirm_hits = confirm_hits
-        self.max_missing  = max_missing
-        self.confirmed    = {}   # tid → KalmanTrack
-        self.tentative    = []   # list of KalmanTrack (no ID yet)
-        self.next_id      = 1
-        self.pool_locked  = False
+        self.num_fish        = num_fish
+        self.max_distance    = max_distance
+        self.confirm_hits    = confirm_hits
+        self.max_missing     = max_missing
+        self.confirmed       = {}    # tid → KalmanTrack
+        self.tentative       = []    # list of KalmanTrack (no ID yet)
+        self.next_id         = 1
+        self.pool_locked     = False
+        self.history         = {}    # tid → list of (cx, cy) bbox centres
+        self.crossing_pairs  = set() # frozenset({tid_a, tid_b}) currently crossing
+        self.pre_cross_vel   = {}    # tid → (vx, vy) snapshotted at crossing start
+
+    def _update_history(self, tid, bbox):
+        x1, y1, x2, y2 = bbox
+        cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+        if tid not in self.history:
+            self.history[tid] = []
+        pts = self.history[tid]
+        if not pts or np.linalg.norm([cx - pts[-1][0], cy - pts[-1][1]]) < self.max_distance:
+            pts.append((cx, cy))
+        if len(pts) > HISTORY_LEN:
+            self.history[tid] = pts[-HISTORY_LEN:]
 
     def update(self, detections):
         """
-        detections : list of (x, y, bbox) — one per fish detection this frame
+        detections : list of (cx, cy, bbox) — one per fish detection this frame
         returns    : list of (tid, x1, y1, x2, y2) for all confirmed tracks
         """
         # ── step 1: predict all tracks forward one frame ──────────────────────
@@ -181,19 +202,20 @@ class ZebrafishTracker:
 
         # ── step 2: match confirmed tracks to detections ──────────────────────
         if self.confirmed:
-            conf_ids     = list(self.confirmed.keys())
-            conf_centres = np.array([self.confirmed[tid].predicted_centre for tid in conf_ids])
-            cost         = np.linalg.norm(conf_centres[:, np.newaxis] - det_positions[np.newaxis, :], axis=2)
+            conf_ids = list(self.confirmed.keys())
+            anchors  = np.array([self.confirmed[tid].predicted_centre for tid in conf_ids])
+            cost     = np.linalg.norm(anchors[:, np.newaxis] - det_positions[np.newaxis, :], axis=2)
             r_idx, c_idx = linear_sum_assignment(cost)
 
             matched_conf = set()
             for ri, ci in zip(r_idx, c_idx):
                 if cost[ri, ci] > self.max_distance:
                     continue
-                tid              = conf_ids[ri]
-                x, y, bbox       = detections[ci]
-                prev_missing     = self.confirmed[tid].missing_frames
+                tid          = conf_ids[ri]
+                x, y, bbox   = detections[ci]
+                prev_missing = self.confirmed[tid].missing_frames
                 self.confirmed[tid].update(x, y, bbox)
+                self._update_history(tid, bbox)
                 if prev_missing > 0:
                     print(f"  Fish {tid} recovered after {prev_missing} missing frames")
                 matched_conf.add(tid)
@@ -252,8 +274,60 @@ class ZebrafishTracker:
             self.pool_locked = True
             self.tentative   = []
 
+        if self.pool_locked:
+            self._check_crossings()
+
         self._prune_tentative()
         return self._output()
+
+    def _maybe_swap(self, tid_a, tid_b):
+        """Swap IDs if both fish reversed direction relative to their pre-crossing heading."""
+        if tid_a not in self.confirmed or tid_b not in self.confirmed:
+            return
+        if tid_a not in self.pre_cross_vel or tid_b not in self.pre_cross_vel:
+            return
+        pre_va = np.array(self.pre_cross_vel[tid_a])
+        pre_vb = np.array(self.pre_cross_vel[tid_b])
+        if np.linalg.norm(pre_va) < 0.5 or np.linalg.norm(pre_vb) < 0.5:
+            return  # too slow at crossing start — direction unreliable
+        cur_va = self.confirmed[tid_a].state[2:4]
+        cur_vb = self.confirmed[tid_b].state[2:4]
+        if np.dot(cur_va, pre_va) < 0 and np.dot(cur_vb, pre_vb) < 0:
+            self.confirmed[tid_a], self.confirmed[tid_b] = self.confirmed[tid_b], self.confirmed[tid_a]
+            self.history[tid_a],   self.history[tid_b]   = self.history.get(tid_b, []), self.history.get(tid_a, [])
+            print(f"  Fish {tid_a} ↔ Fish {tid_b}: IDs swapped back after crossing")
+        else:
+            print(f"  Fish {tid_a} ↔ Fish {tid_b}: crossing resolved, no swap needed")
+
+    def _check_crossings(self):
+        """Snapshot velocities when two tracks start crossing; correct IDs when they separate."""
+        tids = list(self.confirmed.keys())
+        current_pairs = set()
+
+        for i in range(len(tids)):
+            for j in range(i + 1, len(tids)):
+                tid_a, tid_b = tids[i], tids[j]
+                ca   = self.confirmed[tid_a].predicted_centre
+                cb   = self.confirmed[tid_b].predicted_centre
+                dist = np.linalg.norm(ca - cb)
+                pair = frozenset({tid_a, tid_b})
+
+                if dist < CROSS_DISTANCE:
+                    current_pairs.add(pair)
+                    if pair not in self.crossing_pairs:
+                        for tid in (tid_a, tid_b):
+                            if tid not in self.pre_cross_vel:
+                                vx, vy = self.confirmed[tid].state[2], self.confirmed[tid].state[3]
+                                self.pre_cross_vel[tid] = (vx, vy)
+                        print(f"  Crossing started: Fish {tid_a} ↔ Fish {tid_b}")
+
+        for pair in self.crossing_pairs - current_pairs:
+            tid_a, tid_b = tuple(pair)
+            self._maybe_swap(tid_a, tid_b)
+            self.pre_cross_vel.pop(tid_a, None)
+            self.pre_cross_vel.pop(tid_b, None)
+
+        self.crossing_pairs = current_pairs
 
     def _prune_tentative(self):
         self.tentative = [t for t in self.tentative if t.missing_frames <= self.max_missing]
@@ -292,26 +366,21 @@ def main():
         if not ret or frame_count >= max_frames:
             break
 
-        results = model(frame, verbose=False)
-        r       = results[0]
-        boxes   = r.boxes
-        kpts    = r.keypoints.xy.cpu().numpy() if r.keypoints is not None else None
+        results = model(frame, verbose=False, iou=0.5)
+        boxes   = results[0].boxes
 
         detections = []
         for i, cls_id in enumerate(boxes.cls.cpu().numpy()):
             if int(cls_id) != 0:
                 continue
-            bbox      = boxes.xyxy[i].cpu().numpy().tolist()
-            keypoints = []
-            if kpts is not None and i < len(kpts):
-                keypoints = [(float(kpts[i, k, 0]), float(kpts[i, k, 1])) for k in range(kpts.shape[1])]
-            x, y = get_eye_position(keypoints, bbox)
-            detections.append((x, y, bbox))
+            bbox        = boxes.xyxy[i].cpu().numpy().tolist()
+            x1, y1, x2, y2 = bbox
+            cx, cy      = (x1 + x2) / 2, (y1 + y2) / 2
+            detections.append((cx, cy, bbox))
 
-        eye_positions  = [(x, y) for x, y, _ in detections]
         in_calibration = frame_count < calibration_frames
         tracked        = tracker.update(detections)
-        draw_frame(frame, tracked, tracker.tentative_boxes(), in_calibration, eye_positions)
+        draw_frame(frame, tracked, tracker.tentative_boxes(), in_calibration, tracker.history)
         out.write(frame)
 
         if frame_count == calibration_frames and not tracker.pool_locked:
