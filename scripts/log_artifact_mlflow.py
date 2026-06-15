@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = 'config.yaml'
 MLRUNS_PATH = '/Users/govinda-dashugolienart/Documents/Github_HD/AquaMind/mlruns'
 EXPERIMENT  = 'aquamind'
-YOLO_MODEL  = 'yolov8s'
+YOLO_MODEL  = 'yolov8n-pose'
 
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -44,21 +44,35 @@ def load_results_csv(run_path):
 def log_epoch_metrics(df):
     for _, row in df.iterrows():
         epoch = int(row['epoch'])
-        mlflow.log_metrics({
-            'train/box_loss': row['train/box_loss'],
-            'train/dfl_loss': row['train/dfl_loss'],
-            'train/cls_loss': row['train/cls_loss'],
-            'val/box_loss':   row['val/box_loss'],
-            'val/dfl_loss':   row['val/dfl_loss'],
-            'val/cls_loss':   row['val/cls_loss'],
-            'precision':      row['metrics/precision(B)'],
-            'recall':         row['metrics/recall(B)'],
-            'mAP50':          row['metrics/mAP50(B)'],
-            'mAP50_95':       row['metrics/mAP50-95(B)'],
-            'lr0':            row['lr/pg0'],
-            'lr1':            row['lr/pg1'],
-            'lr2':            row['lr/pg2'],
-        }, step=epoch)
+        metrics = {
+            'train/box_loss':  row['train/box_loss'],
+            'train/cls_loss':  row['train/cls_loss'],
+            'train/dfl_loss':  row['train/dfl_loss'],
+            'val/box_loss':    row['val/box_loss'],
+            'val/cls_loss':    row['val/cls_loss'],
+            'val/dfl_loss':    row['val/dfl_loss'],
+            'precision':       row['metrics/precision(B)'],
+            'recall':          row['metrics/recall(B)'],
+            'mAP50':           row['metrics/mAP50(B)'],
+            'mAP50_95':        row['metrics/mAP50-95(B)'],
+            'lr0':             row['lr/pg0'],
+            'lr1':             row['lr/pg1'],
+            'lr2':             row['lr/pg2'],
+        }
+        pose_cols = {
+            'train/pose_loss': 'train/pose_loss',
+            'train/kobj_loss': 'train/kobj_loss',
+            'val/pose_loss':   'val/pose_loss',
+            'val/kobj_loss':   'val/kobj_loss',
+            'pose_precision':  'metrics/precision(P)',
+            'pose_recall':     'metrics/recall(P)',
+            'pose_mAP50':      'metrics/mAP50(P)',
+            'pose_mAP50_95':   'metrics/mAP50-95(P)',
+        }
+        for key, col in pose_cols.items():
+            if col in df.columns:
+                metrics[key] = row[col]
+        mlflow.log_metrics(metrics, step=epoch)
     logger.info(f"{len(df)} epochs logged")
 
 

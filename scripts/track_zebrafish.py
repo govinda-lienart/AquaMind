@@ -338,7 +338,7 @@ def open_video_io(input_path, output_path, start_seconds, end_seconds):
     return cap, out, fps, max_frames
 
 
-def draw_frame(frame, tracked, tentative_boxes, lost_ids, in_calibration):
+def draw_frame(frame, tracked, tentative_boxes, lost_ids, in_calibration, keypoints=None):
     if in_calibration:
         for x1, y1, x2, y2 in tentative_boxes:
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 215, 255), 1)
@@ -348,6 +348,10 @@ def draw_frame(frame, tracked, tentative_boxes, lost_ids, in_calibration):
         cv2.rectangle(frame, (x1, y1), (x2, y2), colour, 2)
         label = f"Fish {track_id} [?]" if track_id in lost_ids else f"Fish {track_id}"
         cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, colour, 2)
+
+    if keypoints:
+        for kx, ky in keypoints:
+            cv2.circle(frame, (kx, ky), 4, (0, 255, 255), -1)
 
     if in_calibration:
         cv2.putText(frame, "CALIBRATION", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 165, 255), 3)
@@ -392,8 +396,18 @@ def main():
         bboxes     = detections.xyxy.tolist() if len(detections) > 0 else []
         tracked    = tracker.update(bboxes)
 
+        keypoints = []
+        if results[0].keypoints is not None:
+            kpts    = results[0].keypoints.xy.cpu().numpy()
+            cls_ids = results[0].boxes.cls.cpu().numpy()
+            for i, cls_id in enumerate(cls_ids):
+                if int(cls_id) == 0:
+                    kx, ky = kpts[i, 0]
+                    if kx > 0 and ky > 0:
+                        keypoints.append((int(kx), int(ky)))
+
         in_calibration = frame_count < calibration_frames
-        draw_frame(frame, tracked, tracker.tentative_boxes(), tracker.lost_ids(), in_calibration)
+        draw_frame(frame, tracked, tracker.tentative_boxes(), tracker.lost_ids(), in_calibration, keypoints)
         out.write(frame)
 
         frame_count += 1
