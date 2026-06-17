@@ -1,6 +1,7 @@
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
 
 import os
+import sys
 import warnings
 
 import cv2
@@ -22,6 +23,28 @@ CROSS_DISTANCE = 80   # px — centroid distance below which two tracks are cons
 
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
+
+class Tee:
+    """Mirror stdout to a log file simultaneously."""
+    def __init__(self, path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        self._file   = open(path, 'w')
+        self._stdout = sys.stdout
+        sys.stdout   = self
+
+    def write(self, data):
+        self._stdout.write(data)
+        self._file.write(data)
+
+    def flush(self):
+        self._stdout.flush()
+        self._file.flush()
+
+    def close(self):
+        sys.stdout = self._stdout
+        self._file.close()
+
+
 
 def load_config():
     with open(CONFIG_PATH) as f:
@@ -70,18 +93,40 @@ def open_video_io(input_path, output_path, start_seconds, end_seconds):
     return cap, out, fps, max_frames
 
 
+def bbox_iou(a, b):
+    """IoU between two [x1,y1,x2,y2] boxes."""
+    ix1, iy1 = max(a[0], b[0]), max(a[1], b[1])
+    ix2, iy2 = min(a[2], b[2]), min(a[3], b[3])
+    inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+    if inter == 0:
+        return 0.0
+    area_a = (a[2] - a[0]) * (a[3] - a[1])
+    area_b = (b[2] - b[0]) * (b[3] - b[1])
+    return inter / (area_a + area_b - inter)
+
+
 def draw_frame(frame, confirmed_tracks, tentative_boxes, in_calibration, history=None):
     if in_calibration:
         for x1, y1, x2, y2 in tentative_boxes:
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 215, 255), 1)
         cv2.putText(frame, "CALIBRATION", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 165, 255), 3)
 
-    for tid, x1, y1, x2, y2 in confirmed_tracks:
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(frame, f"Fish {tid}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+    for tid, x1, y1, x2, y2, missing in confirmed_tracks:
+        if missing > 0:
+            color     = (120, 120, 120)   # gray — not detected this frame, coasting on prediction
+            label     = f"Fish {tid} (lost)"
+            thickness = 1
+        else:
+            color     = (0, 255, 0)       # green — actively matched this frame
+            label     = f"Fish {tid}"
+            thickness = 2
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
+        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
     if history:
-        for tid, x1, y1, x2, y2 in confirmed_tracks:
+        for tid, x1, y1, x2, y2, missing in confirmed_tracks:
+            if missing > 0:
+                continue   # no arrow for tracks not detected this frame
             pts = history.get(tid, [])
             if len(pts) < 2:
                 continue
@@ -149,9 +194,10 @@ class ZebrafishTracker:
     are created, blocking reflections and false positives.
 
     After calibration, crossing detection monitors centroid distances between
-    confirmed tracks. When two fish overlap, their pre-crossing Kalman velocities
-    are snapshotted. When they separate, if both velocities reversed direction
-    relative to the snapshot, the IDs are swapped back.
+    confirmed tracks. When two fish get close, their pre-crossing trajectory
+    direction is snapshotted from position history. When they separate, the
+    post-crossing direction is compared against the snapshot — if both fish
+    reversed relative to their pre-crossing heading, their IDs are swapped back.
     """
 
     def __init__(self, num_fish, max_distance, confirm_hits, max_missing):
@@ -159,13 +205,15 @@ class ZebrafishTracker:
         self.max_distance    = max_distance
         self.confirm_hits    = confirm_hits
         self.max_missing     = max_missing
-        self.confirmed       = {}    # tid → KalmanTrack
-        self.tentative       = []    # list of KalmanTrack (no ID yet)
-        self.next_id         = 1
-        self.pool_locked     = False
-        self.history         = {}    # tid → list of (cx, cy) bbox centres
-        self.crossing_pairs  = set() # frozenset({tid_a, tid_b}) currently crossing
-        self.pre_cross_vel   = {}    # tid → (vx, vy) snapshotted at crossing start
+        self.confirmed            = {}    # tid → KalmanTrack
+        self.tentative            = []    # list of KalmanTrack (no ID yet)
+        self.next_id              = 1
+        self.pool_locked          = False
+        self.history              = {}    # tid → list of (cx, cy) bbox centres
+        self.crossing_pairs       = set() # frozenset({tid_a, tid_b}) currently crossing
+        self.crossing_had_overlap = {}    # frozenset → True if bboxes overlapped during this crossing
+        self.pre_cross_pos        = {}    # tid → (cx, cy) position snapshotted at crossing start
+        self.pre_cross_vel        = {}    # tid → (vx, vy) velocity snapshotted at crossing start
 
     def _update_history(self, tid, bbox):
         x1, y1, x2, y2 = bbox
@@ -178,11 +226,21 @@ class ZebrafishTracker:
         if len(pts) > HISTORY_LEN:
             self.history[tid] = pts[-HISTORY_LEN:]
 
-    def update(self, detections):
+    def _velocity_from_history(self, tid, n=6):
+        """Direction of travel from the last n positions in history."""
+        pts = self.history.get(tid, [])
+        if len(pts) < 2:
+            return np.array([0., 0.])
+        recent = pts[-min(n, len(pts)):]
+        return np.array([recent[-1][0] - recent[0][0], recent[-1][1] - recent[0][1]])
+
+    def update(self, detections, frame_count=0):
         """
-        detections : list of (cx, cy, bbox) — one per fish detection this frame
-        returns    : list of (tid, x1, y1, x2, y2) for all confirmed tracks
+        detections  : list of (cx, cy, bbox) — one per fish detection this frame
+        frame_count : current frame index, used for crossing logs
+        returns     : list of (tid, x1, y1, x2, y2, missing_frames) for all confirmed tracks
         """
+        self._frame_count = frame_count
         # ── step 1: predict all tracks forward one frame ──────────────────────
         for t in self.confirmed.values():
             t.predict()
@@ -281,26 +339,55 @@ class ZebrafishTracker:
         return self._output()
 
     def _maybe_swap(self, tid_a, tid_b):
-        """Swap IDs if both fish reversed direction relative to their pre-crossing heading."""
+        """Swap IDs only when BOTH position AND velocity agree that an exchange occurred.
+
+        Position check: does swapping give better continuity with pre-crossing positions?
+        Velocity check: did each fish reverse direction relative to its pre-crossing heading?
+        Both must agree — one signal alone can be misleading.
+        """
         if tid_a not in self.confirmed or tid_b not in self.confirmed:
             return
-        if tid_a not in self.pre_cross_vel or tid_b not in self.pre_cross_vel:
+        if tid_a not in self.pre_cross_pos or tid_b not in self.pre_cross_pos:
             return
-        pre_va = np.array(self.pre_cross_vel[tid_a])
-        pre_vb = np.array(self.pre_cross_vel[tid_b])
-        if np.linalg.norm(pre_va) < 0.5 or np.linalg.norm(pre_vb) < 0.5:
-            return  # too slow at crossing start — direction unreliable
-        cur_va = self.confirmed[tid_a].state[2:4]
-        cur_vb = self.confirmed[tid_b].state[2:4]
-        if np.dot(cur_va, pre_va) < 0 and np.dot(cur_vb, pre_vb) < 0:
+
+        pre_a  = np.array(self.pre_cross_pos[tid_a])
+        pre_b  = np.array(self.pre_cross_pos[tid_b])
+        post_a = np.array(self.confirmed[tid_a].predicted_centre)
+        post_b = np.array(self.confirmed[tid_b].predicted_centre)
+
+        no_swap_cost = np.linalg.norm(post_a - pre_a) + np.linalg.norm(post_b - pre_b)
+        swap_cost    = np.linalg.norm(post_a - pre_b) + np.linalg.norm(post_b - pre_a)
+        position_says_swap = swap_cost < no_swap_cost
+
+        pre_va = np.array(self.pre_cross_vel.get(tid_a, (0., 0.)))
+        pre_vb = np.array(self.pre_cross_vel.get(tid_b, (0., 0.)))
+        cur_va = self._velocity_from_history(tid_a)
+        cur_vb = self._velocity_from_history(tid_b)
+
+        a_was_moving = np.linalg.norm(pre_va) > 1.0 and np.linalg.norm(cur_va) > 1.0
+        b_was_moving = np.linalg.norm(pre_vb) > 1.0 and np.linalg.norm(cur_vb) > 1.0
+
+        if a_was_moving and b_was_moving:
+            velocity_says_swap = np.dot(cur_va, pre_va) < 0 and np.dot(cur_vb, pre_vb) < 0
+        else:
+            velocity_says_swap = None  # one fish too slow — velocity signal unreliable
+
+        if velocity_says_swap is None:
+            should_swap = position_says_swap
+            reason = f"pos={'swap' if position_says_swap else 'keep'}, vel=N/A (fish too slow)"
+        else:
+            should_swap = position_says_swap and velocity_says_swap
+            reason = f"pos={'swap' if position_says_swap else 'keep'}, vel={'swap' if velocity_says_swap else 'keep'}"
+
+        if should_swap:
             self.confirmed[tid_a], self.confirmed[tid_b] = self.confirmed[tid_b], self.confirmed[tid_a]
             self.history[tid_a],   self.history[tid_b]   = self.history.get(tid_b, []), self.history.get(tid_a, [])
-            print(f"  Fish {tid_a} ↔ Fish {tid_b}: IDs swapped back after crossing")
+            print(f"  Fish {tid_a} ↔ Fish {tid_b}: IDs swapped ({reason})")
         else:
-            print(f"  Fish {tid_a} ↔ Fish {tid_b}: crossing resolved, no swap needed")
+            print(f"  Fish {tid_a} ↔ Fish {tid_b}: no swap ({reason})")
 
     def _check_crossings(self):
-        """Snapshot velocities when two tracks start crossing; correct IDs when they separate."""
+        """Snapshot trajectory direction when two tracks start crossing; correct IDs when they separate."""
         tids = list(self.confirmed.keys())
         current_pairs = set()
 
@@ -312,20 +399,34 @@ class ZebrafishTracker:
                 dist = np.linalg.norm(ca - cb)
                 pair = frozenset({tid_a, tid_b})
 
+                iou = bbox_iou(self.confirmed[tid_a].bbox, self.confirmed[tid_b].bbox)
+
                 if dist < CROSS_DISTANCE:
                     current_pairs.add(pair)
+                    if iou > 0:
+                        self.crossing_had_overlap[pair] = True
+                        print(f"  Overlap detected: Fish {tid_a} ↔ Fish {tid_b} [frame {self._frame_count}] IoU={iou:.2f}")
                     if pair not in self.crossing_pairs:
                         for tid in (tid_a, tid_b):
-                            if tid not in self.pre_cross_vel:
-                                vx, vy = self.confirmed[tid].state[2], self.confirmed[tid].state[3]
-                                self.pre_cross_vel[tid] = (vx, vy)
-                        print(f"  Crossing started: Fish {tid_a} ↔ Fish {tid_b}")
+                            if tid not in self.pre_cross_pos:
+                                self.pre_cross_pos[tid] = tuple(self.confirmed[tid].predicted_centre)
+                                vel = self._velocity_from_history(tid)
+                                if np.linalg.norm(vel) < 0.5:
+                                    vel = self.confirmed[tid].state[2:4]  # fallback to Kalman
+                                self.pre_cross_vel[tid] = tuple(vel)
+                        print(f"  Crossing started: Fish {tid_a} ↔ Fish {tid_b} [frame {self._frame_count}]")
 
         for pair in self.crossing_pairs - current_pairs:
             tid_a, tid_b = tuple(pair)
-            self._maybe_swap(tid_a, tid_b)
+            if self.crossing_had_overlap.get(pair, False):
+                self._maybe_swap(tid_a, tid_b)
+            else:
+                print(f"  Fish {tid_a} ↔ Fish {tid_b}: proximity only, no overlap — swap skipped")
+            self.pre_cross_pos.pop(tid_a, None)
+            self.pre_cross_pos.pop(tid_b, None)
             self.pre_cross_vel.pop(tid_a, None)
             self.pre_cross_vel.pop(tid_b, None)
+            self.crossing_had_overlap.pop(pair, None)
 
         self.crossing_pairs = current_pairs
 
@@ -333,7 +434,7 @@ class ZebrafishTracker:
         self.tentative = [t for t in self.tentative if t.missing_frames <= self.max_missing]
 
     def _output(self):
-        return [(tid, *[int(v) for v in t.bbox]) for tid, t in self.confirmed.items()]
+        return [(tid, *[int(v) for v in t.bbox], t.missing_frames) for tid, t in self.confirmed.items()]
 
     def tentative_boxes(self):
         return [[int(v) for v in t.bbox] for t in self.tentative]
@@ -343,6 +444,8 @@ class ZebrafishTracker:
 
 def main():
     p = load_config()
+    log_name = os.path.splitext(os.path.basename(p['output_video_path']))[0] + '.log'
+    tee = Tee(os.path.join('logs', log_name))
     print_run_config(p)
 
     model   = YOLO(p['model_path'])
@@ -379,7 +482,7 @@ def main():
             detections.append((cx, cy, bbox))
 
         in_calibration = frame_count < calibration_frames
-        tracked        = tracker.update(detections)
+        tracked        = tracker.update(detections, frame_count=frame_count)
         draw_frame(frame, tracked, tracker.tentative_boxes(), in_calibration, tracker.history)
         out.write(frame)
 
@@ -397,6 +500,7 @@ def main():
     cap.release()
     out.release()
     print(f"\nDone. Saved to {p['output_video_path']}")
+    tee.close()
 
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
