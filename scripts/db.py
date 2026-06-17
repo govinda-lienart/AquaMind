@@ -73,11 +73,47 @@ def get_video_id(cursor, video_path):
 
 
 def get_frame_id(cursor, frames_folder, frame_number):
-    pattern = f"{frames_folder}/frame_{frame_number}%.png"
-    cursor.execute("SELECT id FROM frames WHERE frame_path LIKE %s", (pattern,))
+    for pattern in [
+        f"{frames_folder}/frame_{frame_number}_%",       # 1fps frames: frame_60_IMG_0350.png
+        f"{frames_folder}/frame_{frame_number:06d}.%",   # crossing frames: frame_002080.jpg
+    ]:
+        cursor.execute("SELECT id FROM frames WHERE frame_path LIKE %s", (pattern,))
+        row = cursor.fetchone()
+        cursor.fetchall()
+        if row is not None:
+            logger.debug(f"get_frame_id: frame_{frame_number} → id={row[0]}")
+            return row[0]
+    raise ValueError(f"No DB record found for frame {frame_number} in {frames_folder}")
+
+
+def register_frames(conn, frames_folder, video_path):
+    """Register all frame_*.jpg/png files in a folder into MySQL. Safe to re-run (INSERT IGNORE)."""
+    import re
+    from datetime import datetime
+
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, fps FROM videos WHERE file_path = %s", (video_path,))
     row = cursor.fetchone()
-    cursor.fetchall()  # drain cursor before reusing
     if row is None:
-        raise ValueError(f"No DB record found for frame_{frame_number} in {frames_folder}")
-    logger.debug(f"get_frame_id: frame_{frame_number} → id={row[0]}")
-    return row[0]
+        raise ValueError(f"Video {video_path} not registered. Run sync_videos.py first.")
+    video_id, fps = row
+
+    name_pattern = re.compile(r'frame_(\d+)\.(jpg|png)$')
+    registered = 0
+    for fname in sorted(os.listdir(frames_folder)):
+        m = name_pattern.match(fname)
+        if not m:
+            continue
+        frame_number = int(m.group(1))
+        frame_path   = f"{frames_folder}/{fname}"
+        cursor.execute(
+            "INSERT IGNORE INTO frames (video_id, frame_path, frame_number, timestamp, extracted_at) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (video_id, frame_path, frame_number, frame_number / fps, datetime.now())
+        )
+        registered += cursor.rowcount
+
+    conn.commit()
+    cursor.close()
+    logger.debug(f"register_frames: {registered} new frames registered in {frames_folder}")
+    return registered

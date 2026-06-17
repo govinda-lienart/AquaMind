@@ -6,44 +6,58 @@ extract_frames:
 
 # export_labelstudio_script
 export_labelstudio:
-  project_name: AquaMind_IMG_0764     # Label Studio project name
-  export_type: pose                      # pose or bbox
+  project_name: AquaMind_hard_mining_IMG_0350     # Label Studio project name
+  export_type: bbox                      # pose or bbox
   min_task_id:                           # leave empty for no lower limit
   max_task_id:                            # leave empty for no upper limit
   mode: export                           # export or search
   search_term: frame_2220                # used only when mode = search
 
+# import_labelstudio_script - hard negative mining
+import_labelstudio:
+  project_name: AquaMind_hard_mining_IMG_0350
+  frames_dir:   # leave empty to auto-detect latest crossing_frames folder
+
 # store_annotations_script
 store_annotations:
-  labels_path: labelstudio_export/labelstudio_pose_IMG_0764_11062026_11h04/labels # test -> fixtures/labels
-  frames_folder: frames/frames_IMG_0764_20260528_2116 # test -> frames/frames_test
+  labels_path: labelstudio_export/labelstudio_bbox_hard_mining_IMG_0350_17062026_09h03/labels # test -> fixtures/labels
+  frames_folder: frames/crossing_frames_IMG_0350_20260615_22h51 # test -> frames/frames_test
 
 # prepare_dataset_script
 prepare_dataset:
-  dataset_name: aquamind_dataset_IMG_0350_2026_07_14_1457
-  mode: pose  # change to 'pose' for pose training or 'bbox'
+  dataset_name: dataset_2026_06_17_1252_IMG_0350_0764_0909_0350HM
+  mode: bbox  # change to 'pose' for pose training or 'bbox'
   
   annotation_sessions:
     - labelstudio_pose_IMG_0350_11062026_08h50
     - labelstudio_pose_IMG_0764_11062026_11h04
     - labelstudio_pose_IMG_0909_11062026_10h35
+    - labelstudio_bbox_hard_mining_IMG_0350_17062026_09h03
 
 # log_artifact_mlflow_script
 log_artifact_mlflow:
-  run_path: runs/aquamind_yolov8_run1_20260614_1446
+  run_path: runs/dataset_2026_06_17_1252_IMG_0350_0764_0909_0350HM
 
 # track_zebrafish_script
 track_zebrafish:
   input_video_path:  videos/IMG_0350.MOV
-  model_path:        runs/aquamind_yolov8_run1_20260614_1446/weights/best.pt
-  output_video_path: output_video_zebratracker/tracker_IMG_0350_2026_06_16_1333_planetapproach_IoU05_matchahead_max_dist_crossing_tids.mp4
-  start_seconds:     0
-  end_seconds:       60
+  model_path:        runs/dataset_2026_06_17_1252_IMG_0350_0764_0909_0350HM/weights/best.pt
+  output_video_path: output_video_zebratracker/tracker_IMG_0350_2026_06_17_run2_freeze_fix_1548.mp4
+  start_seconds:     0    # start video
+  end_seconds:       20 # end video choose'null' for the whole video
   num_fish:          5
   calibration_secs:  10    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match
   confirm_hits:      200   # frames a detection must persist to get a permanent fish ID (~3 sec at 60fps, outlasts reflections)
   max_missing:       300   # frames a tentative track can disappear before being dropped
 
-  
+
+
+
+#_______________________________________________________
+# extract_crossing_frames_script - hard negative mining
+extract_crossing_frames:
+  log_path:    logs/tracker_IMG_0350_2026_06_16_2152_hard_data_mining.log
+  video_path:  videos/IMG_0350.MOV
+  output_dir:  frames/crossing_frames
 

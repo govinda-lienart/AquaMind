@@ -1,0 +1,823 @@
+==================================================
+  Video:          videos/IMG_0350.MOV
+  Model:          runs/dataset_2026_06_17_1252_IMG_0350_0764_0909_0350HM/weights/best.pt
+  Output:         output_video_zebratracker/tracker_IMG_0350_2026_06_17_run2_freeze_fix_1522.mp4
+  Seconds:        0 → 30
+  Fish:           5
+  Calibration:    10 seconds
+  confirm_hits:   200 frames
+  max_distance:   150 px
+  max_missing:    300 frames
+==================================================
+Press Enter to start...  Frame 0/1800 | second 0
+  Frame 30/1800 | second 0
+  Frame 60/1800 | second 1
+  Frame 90/1800 | second 1
+  Frame 120/1800 | second 2
+  Frame 150/1800 | second 2
+  Frame 180/1800 | second 3
+  Fish 1 confirmed after 200 frames
+  Fish 2 confirmed after 200 frames
+  Fish 3 confirmed after 200 frames
+  Frame 210/1800 | second 3
+  Frame 240/1800 | second 4
+  Frame 270/1800 | second 4
+  Frame 300/1800 | second 5
+  Fish 4 confirmed after 200 frames
+  Frame 330/1800 | second 5
+  Frame 360/1800 | second 6
+  Fish 5 confirmed after 200 frames
+  Fish 5 recovered after 1 missing frames
+  Fish 5 recovered after 1 missing frames
+  Frame 390/1800 | second 6
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 417] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 418] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 419] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 420] IoU=0.06
+  Frame 420/1800 | second 7
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 421] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 422] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 423] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 424] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 425] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 426] IoU=0.09
+  Crossing started: Fish 1 ↔ Fish 2 [frame 426]
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 427] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 428] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 429] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 430] IoU=0.03
+  Fish 2 recovered after 2 missing frames
+  Fish 1 ↔ Fish 2: crossing resolved, no swap needed
+  Frame 450/1800 | second 7
+  Fish 4 recovered after 13 missing frames
+  Frame 480/1800 | second 8
+  Crossing started: Fish 1 ↔ Fish 4 [frame 499]
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 500] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 501] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 502] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 503] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 504] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 505] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 506] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 507] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 508] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 509] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 510] IoU=0.10
+  Frame 510/1800 | second 8
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 511] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 512] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 513] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 514] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 515] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 516] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 517] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 518] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 519] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 520] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 521] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 522] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 523] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 4 [frame 524] IoU=0.00
+  Fish 1 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 540/1800 | second 9
+  Frame 570/1800 | second 9
+  Frame 600/1800 | second 10
+  Frame 630/1800 | second 10
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 653] IoU=0.00
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 654] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 655] IoU=0.08
+  Crossing started: Fish 2 ↔ Fish 4 [frame 655]
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 656] IoU=0.11
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 657] IoU=0.13
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 658] IoU=0.15
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 659] IoU=0.18
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 660] IoU=0.18
+  Frame 660/1800 | second 11
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 661] IoU=0.20
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 662] IoU=0.18
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 663] IoU=0.21
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 664] IoU=0.25
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 665] IoU=0.32
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 666] IoU=0.26
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 667] IoU=0.26
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 668] IoU=0.39
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 669] IoU=0.53
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 670] IoU=0.35
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 671] IoU=0.38
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 672] IoU=0.35
+  Fish 2 recovered after 4 missing frames
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 673] IoU=0.30
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 674] IoU=0.19
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 675] IoU=0.13
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 676] IoU=0.15
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 677] IoU=0.15
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 678] IoU=0.14
+  Fish 2 ↔ Fish 4: crossing resolved, no swap needed
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 679] IoU=0.11
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 680] IoU=0.07
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 681] IoU=0.05
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 682] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 683] IoU=0.01
+  Frame 690/1800 | second 11
+  Frame 720/1800 | second 12
+  Frame 750/1800 | second 12
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 774] IoU=0.00
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 775] IoU=0.01
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 776] IoU=0.01
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 777] IoU=0.02
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 778] IoU=0.02
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 779] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 780] IoU=0.03
+  Frame 780/1800 | second 13
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 781] IoU=0.02
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 782] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 783] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 784] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 785] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 786] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 787] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 788] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 789] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 790] IoU=0.05
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 791] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 792] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 793] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 794] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 795] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 796] IoU=0.05
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 797] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 798] IoU=0.00
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 799] IoU=0.00
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 800] IoU=0.01
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 801] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 802] IoU=0.02
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 803] IoU=0.06
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 804] IoU=0.06
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 805] IoU=0.07
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 806] IoU=0.09
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 807] IoU=0.13
+  Crossing started: Fish 2 ↔ Fish 4 [frame 807]
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 808] IoU=0.12
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 809] IoU=0.14
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 810] IoU=0.14
+  Frame 810/1800 | second 13
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 811] IoU=0.12
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 812] IoU=0.14
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 813] IoU=0.15
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 814] IoU=0.14
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 815] IoU=0.12
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 816] IoU=0.11
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 817] IoU=0.12
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 818] IoU=0.14
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 819] IoU=0.15
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 820] IoU=0.14
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 821] IoU=0.13
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 822] IoU=0.11
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 823] IoU=0.11
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 824] IoU=0.09
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 825] IoU=0.08
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 826] IoU=0.09
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 827] IoU=0.06
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 828] IoU=0.06
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 829] IoU=0.06
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 830] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 831] IoU=0.02
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 832] IoU=0.01
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 833] IoU=0.01
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 834] IoU=0.02
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 835] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 836] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 837] IoU=0.02
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 838] IoU=0.01
+  Fish 2 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 840/1800 | second 14
+  Crossing started: Fish 1 ↔ Fish 3 [frame 868]
+  Frame 870/1800 | second 14
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 873] IoU=0.00
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 874] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 875] IoU=0.00
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 876] IoU=0.04
+  Crossing started: Fish 2 ↔ Fish 4 [frame 876]
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 877] IoU=0.04
+  Fish 1 ↔ Fish 3: crossing resolved, no swap needed
+  Fish 4 recovered after 2 missing frames
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 878] IoU=0.27
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 879] IoU=0.09
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 880] IoU=0.15
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 881] IoU=0.11
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 882] IoU=0.07
+  Fish 2 ↔ Fish 4: crossing resolved, no swap needed
+  Overlap detected: Fish 2 ↔ Fish 4 [frame 883] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 893] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 894] IoU=0.01
+  Fish 2 recovered after 1 missing frames
+  Frame 900/1800 | second 15
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 904] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 905] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 908] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 909] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 913] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 914] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 915] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 916] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 917] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 918] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 919] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 920] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 921] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 922] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 923] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 924] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 925] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 926] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 927] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 928] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 929] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 930] IoU=0.01
+  Frame 930/1800 | second 15
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 931] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 932] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 933] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 959] IoU=0.00
+  Frame 960/1800 | second 16
+  Crossing started: Fish 1 ↔ Fish 3 [frame 971]
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 980] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 981] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 982] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 983] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 984] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 985] IoU=0.13
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 986] IoU=0.18
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 987] IoU=0.22
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 988] IoU=0.23
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 989] IoU=0.23
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 990] IoU=0.27
+  Frame 990/1800 | second 16
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 991] IoU=0.24
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 992] IoU=0.23
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 993] IoU=0.28
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 994] IoU=0.32
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 995] IoU=0.32
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 996] IoU=0.32
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 997] IoU=0.45
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 998] IoU=0.36
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 999] IoU=0.64
+  Fish 3 recovered after 1 missing frames
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1000] IoU=0.46
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1001] IoU=0.39
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1002] IoU=0.35
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1003] IoU=0.28
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1004] IoU=0.26
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1005] IoU=0.19
+  Fish 1 ↔ Fish 3: crossing resolved, no swap needed
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1006] IoU=0.17
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1007] IoU=0.15
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1008] IoU=0.13
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1009] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1010] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1011] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1012] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1013] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1014] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1015] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1016] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1017] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1018] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1019] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1020] IoU=0.05
+  Frame 1020/1800 | second 17
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1021] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1022] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1023] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1024] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1025] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1026] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1027] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1028] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1029] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1030] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1031] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1032] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1037] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1038] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1039] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1040] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1041] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1042] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1043] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1044] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1045] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1046] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1047] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1048] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1049] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1050] IoU=0.03
+  Frame 1050/1800 | second 17
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1051] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1052] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1053] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1054] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1055] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1056] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1057] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1058] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1059] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1060] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1061] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1062] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1063] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1064] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1065] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1066] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1067] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1068] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1069] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1070] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1071] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1072] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1073] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1074] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1075] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1076] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1077] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1078] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1079] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1080] IoU=0.06
+  Frame 1080/1800 | second 18
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1081] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1082] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1083] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1084] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1085] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1086] IoU=0.11
+  Crossing started: Fish 1 ↔ Fish 3 [frame 1086]
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1087] IoU=0.13
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1088] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1089] IoU=0.15
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1090] IoU=0.14
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1091] IoU=0.17
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1092] IoU=0.18
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1093] IoU=0.18
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1094] IoU=0.18
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1095] IoU=0.17
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1096] IoU=0.15
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1097] IoU=0.14
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1098] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1099] IoU=0.10
+  Fish 1 ↔ Fish 3: IDs swapped back after crossing
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1100] IoU=0.13
+  Crossing started: Fish 1 ↔ Fish 3 [frame 1100]
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1101] IoU=0.15
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1102] IoU=0.15
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1103] IoU=0.15
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1104] IoU=0.17
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1105] IoU=0.14
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1106] IoU=0.16
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1107] IoU=0.19
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1108] IoU=0.19
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1109] IoU=0.15
+  Fish 1 ↔ Fish 3: crossing resolved, no swap needed
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1110] IoU=0.12
+  Frame 1110/1800 | second 18
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1111] IoU=0.11
+  Fish 2 recovered after 3 missing frames
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1112] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1113] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1114] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1115] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1116] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1117] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1118] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1119] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1120] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1121] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1122] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1123] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1124] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1125] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1126] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1127] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1128] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1129] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1130] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1131] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1132] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1133] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1134] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1135] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1136] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1137] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1138] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1139] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1140] IoU=0.07
+  Frame 1140/1800 | second 19
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1141] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1142] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1143] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1144] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1145] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1146] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1147] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1148] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1149] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1150] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1151] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1152] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1153] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1154] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1155] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1156] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1157] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1158] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1159] IoU=0.13
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1160] IoU=0.13
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1161] IoU=0.13
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1162] IoU=0.13
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1163] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1163] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1164] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1164] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1165] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1166] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1166] IoU=0.13
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1167] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1167] IoU=0.13
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1168] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1168] IoU=0.13
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1169] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1169] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1170] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1170] IoU=0.12
+  Frame 1170/1800 | second 19
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1171] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1171] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1172] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1172] IoU=0.13
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1173] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1173] IoU=0.13
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1174] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1174] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1175] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1175] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1176] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1176] IoU=0.13
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1177] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1177] IoU=0.15
+  Crossing started: Fish 1 ↔ Fish 3 [frame 1177]
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1178] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1178] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1179] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1179] IoU=0.14
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1180] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1180] IoU=0.14
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1181] IoU=0.05
+  Crossing started: Fish 1 ↔ Fish 2 [frame 1181]
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1181] IoU=0.09
+  Fish 1 ↔ Fish 3: crossing resolved, no swap needed
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1182] IoU=0.26
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1182] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1183] IoU=0.47
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1183] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1184] IoU=0.49
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1184] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1185] IoU=0.45
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1185] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1186] IoU=0.26
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1186] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1187] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1187] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1188] IoU=0.13
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1188] IoU=0.08
+  Crossing started: Fish 1 ↔ Fish 3 [frame 1188]
+  Fish 1 recovered after 1 missing frames
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1189] IoU=0.40
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1189] IoU=0.07
+  Fish 1 ↔ Fish 3: crossing resolved, no swap needed
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1190] IoU=0.42
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1190] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1191] IoU=0.24
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1191] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1192] IoU=0.14
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1192] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1193] IoU=0.39
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1193] IoU=0.06
+  Crossing started: Fish 1 ↔ Fish 3 [frame 1193]
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1194] IoU=0.47
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1194] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1195] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1195] IoU=0.26
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1196] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1196] IoU=0.25
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1197] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1197] IoU=0.24
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1198] IoU=0.15
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1198] IoU=0.18
+  Crossing started: Fish 2 ↔ Fish 3 [frame 1198]
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1199] IoU=0.15
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1199] IoU=0.32
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1199] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1200] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1200] IoU=0.13
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1200] IoU=0.00
+  Frame 1200/1800 | second 20
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1201] IoU=0.13
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1201] IoU=0.11
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1201] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1202] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1202] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1202] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1203] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1203] IoU=0.01
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1203] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1204] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1204] IoU=0.02
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1204] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1205] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1205] IoU=0.02
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1205] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1206] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1206] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1206] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1207] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1207] IoU=0.02
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1207] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1208] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1208] IoU=0.01
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1208] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1209] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1209] IoU=0.02
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1209] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1210] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1210] IoU=0.02
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1210] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1211] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1211] IoU=0.02
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1211] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1212] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1212] IoU=0.01
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1212] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1213] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1213] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1213] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1214] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1214] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1214] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1215] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1215] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1215] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1216] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1216] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1216] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1217] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1217] IoU=0.00
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1217] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1218] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1218] IoU=0.01
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1218] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1219] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1219] IoU=0.01
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1219] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1220] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1220] IoU=0.02
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1220] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1221] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1221] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1221] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1222] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1222] IoU=0.01
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1222] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1223] IoU=0.05
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1223] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1224] IoU=0.05
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1224] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1225] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1225] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1226] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1226] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1227] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1227] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1228] IoU=0.05
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1228] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1229] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1229] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1230] IoU=0.03
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1230] IoU=0.08
+  Fish 1 ↔ Fish 3: IDs swapped back after crossing
+  Frame 1230/1800 | second 20
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1231] IoU=0.08
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1231] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1232] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1232] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1233] IoU=0.05
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1233] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1234] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1234] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1235] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1235] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1236] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1236] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1237] IoU=0.05
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1237] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1238] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1238] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1239] IoU=0.05
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1239] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1240] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1240] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1241] IoU=0.04
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1241] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1242] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1243] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1244] IoU=0.06
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1244] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1245] IoU=0.05
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1245] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1246] IoU=0.05
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1246] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1247] IoU=0.05
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1247] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1248] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1249] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1250] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1251] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1252] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1253] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1254] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1255] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1256] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1257] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1258] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1259] IoU=0.00
+  Frame 1260/1800 | second 21
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1261] IoU=0.00
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1266] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1281] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1282] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1283] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1284] IoU=0.00
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1284] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1285] IoU=0.00
+  Overlap detected: Fish 2 ↔ Fish 3 [frame 1285] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1286] IoU=0.01
+  Frame 1290/1800 | second 21
+  Frame 1320/1800 | second 22
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1331] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1332] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1333] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1334] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1335] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1336] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1337] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1338] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1339] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1340] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1341] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1342] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1343] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1344] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1345] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1346] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1347] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1348] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1349] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1350] IoU=0.03
+  Frame 1350/1800 | second 22
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1351] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1352] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1353] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1354] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1355] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1356] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1357] IoU=0.00
+  Frame 1380/1800 | second 23
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1398] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1399] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1400] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1401] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1402] IoU=0.16
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1403] IoU=0.13
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1404] IoU=0.15
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1405] IoU=0.14
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1406] IoU=0.14
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1407] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1408] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1409] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1410] IoU=0.11
+  Frame 1410/1800 | second 23
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1411] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1412] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1413] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1414] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1415] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1416] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1417] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1418] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1419] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1420] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1421] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1422] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1423] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1424] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1425] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1426] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1427] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1428] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1429] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1430] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1431] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1432] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1433] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1434] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1435] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1436] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1437] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1438] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1439] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1440] IoU=0.02
+  Frame 1440/1800 | second 24
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1441] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1442] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1443] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1444] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1457] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1458] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1459] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1460] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1461] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1462] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1463] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1464] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1465] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1466] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1467] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1468] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1469] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1470] IoU=0.07
+  Frame 1470/1800 | second 24
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1471] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1472] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1473] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1474] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1475] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1476] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1477] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1478] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1479] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1480] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1481] IoU=0.05
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1482] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1483] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1484] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1485] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1486] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1487] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1488] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1489] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 2 [frame 1490] IoU=0.01
+  Frame 1500/1800 | second 25
+  Frame 1530/1800 | second 25
+  Frame 1560/1800 | second 26
+  Frame 1590/1800 | second 26
+  Frame 1620/1800 | second 27
+  Frame 1650/1800 | second 27
+  Frame 1680/1800 | second 28
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1701] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1703] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1705] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1706] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1707] IoU=0.03
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1708] IoU=0.00
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1709] IoU=0.02
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1710] IoU=0.02
+  Frame 1710/1800 | second 28
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1711] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1712] IoU=0.04
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1713] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1714] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1715] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1716] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1717] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1718] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1719] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1720] IoU=0.08
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1721] IoU=0.09
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1722] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1723] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1724] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1725] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1726] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1727] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1728] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1729] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1730] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1731] IoU=0.11
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1732] IoU=0.12
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1733] IoU=0.10
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1734] IoU=0.07
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1735] IoU=0.06
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1736] IoU=0.01
+  Overlap detected: Fish 1 ↔ Fish 3 [frame 1737] IoU=0.00
+  Frame 1740/1800 | second 29
+  Frame 1770/1800 | second 29
+
+Done. Saved to output_video_zebratracker/tracker_IMG_0350_2026_06_17_run2_freeze_fix_1522.mp4

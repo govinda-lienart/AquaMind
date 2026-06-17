@@ -1,0 +1,1048 @@
+==================================================
+  Video:          videos/IMG_0350.MOV
+  Model:          runs/aquamind_yolov8_run1_20260614_1446/weights/best.pt
+  Output:         output_video_zebratracker/tracker_IMG_0350_2026_06_16_1622_hard_data_mining.mp4
+  Seconds:        0 → None
+  Fish:           5
+  Calibration:    10 seconds
+  confirm_hits:   200 frames
+  max_distance:   150 px
+  max_missing:    300 frames
+==================================================
+Press Enter to start...  Frame 0/11769 | second 0
+  Frame 30/11769 | second 0
+  Frame 60/11769 | second 1
+  Frame 90/11769 | second 1
+  Frame 120/11769 | second 2
+  Frame 150/11769 | second 2
+  Frame 180/11769 | second 3
+  Fish 1 confirmed after 200 frames
+  Fish 2 confirmed after 200 frames
+  Fish 3 confirmed after 200 frames
+  Fish 4 confirmed after 200 frames
+  Frame 210/11769 | second 3
+  Fish 5 confirmed after 200 frames
+  Fish 3 recovered after 4 missing frames
+  Frame 240/11769 | second 4
+  Fish 5 recovered after 5 missing frames
+  Frame 270/11769 | second 4
+  Fish 5 recovered after 11 missing frames
+  Fish 5 recovered after 3 missing frames
+  Crossing started: Fish 1 ↔ Fish 3 [frame 297]
+  Frame 300/11769 | second 5
+  Fish 1 ↔ Fish 3: crossing resolved, no swap needed
+  Frame 330/11769 | second 5
+  Frame 360/11769 | second 6
+  Frame 390/11769 | second 6
+  Frame 420/11769 | second 7
+  Crossing started: Fish 1 ↔ Fish 3 [frame 426]
+  Fish 1 ↔ Fish 3: crossing resolved, no swap needed
+  Fish 5 recovered after 1 missing frames
+  Frame 450/11769 | second 7
+  Fish 5 recovered after 12 missing frames
+  Frame 480/11769 | second 8
+  Crossing started: Fish 3 ↔ Fish 5 [frame 499]
+  Fish 1 recovered after 1 missing frames
+  Fish 1 recovered after 1 missing frames
+  Fish 1 recovered after 1 missing frames
+  Frame 510/11769 | second 8
+  Fish 3 recovered after 11 missing frames
+  Fish 3 recovered after 1 missing frames
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 540/11769 | second 9
+  Frame 570/11769 | second 9
+  Frame 600/11769 | second 10
+  Frame 630/11769 | second 10
+  Fish 3 recovered after 10 missing frames
+  Fish 3 recovered after 3 missing frames
+  Fish 3 recovered after 2 missing frames
+  Fish 3 recovered after 7 missing frames
+  Crossing started: Fish 1 ↔ Fish 5 [frame 655]
+  Fish 1 recovered after 3 missing frames
+  Frame 660/11769 | second 11
+  Fish 1 recovered after 1 missing frames
+  Fish 1 recovered after 16 missing frames
+  Fish 1 ↔ Fish 5: IDs swapped back after crossing
+  Frame 690/11769 | second 11
+  Frame 720/11769 | second 12
+  Frame 750/11769 | second 12
+  Frame 780/11769 | second 13
+  Crossing started: Fish 1 ↔ Fish 5 [frame 801]
+  Fish 1 recovered after 4 missing frames
+  Frame 810/11769 | second 13
+  Fish 5 recovered after 4 missing frames
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 5 recovered after 1 missing frames
+  Fish 5 recovered after 3 missing frames
+  Fish 5 recovered after 3 missing frames
+  Crossing started: Fish 1 ↔ Fish 5 [frame 824]
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 840/11769 | second 14
+  Frame 870/11769 | second 14
+  Crossing started: Fish 1 ↔ Fish 5 [frame 876]
+  Fish 5 recovered after 5 missing frames
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 900/11769 | second 15
+  Frame 930/11769 | second 15
+  Frame 960/11769 | second 16
+  Crossing started: Fish 2 ↔ Fish 3 [frame 971]
+  Frame 990/11769 | second 16
+  Fish 3 recovered after 6 missing frames
+  Fish 3 recovered after 13 missing frames
+  Fish 2 ↔ Fish 3: crossing resolved, no swap needed
+  Frame 1020/11769 | second 17
+  Frame 1050/11769 | second 17
+  Frame 1080/11769 | second 18
+  Crossing started: Fish 2 ↔ Fish 3 [frame 1087]
+  Fish 3 recovered after 5 missing frames
+  Fish 2 ↔ Fish 3: IDs swapped back after crossing
+  Fish 2 recovered after 13 missing frames
+  Fish 2 recovered after 1 missing frames
+  Frame 1110/11769 | second 18
+  Fish 2 recovered after 1 missing frames
+  Fish 1 recovered after 7 missing frames
+  Fish 1 recovered after 1 missing frames
+  Frame 1140/11769 | second 19
+  Frame 1170/11769 | second 19
+  Crossing started: Fish 1 ↔ Fish 3 [frame 1171]
+  Crossing started: Fish 2 ↔ Fish 3 [frame 1195]
+  Crossing started: Fish 1 ↔ Fish 2 [frame 1199]
+  Frame 1200/11769 | second 20
+  Fish 2 recovered after 4 missing frames
+  Fish 3 recovered after 1 missing frames
+  Fish 2 recovered after 1 missing frames
+  Fish 1 ↔ Fish 3: crossing resolved, no swap needed
+  Fish 2 recovered after 7 missing frames
+  Fish 2 recovered after 9 missing frames
+  Fish 1 recovered after 46 missing frames
+  Crossing started: Fish 1 ↔ Fish 2 [frame 1226]
+  Crossing started: Fish 1 ↔ Fish 3 [frame 1226]
+  Frame 1230/11769 | second 20
+  Fish 2 recovered after 1 missing frames
+  Fish 1 recovered after 1 missing frames
+  Fish 2 ↔ Fish 3: crossing resolved, no swap needed
+  Fish 1 recovered after 1 missing frames
+  Frame 1260/11769 | second 21
+  Frame 1290/11769 | second 21
+  Frame 1320/11769 | second 22
+  Frame 1350/11769 | second 22
+  Frame 1380/11769 | second 23
+  Crossing started: Fish 1 ↔ Fish 2 [frame 1400]
+  Frame 1410/11769 | second 23
+  Fish 1 recovered after 15 missing frames
+  Fish 1 ↔ Fish 2: IDs swapped back after crossing
+  Crossing started: Fish 1 ↔ Fish 2 [frame 1417]
+  Fish 1 ↔ Fish 2: crossing resolved, no swap needed
+  Crossing started: Fish 1 ↔ Fish 2 [frame 1422]
+  Fish 1 recovered after 4 missing frames
+  Fish 1 ↔ Fish 2: crossing resolved, no swap needed
+  Frame 1440/11769 | second 24
+  Frame 1470/11769 | second 24
+  Frame 1500/11769 | second 25
+  Frame 1530/11769 | second 25
+  Frame 1560/11769 | second 26
+  Frame 1590/11769 | second 26
+  Frame 1620/11769 | second 27
+  Frame 1650/11769 | second 27
+  Frame 1680/11769 | second 28
+  Frame 1710/11769 | second 28
+  Crossing started: Fish 1 ↔ Fish 3 [frame 1715]
+  Fish 1 ↔ Fish 3: crossing resolved, no swap needed
+  Frame 1740/11769 | second 29
+  Frame 1770/11769 | second 29
+  Frame 1800/11769 | second 30
+  Frame 1830/11769 | second 30
+  Frame 1860/11769 | second 31
+  Crossing started: Fish 1 ↔ Fish 4 [frame 1870]
+  Crossing started: Fish 2 ↔ Fish 3 [frame 1874]
+  Frame 1890/11769 | second 31
+  Fish 1 recovered after 22 missing frames
+  Fish 2 recovered after 25 missing frames
+  Fish 3 recovered after 1 missing frames
+  Fish 4 recovered after 1 missing frames
+  Fish 2 recovered after 2 missing frames
+  Fish 3 recovered after 4 missing frames
+  Fish 4 recovered after 1 missing frames
+  Fish 2 recovered after 2 missing frames
+  Frame 1920/11769 | second 32
+  Fish 2 ↔ Fish 3: crossing resolved, no swap needed
+  Frame 1950/11769 | second 32
+  Frame 1980/11769 | second 33
+  Frame 2010/11769 | second 33
+  Crossing started: Fish 2 ↔ Fish 3 [frame 2034]
+  Frame 2040/11769 | second 34
+  Fish 2 recovered after 31 missing frames
+  Crossing started: Fish 1 ↔ Fish 4 [frame 2061]
+  Fish 2 ↔ Fish 3: IDs swapped back after crossing
+  Fish 3 recovered after 1 missing frames
+  Crossing started: Fish 2 ↔ Fish 3 [frame 2063]
+  Fish 1 recovered after 9 missing frames
+  Frame 2070/11769 | second 34
+  Fish 1 ↔ Fish 4: crossing resolved, no swap needed
+  Crossing started: Fish 1 ↔ Fish 4 [frame 2089]
+  Fish 1 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 2100/11769 | second 35
+  Frame 2130/11769 | second 35
+  Crossing started: Fish 1 ↔ Fish 4 [frame 2131]
+  Fish 1 recovered after 14 missing frames
+  Fish 5 recovered after 3 missing frames
+  Frame 2160/11769 | second 36
+  Crossing started: Fish 1 ↔ Fish 4 [frame 2169]
+  Crossing started: Fish 1 ↔ Fish 4 [frame 2176]
+  Fish 1 ↔ Fish 4: crossing resolved, no swap needed
+  Crossing started: Fish 1 ↔ Fish 4 [frame 2182]
+  Crossing started: Fish 1 ↔ Fish 4 [frame 2187]
+  Frame 2190/11769 | second 36
+  Fish 2 recovered after 8 missing frames
+  Fish 4 recovered after 8 missing frames
+  Fish 1 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 2220/11769 | second 37
+  Frame 2250/11769 | second 37
+  Frame 2280/11769 | second 38
+  Frame 2310/11769 | second 38
+  Fish 3 recovered after 182 missing frames
+  Frame 2340/11769 | second 39
+  Fish 4 recovered after 1 missing frames
+  Frame 2370/11769 | second 39
+  Frame 2400/11769 | second 40
+  Frame 2430/11769 | second 40
+  Frame 2460/11769 | second 41
+  Frame 2490/11769 | second 41
+  Frame 2520/11769 | second 42
+  Frame 2550/11769 | second 42
+  Crossing started: Fish 1 ↔ Fish 4 [frame 2561]
+  Fish 1 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 2580/11769 | second 43
+  Frame 2610/11769 | second 43
+  Frame 2640/11769 | second 44
+  Frame 2670/11769 | second 44
+  Frame 2700/11769 | second 45
+  Frame 2730/11769 | second 45
+  Crossing started: Fish 1 ↔ Fish 4 [frame 2743]
+  Fish 4 recovered after 3 missing frames
+  Fish 1 recovered after 1 missing frames
+  Frame 2760/11769 | second 46
+  Fish 1 recovered after 1 missing frames
+  Frame 2790/11769 | second 46
+  Frame 2820/11769 | second 47
+  Crossing started: Fish 1 ↔ Fish 4 [frame 2844]
+  Fish 1 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 2850/11769 | second 47
+  Frame 2880/11769 | second 48
+  Crossing started: Fish 1 ↔ Fish 4 [frame 2903]
+  Fish 3 recovered after 1 missing frames
+  Frame 2910/11769 | second 48
+  Fish 3 recovered after 2 missing frames
+  Crossing started: Fish 2 ↔ Fish 3 [frame 2915]
+  Fish 4 recovered after 26 missing frames
+  Fish 1 ↔ Fish 4: IDs swapped back after crossing
+  Fish 2 recovered after 2 missing frames
+  Frame 2940/11769 | second 49
+  Fish 2 recovered after 1 missing frames
+  Frame 2970/11769 | second 49
+  Fish 3 recovered after 31 missing frames
+  Fish 2 ↔ Fish 3: crossing resolved, no swap needed
+  Crossing started: Fish 2 ↔ Fish 3 [frame 2995]
+  Fish 2 ↔ Fish 3: crossing resolved, no swap needed
+  Crossing started: Fish 2 ↔ Fish 3 [frame 2999]
+  Frame 3000/11769 | second 50
+  Fish 2 ↔ Fish 3: crossing resolved, no swap needed
+  Frame 3030/11769 | second 50
+  Crossing started: Fish 1 ↔ Fish 4 [frame 3056]
+  Frame 3060/11769 | second 51
+  Fish 4 recovered after 2 missing frames
+  Fish 1 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 3090/11769 | second 51
+  Frame 3120/11769 | second 52
+  Frame 3150/11769 | second 52
+  Frame 3180/11769 | second 53
+  Frame 3210/11769 | second 53
+  Frame 3240/11769 | second 54
+  Fish 5 recovered after 13 missing frames
+  Fish 5 recovered after 1 missing frames
+  Frame 3270/11769 | second 54
+  Frame 3300/11769 | second 55
+  Frame 3330/11769 | second 55
+  Frame 3360/11769 | second 56
+  Frame 3390/11769 | second 56
+  Fish 2 recovered after 1 missing frames
+  Crossing started: Fish 3 ↔ Fish 5 [frame 3391]
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Crossing started: Fish 3 ↔ Fish 5 [frame 3407]
+  Frame 3420/11769 | second 57
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 5 recovered after 31 missing frames
+  Crossing started: Fish 3 ↔ Fish 5 [frame 3439]
+  Frame 3450/11769 | second 57
+  Fish 3 recovered after 1 missing frames
+  Fish 3 recovered after 1 missing frames
+  Fish 3 recovered after 1 missing frames
+  Fish 3 recovered after 16 missing frames
+  Frame 3480/11769 | second 58
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 3510/11769 | second 58
+  Frame 3540/11769 | second 59
+  Frame 3570/11769 | second 59
+  Frame 3600/11769 | second 60
+  Frame 3630/11769 | second 60
+  Frame 3660/11769 | second 61
+  Crossing started: Fish 3 ↔ Fish 5 [frame 3684]
+  Frame 3690/11769 | second 61
+  Fish 3 recovered after 8 missing frames
+  Fish 5 recovered after 4 missing frames
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 3720/11769 | second 62
+  Frame 3750/11769 | second 62
+  Fish 3 recovered after 14 missing frames
+  Fish 4 recovered after 1 missing frames
+  Frame 3780/11769 | second 63
+  Fish 4 recovered after 3 missing frames
+  Frame 3810/11769 | second 63
+  Crossing started: Fish 1 ↔ Fish 3 [frame 3824]
+  Crossing started: Fish 1 ↔ Fish 5 [frame 3828]
+  Fish 1 ↔ Fish 3: crossing resolved, no swap needed
+  Fish 5 recovered after 3 missing frames
+  Fish 3 recovered after 7 missing frames
+  Crossing started: Fish 1 ↔ Fish 3 [frame 3836]
+  Crossing started: Fish 3 ↔ Fish 5 [frame 3836]
+  Frame 3840/11769 | second 64
+  Fish 3 recovered after 6 missing frames
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 1 recovered after 13 missing frames
+  Crossing started: Fish 1 ↔ Fish 5 [frame 3856]
+  Fish 5 recovered after 1 missing frames
+  Fish 1 recovered after 9 missing frames
+  Frame 3870/11769 | second 64
+  Crossing started: Fish 3 ↔ Fish 5 [frame 3880]
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Crossing started: Fish 3 ↔ Fish 4 [frame 3897]
+  Frame 3900/11769 | second 65
+  Fish 3 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 3930/11769 | second 65
+  Frame 3960/11769 | second 66
+  Fish 2 recovered after 21 missing frames
+  Frame 3990/11769 | second 66
+  Frame 4020/11769 | second 67
+  Fish 1 recovered after 1 missing frames
+  Crossing started: Fish 1 ↔ Fish 5 [frame 4028]
+  Fish 1 recovered after 1 missing frames
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 4050/11769 | second 67
+  Fish 2 recovered after 2 missing frames
+  Fish 2 recovered after 1 missing frames
+  Fish 2 recovered after 4 missing frames
+  Fish 2 recovered after 1 missing frames
+  Fish 2 recovered after 4 missing frames
+  Frame 4080/11769 | second 68
+  Fish 2 recovered after 1 missing frames
+  Fish 2 recovered after 1 missing frames
+  Frame 4110/11769 | second 68
+  Crossing started: Fish 1 ↔ Fish 5 [frame 4127]
+  Fish 1 recovered after 1 missing frames
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 1 recovered after 4 missing frames
+  Crossing started: Fish 2 ↔ Fish 4 [frame 4135]
+  Crossing started: Fish 1 ↔ Fish 5 [frame 4136]
+  Fish 2 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 4140/11769 | second 69
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Crossing started: Fish 1 ↔ Fish 5 [frame 4146]
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Crossing started: Fish 2 ↔ Fish 4 [frame 4155]
+  Fish 2 recovered after 3 missing frames
+  Fish 2 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 4170/11769 | second 69
+  Crossing started: Fish 4 ↔ Fish 5 [frame 4176]
+  Fish 4 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 4200/11769 | second 70
+  Crossing started: Fish 1 ↔ Fish 5 [frame 4218]
+  Crossing started: Fish 3 ↔ Fish 5 [frame 4224]
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Crossing started: Fish 1 ↔ Fish 3 [frame 4229]
+  Fish 1 ↔ Fish 3: crossing resolved, no swap needed
+  Frame 4230/11769 | second 70
+  Fish 1 recovered after 2 missing frames
+  Crossing started: Fish 1 ↔ Fish 3 [frame 4231]
+  Fish 5 recovered after 3 missing frames
+  Frame 4260/11769 | second 71
+  Fish 2 recovered after 4 missing frames
+  Fish 2 recovered after 4 missing frames
+  Frame 4290/11769 | second 71
+  Fish 4 recovered after 1 missing frames
+  Crossing started: Fish 3 ↔ Fish 4 [frame 4307]
+  Fish 3 recovered after 1 missing frames
+  Fish 3 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 4320/11769 | second 72
+  Fish 3 recovered after 1 missing frames
+  Crossing started: Fish 3 ↔ Fish 4 [frame 4342]
+  Frame 4350/11769 | second 72
+  Fish 4 recovered after 12 missing frames
+  Fish 4 recovered after 2 missing frames
+  Fish 3 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 4380/11769 | second 73
+  Frame 4410/11769 | second 73
+  Frame 4440/11769 | second 74
+  Frame 4470/11769 | second 74
+  Crossing started: Fish 3 ↔ Fish 5 [frame 4478]
+  Fish 3 recovered after 4 missing frames
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Crossing started: Fish 3 ↔ Fish 5 [frame 4490]
+  Frame 4500/11769 | second 75
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 4530/11769 | second 75
+  Frame 4560/11769 | second 76
+  Crossing started: Fish 3 ↔ Fish 5 [frame 4580]
+  Fish 5 recovered after 10 missing frames
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 4590/11769 | second 76
+  Crossing started: Fish 3 ↔ Fish 4 [frame 4596]
+  Fish 3 recovered after 7 missing frames
+  Crossing started: Fish 2 ↔ Fish 4 [frame 4608]
+  Fish 3 ↔ Fish 4: crossing resolved, no swap needed
+  Fish 4 recovered after 2 missing frames
+  Frame 4620/11769 | second 77
+  Frame 4650/11769 | second 77
+  Fish 4 recovered after 9 missing frames
+  Crossing started: Fish 2 ↔ Fish 4 [frame 4655]
+  Fish 2 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 4680/11769 | second 78
+  Fish 3 recovered after 6 missing frames
+  Fish 3 recovered after 1 missing frames
+  Crossing started: Fish 2 ↔ Fish 5 [frame 4707]
+  Frame 4710/11769 | second 78
+  Fish 4 recovered after 42 missing frames
+  Crossing started: Fish 3 ↔ Fish 4 [frame 4711]
+  Fish 4 recovered after 1 missing frames
+  Fish 3 ↔ Fish 4: crossing resolved, no swap needed
+  Fish 2 ↔ Fish 5: crossing resolved, no swap needed
+  Crossing started: Fish 2 ↔ Fish 5 [frame 4723]
+  Fish 2 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 3 recovered after 1 missing frames
+  Crossing started: Fish 3 ↔ Fish 4 [frame 4737]
+  Fish 4 recovered after 1 missing frames
+  Frame 4740/11769 | second 79
+  Fish 3 ↔ Fish 4: crossing resolved, no swap needed
+  Fish 3 recovered after 6 missing frames
+  Frame 4770/11769 | second 79
+  Crossing started: Fish 1 ↔ Fish 2 [frame 4789]
+  Fish 1 recovered after 15 missing frames
+  Frame 4800/11769 | second 80
+  Fish 2 recovered after 2 missing frames
+  Fish 1 ↔ Fish 2: crossing resolved, no swap needed
+  Frame 4830/11769 | second 80
+  Frame 4860/11769 | second 81
+  Crossing started: Fish 3 ↔ Fish 4 [frame 4876]
+  Fish 4 recovered after 13 missing frames
+  Fish 1 recovered after 1 missing frames
+  Frame 4890/11769 | second 81
+  Fish 3 recovered after 1 missing frames
+  Fish 3 recovered after 1 missing frames
+  Fish 3 ↔ Fish 4: crossing resolved, no swap needed
+  Fish 1 recovered after 1 missing frames
+  Frame 4920/11769 | second 82
+  Crossing started: Fish 1 ↔ Fish 5 [frame 4922]
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Crossing started: Fish 1 ↔ Fish 2 [frame 4938]
+  Fish 2 recovered after 2 missing frames
+  Crossing started: Fish 4 ↔ Fish 5 [frame 4942]
+  Fish 1 ↔ Fish 2: crossing resolved, no swap needed
+  Fish 1 recovered after 8 missing frames
+  Frame 4950/11769 | second 82
+  Fish 4 ↔ Fish 5: crossing resolved, no swap needed
+  Crossing started: Fish 2 ↔ Fish 4 [frame 4960]
+  Fish 2 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 4980/11769 | second 83
+  Fish 1 recovered after 35 missing frames
+  Frame 5010/11769 | second 83
+  Fish 1 recovered after 1 missing frames
+  Fish 1 recovered after 3 missing frames
+  Fish 1 recovered after 4 missing frames
+  Fish 1 recovered after 1 missing frames
+  Crossing started: Fish 3 ↔ Fish 5 [frame 5034]
+  Frame 5040/11769 | second 84
+  Fish 3 recovered after 20 missing frames
+  Fish 1 recovered after 34 missing frames
+  Crossing started: Fish 3 ↔ Fish 5 [frame 5070]
+  Frame 5070/11769 | second 84
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 2 recovered after 1 missing frames
+  Fish 3 recovered after 12 missing frames
+  Crossing started: Fish 3 ↔ Fish 5 [frame 5085]
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 3 recovered after 2 missing frames
+  Frame 5100/11769 | second 85
+  Fish 1 recovered after 7 missing frames
+  Fish 2 recovered after 1 missing frames
+  Fish 1 recovered after 9 missing frames
+  Fish 1 recovered after 1 missing frames
+  Fish 1 recovered after 3 missing frames
+  Fish 2 recovered after 1 missing frames
+  Crossing started: Fish 1 ↔ Fish 4 [frame 5121]
+  Fish 1 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 5130/11769 | second 85
+  Frame 5160/11769 | second 86
+  Frame 5190/11769 | second 86
+  Frame 5220/11769 | second 87
+  Frame 5250/11769 | second 87
+  Crossing started: Fish 2 ↔ Fish 3 [frame 5252]
+  Fish 2 recovered after 2 missing frames
+  Fish 2 ↔ Fish 3: crossing resolved, no swap needed
+  Crossing started: Fish 2 ↔ Fish 3 [frame 5260]
+  Fish 2 ↔ Fish 3: crossing resolved, no swap needed
+  Crossing started: Fish 4 ↔ Fish 5 [frame 5268]
+  Fish 4 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 5280/11769 | second 88
+  Frame 5310/11769 | second 88
+  Crossing started: Fish 2 ↔ Fish 3 [frame 5335]
+  Fish 3 recovered after 3 missing frames
+  Frame 5340/11769 | second 89
+  Fish 2 ↔ Fish 3: crossing resolved, no swap needed
+  Crossing started: Fish 2 ↔ Fish 3 [frame 5349]
+  Fish 2 ↔ Fish 3: IDs swapped back after crossing
+  Crossing started: Fish 4 ↔ Fish 5 [frame 5353]
+  Crossing started: Fish 2 ↔ Fish 3 [frame 5359]
+  Fish 2 ↔ Fish 3: crossing resolved, no swap needed
+  Fish 4 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 5370/11769 | second 89
+  Frame 5400/11769 | second 90
+  Frame 5430/11769 | second 90
+  Fish 3 recovered after 3 missing frames
+  Fish 3 recovered after 1 missing frames
+  Frame 5460/11769 | second 91
+  Crossing started: Fish 1 ↔ Fish 4 [frame 5481]
+  Frame 5490/11769 | second 91
+  Fish 1 recovered after 24 missing frames
+  Fish 4 recovered after 1 missing frames
+  Fish 1 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 5520/11769 | second 92
+  Frame 5550/11769 | second 92
+  Crossing started: Fish 2 ↔ Fish 4 [frame 5566]
+  Fish 4 recovered after 1 missing frames
+  Fish 2 recovered after 2 missing frames
+  Frame 5580/11769 | second 93
+  Fish 4 recovered after 7 missing frames
+  Fish 2 ↔ Fish 4: crossing resolved, no swap needed
+  Fish 3 recovered after 1 missing frames
+  Fish 2 recovered after 20 missing frames
+  Crossing started: Fish 2 ↔ Fish 4 [frame 5605]
+  Frame 5610/11769 | second 93
+  Fish 2 ↔ Fish 4: crossing resolved, no swap needed
+  Crossing started: Fish 2 ↔ Fish 4 [frame 5612]
+  Fish 2 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 5640/11769 | second 94
+  Crossing started: Fish 2 ↔ Fish 4 [frame 5651]
+  Frame 5670/11769 | second 94
+  Frame 5700/11769 | second 95
+  Frame 5730/11769 | second 95
+  Fish 5 recovered after 1 missing frames
+  Crossing started: Fish 1 ↔ Fish 3 [frame 5756]
+  Fish 1 recovered after 3 missing frames
+  Fish 1 ↔ Fish 3: crossing resolved, no swap needed
+  Frame 5760/11769 | second 96
+  Fish 1 recovered after 3 missing frames
+  Fish 4 recovered after 1 missing frames
+  Fish 4 recovered after 1 missing frames
+  Frame 5790/11769 | second 96
+  Fish 4 recovered after 8 missing frames
+  Fish 4 recovered after 3 missing frames
+  Crossing started: Fish 2 ↔ Fish 3 [frame 5807]
+  Fish 2 ↔ Fish 3: crossing resolved, no swap needed
+  Frame 5820/11769 | second 97
+  Crossing started: Fish 1 ↔ Fish 2 [frame 5828]
+  Fish 1 ↔ Fish 2: crossing resolved, no swap needed
+  Frame 5850/11769 | second 97
+  Frame 5880/11769 | second 98
+  Crossing started: Fish 4 ↔ Fish 5 [frame 5884]
+  Fish 2 recovered after 4 missing frames
+  Fish 3 recovered after 4 missing frames
+  Fish 4 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 4 recovered after 21 missing frames
+  Frame 5910/11769 | second 98
+  Frame 5940/11769 | second 99
+  Frame 5970/11769 | second 99
+  Frame 6000/11769 | second 100
+  Frame 6030/11769 | second 100
+  Frame 6060/11769 | second 101
+  Crossing started: Fish 2 ↔ Fish 4 [frame 6068]
+  Fish 4 recovered after 9 missing frames
+  Fish 2 ↔ Fish 4: IDs swapped back after crossing
+  Frame 6090/11769 | second 101
+  Frame 6120/11769 | second 102
+  Frame 6150/11769 | second 102
+  Frame 6180/11769 | second 103
+  Frame 6210/11769 | second 103
+  Crossing started: Fish 3 ↔ Fish 4 [frame 6218]
+  Fish 3 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 6240/11769 | second 104
+  Frame 6270/11769 | second 104
+  Crossing started: Fish 1 ↔ Fish 2 [frame 6299]
+  Frame 6300/11769 | second 105
+  Fish 1 ↔ Fish 2: crossing resolved, no swap needed
+  Fish 5 recovered after 11 missing frames
+  Frame 6330/11769 | second 105
+  Frame 6360/11769 | second 106
+  Crossing started: Fish 2 ↔ Fish 3 [frame 6374]
+  Frame 6390/11769 | second 106
+  Fish 2 recovered after 9 missing frames
+  Fish 3 recovered after 1 missing frames
+  Fish 2 ↔ Fish 3: crossing resolved, no swap needed
+  Frame 6420/11769 | second 107
+  Crossing started: Fish 1 ↔ Fish 5 [frame 6433]
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Crossing started: Fish 1 ↔ Fish 3 [frame 6442]
+  Fish 1 ↔ Fish 3: crossing resolved, no swap needed
+  Frame 6450/11769 | second 107
+  Frame 6480/11769 | second 108
+  Crossing started: Fish 1 ↔ Fish 2 [frame 6491]
+  Fish 1 ↔ Fish 2: crossing resolved, no swap needed
+  Frame 6510/11769 | second 108
+  Crossing started: Fish 1 ↔ Fish 2 [frame 6526]
+  Fish 1 recovered after 1 missing frames
+  Frame 6540/11769 | second 109
+  Fish 4 recovered after 11 missing frames
+  Fish 1 ↔ Fish 2: crossing resolved, no swap needed
+  Frame 6570/11769 | second 109
+  Crossing started: Fish 2 ↔ Fish 5 [frame 6579]
+  Fish 2 recovered after 7 missing frames
+  Frame 6600/11769 | second 110
+  Fish 2 recovered after 11 missing frames
+  Fish 5 recovered after 3 missing frames
+  Fish 2 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 6630/11769 | second 110
+  Crossing started: Fish 2 ↔ Fish 5 [frame 6636]
+  Fish 3 recovered after 1 missing frames
+  Fish 2 ↔ Fish 5: crossing resolved, no swap needed
+  Crossing started: Fish 2 ↔ Fish 5 [frame 6650]
+  Fish 2 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 5 recovered after 2 missing frames
+  Frame 6660/11769 | second 111
+  Fish 3 recovered after 23 missing frames
+  Frame 6690/11769 | second 111
+  Fish 1 recovered after 2 missing frames
+  Fish 1 recovered after 3 missing frames
+  Frame 6720/11769 | second 112
+  Frame 6750/11769 | second 112
+  Frame 6780/11769 | second 113
+  Frame 6810/11769 | second 113
+  Fish 2 recovered after 1 missing frames
+  Fish 2 recovered after 1 missing frames
+  Fish 1 recovered after 3 missing frames
+  Fish 2 recovered after 1 missing frames
+  Frame 6840/11769 | second 114
+  Fish 4 recovered after 1 missing frames
+  Crossing started: Fish 1 ↔ Fish 4 [frame 6864]
+  Fish 1 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 6870/11769 | second 114
+  Fish 2 recovered after 36 missing frames
+  Frame 6900/11769 | second 115
+  Fish 2 recovered after 6 missing frames
+  Fish 2 recovered after 1 missing frames
+  Frame 6930/11769 | second 115
+  Crossing started: Fish 1 ↔ Fish 5 [frame 6943]
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 6960/11769 | second 116
+  Frame 6990/11769 | second 116
+  Frame 7020/11769 | second 117
+  Frame 7050/11769 | second 117
+  Fish 4 recovered after 1 missing frames
+  Crossing started: Fish 4 ↔ Fish 5 [frame 7064]
+  Fish 4 recovered after 11 missing frames
+  Fish 4 ↔ Fish 5: IDs swapped back after crossing
+  Frame 7080/11769 | second 118
+  Crossing started: Fish 1 ↔ Fish 4 [frame 7086]
+  Fish 4 recovered after 4 missing frames
+  Fish 4 recovered after 3 missing frames
+  Fish 1 ↔ Fish 4: IDs swapped back after crossing
+  Frame 7110/11769 | second 118
+  Frame 7140/11769 | second 119
+  Frame 7170/11769 | second 119
+  Fish 1 recovered after 3 missing frames
+  Crossing started: Fish 4 ↔ Fish 5 [frame 7186]
+  Crossing started: Fish 1 ↔ Fish 4 [frame 7194]
+  Fish 4 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 7200/11769 | second 120
+  Fish 1 recovered after 4 missing frames
+  Frame 7230/11769 | second 120
+  Fish 3 recovered after 16 missing frames
+  Frame 7260/11769 | second 121
+  Frame 7290/11769 | second 121
+  Fish 2 recovered after 3 missing frames
+  Crossing started: Fish 3 ↔ Fish 4 [frame 7310]
+  Fish 3 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 7320/11769 | second 122
+  Frame 7350/11769 | second 122
+  Frame 7380/11769 | second 123
+  Crossing started: Fish 3 ↔ Fish 5 [frame 7389]
+  Fish 5 recovered after 3 missing frames
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 7410/11769 | second 123
+  Frame 7440/11769 | second 124
+  Frame 7470/11769 | second 124
+  Frame 7500/11769 | second 125
+  Frame 7530/11769 | second 125
+  Frame 7560/11769 | second 126
+  Crossing started: Fish 3 ↔ Fish 4 [frame 7585]
+  Frame 7590/11769 | second 126
+  Fish 4 recovered after 2 missing frames
+  Fish 5 recovered after 1 missing frames
+  Fish 3 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 7620/11769 | second 127
+  Frame 7650/11769 | second 127
+  Crossing started: Fish 1 ↔ Fish 4 [frame 7659]
+  Fish 1 ↔ Fish 4: crossing resolved, no swap needed
+  Crossing started: Fish 1 ↔ Fish 4 [frame 7663]
+  Fish 1 recovered after 8 missing frames
+  Frame 7680/11769 | second 128
+  Fish 1 ↔ Fish 4: crossing resolved, no swap needed
+  Crossing started: Fish 1 ↔ Fish 4 [frame 7692]
+  Crossing started: Fish 3 ↔ Fish 5 [frame 7695]
+  Fish 1 ↔ Fish 4: crossing resolved, no swap needed
+  Fish 5 recovered after 14 missing frames
+  Frame 7710/11769 | second 128
+  Fish 3 recovered after 7 missing frames
+  Fish 3 recovered after 1 missing frames
+  Crossing started: Fish 1 ↔ Fish 4 [frame 7723]
+  Frame 7740/11769 | second 129
+  Fish 1 recovered after 6 missing frames
+  Fish 4 recovered after 4 missing frames
+  Fish 1 recovered after 1 missing frames
+  Fish 4 recovered after 5 missing frames
+  Crossing started: Fish 3 ↔ Fish 5 [frame 7766]
+  Crossing started: Fish 1 ↔ Fish 3 [frame 7770]
+  Crossing started: Fish 3 ↔ Fish 4 [frame 7770]
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 7770/11769 | second 129
+  Fish 3 recovered after 2 missing frames
+  Fish 1 recovered after 2 missing frames
+  Fish 4 recovered after 1 missing frames
+  Crossing started: Fish 4 ↔ Fish 5 [frame 7781]
+  Fish 3 recovered after 2 missing frames
+  Fish 3 recovered after 1 missing frames
+  Frame 7800/11769 | second 130
+  Fish 4 recovered after 1 missing frames
+  Frame 7830/11769 | second 130
+  Frame 7860/11769 | second 131
+  Crossing started: Fish 4 ↔ Fish 5 [frame 7874]
+  Fish 4 recovered after 13 missing frames
+  Fish 4 ↔ Fish 5: IDs swapped back after crossing
+  Frame 7890/11769 | second 131
+  Frame 7920/11769 | second 132
+  Crossing started: Fish 4 ↔ Fish 5 [frame 7922]
+  Crossing started: Fish 1 ↔ Fish 2 [frame 7931]
+  Fish 4 recovered after 12 missing frames
+  Fish 4 recovered after 4 missing frames
+  Frame 7950/11769 | second 132
+  Fish 2 recovered after 20 missing frames
+  Fish 1 ↔ Fish 2: crossing resolved, no swap needed
+  Frame 7980/11769 | second 133
+  Frame 8010/11769 | second 133
+  Crossing started: Fish 3 ↔ Fish 5 [frame 8016]
+  Fish 1 recovered after 1 missing frames
+  Fish 1 recovered after 1 missing frames
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 1 recovered after 6 missing frames
+  Frame 8040/11769 | second 134
+  Fish 4 recovered after 31 missing frames
+  Frame 8070/11769 | second 134
+  Frame 8100/11769 | second 135
+  Crossing started: Fish 2 ↔ Fish 3 [frame 8119]
+  Frame 8130/11769 | second 135
+  Fish 2 ↔ Fish 3: crossing resolved, no swap needed
+  Frame 8160/11769 | second 136
+  Crossing started: Fish 2 ↔ Fish 4 [frame 8162]
+  Fish 2 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 8190/11769 | second 136
+  Frame 8220/11769 | second 137
+  Frame 8250/11769 | second 137
+  Frame 8280/11769 | second 138
+  Frame 8310/11769 | second 138
+  Crossing started: Fish 3 ↔ Fish 4 [frame 8318]
+  Fish 1 recovered after 1 missing frames
+  Fish 3 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 8340/11769 | second 139
+  Frame 8370/11769 | second 139
+  Frame 8400/11769 | second 140
+  Fish 2 recovered after 1 missing frames
+  Crossing started: Fish 3 ↔ Fish 4 [frame 8406]
+  Fish 3 recovered after 3 missing frames
+  Fish 4 recovered after 2 missing frames
+  Fish 3 ↔ Fish 4: crossing resolved, no swap needed
+  Fish 2 recovered after 13 missing frames
+  Fish 2 recovered after 1 missing frames
+  Frame 8430/11769 | second 140
+  Fish 5 recovered after 399 missing frames
+  Fish 5 recovered after 7 missing frames
+  Frame 8460/11769 | second 141
+  Frame 8490/11769 | second 141
+  Crossing started: Fish 1 ↔ Fish 4 [frame 8517]
+  Frame 8520/11769 | second 142
+  Fish 1 ↔ Fish 4: crossing resolved, no swap needed
+  Fish 4 recovered after 7 missing frames
+  Crossing started: Fish 1 ↔ Fish 4 [frame 8526]
+  Fish 1 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 8550/11769 | second 142
+  Crossing started: Fish 3 ↔ Fish 5 [frame 8572]
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Crossing started: Fish 3 ↔ Fish 5 [frame 8576]
+  Frame 8580/11769 | second 143
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Crossing started: Fish 3 ↔ Fish 5 [frame 8594]
+  Fish 3 recovered after 4 missing frames
+  Fish 3 recovered after 1 missing frames
+  Fish 3 recovered after 1 missing frames
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 3 recovered after 4 missing frames
+  Frame 8610/11769 | second 143
+  Crossing started: Fish 3 ↔ Fish 5 [frame 8612]
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Crossing started: Fish 3 ↔ Fish 5 [frame 8614]
+  Fish 3 recovered after 2 missing frames
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 4 recovered after 24 missing frames
+  Fish 3 recovered after 2 missing frames
+  Crossing started: Fish 3 ↔ Fish 5 [frame 8620]
+  Fish 5 recovered after 1 missing frames
+  Fish 5 recovered after 4 missing frames
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Crossing started: Fish 3 ↔ Fish 5 [frame 8635]
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 8640/11769 | second 144
+  Crossing started: Fish 3 ↔ Fish 5 [frame 8644]
+  Fish 5 recovered after 6 missing frames
+  Fish 3 recovered after 2 missing frames
+  Frame 8670/11769 | second 144
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 5 recovered after 16 missing frames
+  Crossing started: Fish 3 ↔ Fish 5 [frame 8673]
+  Fish 3 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 8700/11769 | second 145
+  Frame 8730/11769 | second 145
+  Fish 2 recovered after 1 missing frames
+  Fish 2 recovered after 1 missing frames
+  Frame 8760/11769 | second 146
+  Crossing started: Fish 1 ↔ Fish 3 [frame 8780]
+  Frame 8790/11769 | second 146
+  Fish 3 recovered after 15 missing frames
+  Fish 1 ↔ Fish 3: crossing resolved, no swap needed
+  Frame 8820/11769 | second 147
+  Fish 2 recovered after 1 missing frames
+  Fish 1 recovered after 56 missing frames
+  Frame 8850/11769 | second 147
+  Fish 1 recovered after 10 missing frames
+  Frame 8880/11769 | second 148
+  Frame 8910/11769 | second 148
+  Frame 8940/11769 | second 149
+  Frame 8970/11769 | second 149
+  Frame 9000/11769 | second 150
+  Frame 9030/11769 | second 150
+  Crossing started: Fish 1 ↔ Fish 5 [frame 9034]
+  Fish 1 recovered after 5 missing frames
+  Fish 5 recovered after 4 missing frames
+  Fish 1 recovered after 1 missing frames
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 9060/11769 | second 151
+  Crossing started: Fish 1 ↔ Fish 5 [frame 9064]
+  Fish 3 recovered after 14 missing frames
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 3 recovered after 1 missing frames
+  Frame 9090/11769 | second 151
+  Frame 9120/11769 | second 152
+  Frame 9150/11769 | second 152
+  Frame 9180/11769 | second 153
+  Fish 4 recovered after 348 missing frames
+  Frame 9210/11769 | second 153
+  Fish 4 recovered after 20 missing frames
+  Frame 9240/11769 | second 154
+  Crossing started: Fish 1 ↔ Fish 5 [frame 9249]
+  Fish 1 recovered after 2 missing frames
+  Fish 2 recovered after 432 missing frames
+  Frame 9270/11769 | second 154
+  Fish 5 recovered after 10 missing frames
+  Fish 1 recovered after 21 missing frames
+  Frame 9300/11769 | second 155
+  Fish 1 recovered after 1 missing frames
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 9330/11769 | second 155
+  Crossing started: Fish 2 ↔ Fish 4 [frame 9334]
+  Frame 9360/11769 | second 156
+  Fish 4 recovered after 174 missing frames
+  Frame 9390/11769 | second 156
+  Frame 9420/11769 | second 157
+  Fish 2 recovered after 48 missing frames
+  Fish 2 recovered after 1 missing frames
+  Crossing started: Fish 2 ↔ Fish 4 [frame 9445]
+  Fish 4 recovered after 2 missing frames
+  Fish 2 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 9450/11769 | second 157
+  Fish 3 recovered after 5 missing frames
+  Fish 3 recovered after 1 missing frames
+  Frame 9480/11769 | second 158
+  Crossing started: Fish 1 ↔ Fish 5 [frame 9484]
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 1 recovered after 25 missing frames
+  Frame 9510/11769 | second 158
+  Crossing started: Fish 2 ↔ Fish 4 [frame 9533]
+  Frame 9540/11769 | second 159
+  Fish 3 recovered after 36 missing frames
+  Frame 9570/11769 | second 159
+  Frame 9600/11769 | second 160
+  Frame 9630/11769 | second 160
+  Frame 9660/11769 | second 161
+  Frame 9690/11769 | second 161
+  Crossing started: Fish 2 ↔ Fish 4 [frame 9695]
+  Crossing started: Fish 1 ↔ Fish 5 [frame 9717]
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 9720/11769 | second 162
+  Fish 3 recovered after 24 missing frames
+  Fish 2 recovered after 292 missing frames
+  Frame 9750/11769 | second 162
+  Frame 9780/11769 | second 163
+  Frame 9810/11769 | second 163
+  Frame 9840/11769 | second 164
+  Frame 9870/11769 | second 164
+  Fish 2 recovered after 1 missing frames
+  Fish 2 recovered after 1 missing frames
+  Fish 5 recovered after 1 missing frames
+  Frame 9900/11769 | second 165
+  Fish 2 recovered after 1 missing frames
+  Fish 2 recovered after 1 missing frames
+  Frame 9930/11769 | second 165
+  Crossing started: Fish 1 ↔ Fish 5 [frame 9948]
+  Fish 5 recovered after 8 missing frames
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 9960/11769 | second 166
+  Fish 1 recovered after 1 missing frames
+  Fish 2 recovered after 1 missing frames
+  Fish 5 recovered after 4 missing frames
+  Crossing started: Fish 1 ↔ Fish 5 [frame 9976]
+  Fish 1 recovered after 1 missing frames
+  Fish 2 recovered after 3 missing frames
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 9990/11769 | second 166
+  Fish 3 recovered after 1 missing frames
+  Frame 10020/11769 | second 167
+  Fish 5 recovered after 6 missing frames
+  Crossing started: Fish 1 ↔ Fish 5 [frame 10047]
+  Frame 10050/11769 | second 167
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 3 recovered after 9 missing frames
+  Fish 3 recovered after 7 missing frames
+  Frame 10080/11769 | second 168
+  Crossing started: Fish 1 ↔ Fish 5 [frame 10094]
+  Fish 5 recovered after 8 missing frames
+  Fish 1 recovered after 1 missing frames
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Crossing started: Fish 1 ↔ Fish 5 [frame 10107]
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 10110/11769 | second 168
+  Frame 10140/11769 | second 169
+  Frame 10170/11769 | second 169
+  Frame 10200/11769 | second 170
+  Frame 10230/11769 | second 170
+  Frame 10260/11769 | second 171
+  Frame 10290/11769 | second 171
+  Frame 10320/11769 | second 172
+  Frame 10350/11769 | second 172
+  Frame 10380/11769 | second 173
+  Frame 10410/11769 | second 173
+  Frame 10440/11769 | second 174
+  Frame 10470/11769 | second 174
+  Crossing started: Fish 1 ↔ Fish 5 [frame 10473]
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 10500/11769 | second 175
+  Fish 3 recovered after 141 missing frames
+  Fish 3 recovered after 1 missing frames
+  Fish 3 recovered after 1 missing frames
+  Frame 10530/11769 | second 175
+  Frame 10560/11769 | second 176
+  Frame 10590/11769 | second 176
+  Frame 10620/11769 | second 177
+  Fish 4 recovered after 891 missing frames
+  Frame 10650/11769 | second 177
+  Frame 10680/11769 | second 178
+  Crossing started: Fish 1 ↔ Fish 5 [frame 10687]
+  Fish 4 recovered after 4 missing frames
+  Fish 1 recovered after 2 missing frames
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Fish 4 recovered after 2 missing frames
+  Fish 4 recovered after 2 missing frames
+  Frame 10710/11769 | second 178
+  Frame 10740/11769 | second 179
+  Frame 10770/11769 | second 179
+  Frame 10800/11769 | second 180
+  Fish 2 recovered after 831 missing frames
+  Frame 10830/11769 | second 180
+  Frame 10860/11769 | second 181
+  Fish 2 recovered after 1 missing frames
+  Crossing started: Fish 1 ↔ Fish 5 [frame 10864]
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 10890/11769 | second 181
+  Frame 10920/11769 | second 182
+  Fish 3 recovered after 3 missing frames
+  Fish 3 recovered after 1 missing frames
+  Fish 2 recovered after 81 missing frames
+  Frame 10950/11769 | second 182
+  Crossing started: Fish 1 ↔ Fish 5 [frame 10962]
+  Fish 2 recovered after 5 missing frames
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 10980/11769 | second 183
+  Crossing started: Fish 3 ↔ Fish 4 [frame 10999]
+  Frame 11010/11769 | second 183
+  Fish 3 ↔ Fish 4: crossing resolved, no swap needed
+  Frame 11040/11769 | second 184
+  Frame 11070/11769 | second 184
+  Crossing started: Fish 1 ↔ Fish 5 [frame 11075]
+  Fish 1 recovered after 7 missing frames
+  Fish 5 recovered after 1 missing frames
+  Fish 1 recovered after 11 missing frames
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 11100/11769 | second 185
+  Frame 11130/11769 | second 185
+  Frame 11160/11769 | second 186
+  Frame 11190/11769 | second 186
+  Frame 11220/11769 | second 187
+  Frame 11250/11769 | second 187
+  Frame 11280/11769 | second 188
+  Crossing started: Fish 1 ↔ Fish 5 [frame 11286]
+  Fish 1 recovered after 9 missing frames
+  Fish 1 ↔ Fish 5: IDs swapped back after crossing
+  Frame 11310/11769 | second 188
+  Frame 11340/11769 | second 189
+  Fish 2 recovered after 279 missing frames
+  Frame 11370/11769 | second 189
+  Crossing started: Fish 1 ↔ Fish 5 [frame 11375]
+  Fish 5 recovered after 2 missing frames
+  Fish 1 recovered after 1 missing frames
+  Frame 11400/11769 | second 190
+  Fish 5 recovered after 32 missing frames
+  Fish 1 ↔ Fish 5: crossing resolved, no swap needed
+  Frame 11430/11769 | second 190
+  Frame 11460/11769 | second 191
+  Crossing started: Fish 1 ↔ Fish 5 [frame 11466]
+  Fish 2 recovered after 1 missing frames
+  Fish 5 recovered after 1 missing frames
+  Fish 2 recovered after 1 missing frames
+  Frame 11490/11769 | second 191
+  Fish 2 recovered after 6 missing frames
+  Fish 1 ↔ Fish 5: IDs swapped back after crossing
+  Fish 3 recovered after 1 missing frames
+  Fish 3 recovered after 1 missing frames
+  Frame 11520/11769 | second 192
+  Fish 3 recovered after 6 missing frames
+  Frame 11550/11769 | second 192
+  Frame 11580/11769 | second 193
+  Fish 2 recovered after 1 missing frames
+  Fish 2 recovered after 2 missing frames
+  Frame 11610/11769 | second 193
+  Fish 2 recovered after 1 missing frames
+  Fish 2 recovered after 8 missing frames
+  Fish 2 recovered after 3 missing frames
+  Frame 11640/11769 | second 194
+  Frame 11670/11769 | second 194
+  Frame 11700/11769 | second 195
+  Frame 11730/11769 | second 195
+  Fish 3 recovered after 11 missing frames
+  Fish 5 recovered after 6 missing frames
+  Frame 11760/11769 | second 196
+
+Done. Saved to output_video_zebratracker/tracker_IMG_0350_2026_06_16_1622_hard_data_mining.mp4

@@ -14,7 +14,7 @@ import re
 import yaml
 import os
 import cv2
-from scripts.db import get_connection, get_video_id
+from scripts.db import get_connection, get_video_id, register_frames
 
 # ── LOGGER ────────────────────────────────────────────────────────────────────
 
@@ -92,20 +92,15 @@ def main(conn, video_path=None, frames_dir=None):
 
         if frame_count % fps == 0:
             frame_name = f"frame_{frame_count}_{os.path.splitext(os.path.basename(video_path))[0]}"
-            filename   = f"{frame_folder_path}/{frame_name}.png"
+            filename   = f"{frame_folder_path}/{frame_name}.jpg"
             cv2.imwrite(filename, frame)
-            cursor.execute(
-                "INSERT INTO frames (video_id, frame_path, frame_number, timestamp, extracted_at) "
-                "VALUES (%s, %s, %s, %s, %s)",
-                (video_id, filename, frame_count, frame_count / fps, datetime.datetime.now())
-            )
             frames_stored += 1
             logger.debug(f"saved frame {frame_count} → {filename}")
 
         frame_count += 1
 
-    conn.commit()
     cap.release()
+    register_frames(conn, frame_folder_path, video_path)
     logger.info(f"done — {frames_stored} frames saved to {frame_folder_path}")
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────

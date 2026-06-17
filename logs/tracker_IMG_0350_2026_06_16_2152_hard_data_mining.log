@@ -1,0 +1,12 @@
+==================================================
+  Video:          videos/IMG_0350.MOV
+  Model:          runs/aquamind_yolov8_run1_20260614_1446/weights/best.pt
+  Output:         output_video_zebratracker/tracker_IMG_0350_2026_06_16_2152_hard_data_mining.mp4
+  Seconds:        0 → None
+  Fish:           5
+  Calibration:    10 seconds
+  confirm_hits:   200 frames
+  max_distance:   150 px
+  max_missing:    300 frames
+==================================================
+Press Enter to start...
