@@ -109,25 +109,19 @@ def export_yolo(project_id, task_ids, output_dir):
         z.extractall(output_dir)
     os.remove(zip_path)
 
-    labels_dir    = os.path.join(output_dir, "labels")
-    txt_files     = [f for f in os.listdir(labels_dir) if f.endswith('.txt')]
-    total_bbox    = 0
-    total_kp      = 0
-    for txt in txt_files:
-        for line in open(os.path.join(labels_dir, txt)).readlines():
-            tokens = line.split()
-            if len(tokens) == 8:
-                total_kp   += 1
-            elif len(tokens) == 5:
-                total_bbox += 1
+    labels_dir       = os.path.join(output_dir, "labels")
+    txt_files        = [f for f in os.listdir(labels_dir) if f.endswith('.txt')]
+    total_annotations = sum(
+        1 for txt in txt_files
+        for line in open(os.path.join(labels_dir, txt)).readlines()
+        if len(line.split()) == 5
+    )
 
     print("\n" + "─" * 50)
     print("  EXPORT SUMMARY")
     print("─" * 50)
     print(f"  Frames exported      : {len(txt_files)}")
-    print(f"  Bbox annotations     : {total_bbox + total_kp}")
-    print(f"  With keypoints       : {total_kp}")
-    print(f"  Without keypoints    : {total_bbox}")
+    print(f"  Annotations          : {total_annotations}")
     print(f"  Output               : {output_dir}")
     print("─" * 50)
 

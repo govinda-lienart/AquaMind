@@ -26,8 +26,6 @@ store_annotations:
 # prepare_dataset_script
 prepare_dataset:
   dataset_name: dataset_2026_06_17_1252_IMG_0350_0764_0909_0350HM
-  mode: bbox  # change to 'pose' for pose training or 'bbox'
-  
   annotation_sessions:
     - labelstudio_pose_IMG_0350_11062026_08h50
     - labelstudio_pose_IMG_0764_11062026_11h04

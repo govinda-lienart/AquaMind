@@ -56,42 +56,25 @@ def create_dataset_dirs(dataset_name):
     logger.debug(f"dataset dirs created: {dataset_path}")
 
 
-def generate_dataset(frames, split, dataset_name, conn, mode):
+def generate_dataset(frames, split, dataset_name, conn):
     """Copies images and writes YOLO label files for one split (train or val)."""
     reading_cursor = conn.cursor()
-    kp_cursor      = conn.cursor()
     for frame_id, frame_path in frames:
-        frame_basename_png = os.path.basename(frame_path)
+        frame_basename = os.path.basename(frame_path)
         logger.debug(f"{split} → frame_id={frame_id}")
 
-        shutil.copy2(frame_path, f"dataset/{dataset_name}/images/{split}/{frame_basename_png}")
-        logger.debug(f"copy → {dataset_name}/images/{split}/{frame_basename_png}")
+        shutil.copy2(frame_path, f"dataset/{dataset_name}/images/{split}/{frame_basename}")
 
         reading_cursor.execute(
-            "SELECT id, class_id, x_center, y_center, width, height FROM annotations WHERE frame_id = %s",
+            "SELECT class_id, x_center, y_center, width, height FROM annotations WHERE frame_id = %s",
             (frame_id,)
         )
         annotations = reading_cursor.fetchall()
-        logger.debug(f"annotations → {annotations}")
 
-        frame_basename = os.path.splitext(frame_basename_png)[0]
-        txt_file       = f"dataset/{dataset_name}/labels/{split}/{frame_basename}.txt"
-
+        txt_file = f"dataset/{dataset_name}/labels/{split}/{os.path.splitext(frame_basename)[0]}.txt"
         with open(txt_file, 'w') as f:
-            for annotation_id, class_id, x_center, y_center, width, height in annotations:
-                if mode == 'pose':
-                    if class_id == 0:
-                        kp_cursor.execute(
-                            "SELECT x, y, visible FROM keypoints WHERE annotation_id = %s AND name = 'eye'",
-                            (annotation_id,)
-                        )
-                        kp = kp_cursor.fetchone()
-                        kp_x, kp_y, kp_v = kp if kp else (0.0, 0.0, 0)
-                    else:
-                        kp_x, kp_y, kp_v = 0.0, 0.0, 0
-                    f.write(f"{class_id} {x_center} {y_center} {width} {height} {kp_x} {kp_y} {kp_v}\n")
-                else:
-                    f.write(f"{class_id} {x_center} {y_center} {width} {height}\n")
+            for class_id, x_center, y_center, width, height in annotations:
+                f.write(f"{class_id} {x_center} {y_center} {width} {height}\n")
 
         logger.debug(f"label file → {txt_file}")
 
@@ -112,10 +95,9 @@ def fetch_video_metadata(cursor, sessions):
     return cursor.fetchall()
 
 
-def write_dataset_card(dataset_name, mode, sessions, videos_meta, n_train, n_val):
+def write_dataset_card(dataset_name, sessions, videos_meta, n_train, n_val):
     card = {
         'dataset_name':        dataset_name,
-        'mode':                mode,
         'annotation_sessions': sessions,
         'videos':              videos_meta,
         'num_train':           n_train,
@@ -132,7 +114,7 @@ def write_dataset_card(dataset_name, mode, sessions, videos_meta, n_train, n_val
     logger.info(f"dataset card → {path}")
 
 
-def write_yolo_yaml(dataset_name, mode):
+def write_yolo_yaml(dataset_name):
     dataset_yaml = {
         'path':  f"dataset/{dataset_name}",
         'train': 'images/train',
@@ -140,8 +122,6 @@ def write_yolo_yaml(dataset_name, mode):
         'nc':    2,
         'names': ['danio_rerio', 'reflection'],
     }
-    if mode == 'pose':
-        dataset_yaml['kpt_shape'] = [1, 3]
     with open('dataset.yaml', 'w') as f:
         yaml.dump(dataset_yaml, f, default_flow_style=False, sort_keys=False)
     logger.info(f"dataset.yaml updated → {dataset_name}")
@@ -155,9 +135,8 @@ def main(conn=None):
 
     sessions     = cfg['prepare_dataset']['annotation_sessions']
     dataset_name = cfg['prepare_dataset']['dataset_name']
-    mode         = cfg['prepare_dataset'].get('mode', 'bbox')
 
-    logger.info(f"sessions={sessions}, dataset_name={dataset_name}, mode={mode}")
+    logger.info(f"sessions={sessions}, dataset_name={dataset_name}")
 
     if conn is None:
         conn = get_connection()
@@ -171,20 +150,19 @@ def main(conn=None):
 
     create_dataset_dirs(dataset_name)
 
-    generate_dataset(train_frames, 'train', dataset_name, conn, mode)
-    generate_dataset(val_frames,   'val',   dataset_name, conn, mode)
+    generate_dataset(train_frames, 'train', dataset_name, conn)
+    generate_dataset(val_frames,   'val',   dataset_name, conn)
 
     meta_cursor = conn.cursor(dictionary=True)
     videos_meta = fetch_video_metadata(meta_cursor, sessions)
 
-    write_dataset_card(dataset_name, mode, sessions, videos_meta, len(train_frames), len(val_frames))
-    write_yolo_yaml(dataset_name, mode)
+    write_dataset_card(dataset_name, sessions, videos_meta, len(train_frames), len(val_frames))
+    write_yolo_yaml(dataset_name)
 
     print("\n" + "─" * 50)
     print("  DATASET SUMMARY")
     print("─" * 50)
     print(f"  Dataset              : {dataset_name}")
-    print(f"  Mode                 : {mode}")
     print(f"  Sessions             : {len(sessions)}")
     for s in sessions:
         print(f"    - {s}")
@@ -230,36 +208,27 @@ def test_write_dataset_card(tmp_path, monkeypatch):
     print("\n--- testing: write_dataset_card ---")
     monkeypatch.chdir(tmp_path)
     os.makedirs('dataset/test_ds')
-    write_dataset_card('test_ds', 'bbox', ['annot_test'], [], n_train=8, n_val=2)
+    write_dataset_card('test_ds', ['annot_test'], [], n_train=8, n_val=2)
     with open('dataset/test_ds/dataset_card.yaml') as f:
         card = yaml.safe_load(f)
     assert card['dataset_name'] == 'test_ds'
     assert card['num_train']    == 8
     assert card['num_val']      == 2
-    assert card['mode']         == 'bbox'
 
 def test_write_yolo_yaml(tmp_path, monkeypatch):
     print("\n*****************************************************")
     print("\n--- testing: write_yolo_yaml ---")
     monkeypatch.chdir(tmp_path)
-    write_yolo_yaml('test_ds', 'bbox')
+    write_yolo_yaml('test_ds')
     with open('dataset.yaml') as f:
         data = yaml.safe_load(f)
     assert data['nc']    == 2
     assert data['names'] == ['danio_rerio', 'reflection']
-
-def test_write_yolo_yaml_pose(tmp_path, monkeypatch):
-    print("\n*****************************************************")
-    print("\n--- testing: write_yolo_yaml pose mode ---")
-    monkeypatch.chdir(tmp_path)
-    write_yolo_yaml('test_ds', 'pose')
-    with open('dataset.yaml') as f:
-        data = yaml.safe_load(f)
-    assert data['kpt_shape'] == [1, 3]
+    assert 'kpt_shape'   not in data
 
 def test_main(db_conn, tmp_path, monkeypatch):
     print("\n*****************************************************")
     print("\n--- testing: main ---")
     shutil.copy('config.yaml', tmp_path)
     monkeypatch.chdir(tmp_path)
-    main(db_conn)  # sessions from config won't match aquamind_test → 0 frames, pipeline still runs
+    main(db_conn)

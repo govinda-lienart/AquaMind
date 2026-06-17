@@ -25,13 +25,13 @@ logger = logging.getLogger(__name__)
 CONFIG_PATH = 'config.yaml'
 MLRUNS_PATH = '/Users/govinda-dashugolienart/Documents/Github_HD/AquaMind/mlruns'
 EXPERIMENT  = 'aquamind'
-YOLO_MODEL  = 'yolov8n-pose'
+YOLO_MODEL  = 'yolov8n'
 
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
 def count_images(folder):
-    return len([f for f in os.listdir(folder) if f.endswith('.png')])
+    return len([f for f in os.listdir(folder) if f.endswith(('.jpg', '.png'))])
 
 
 def load_results_csv(run_path):
@@ -59,19 +59,6 @@ def log_epoch_metrics(df):
             'lr1':             row['lr/pg1'],
             'lr2':             row['lr/pg2'],
         }
-        pose_cols = {
-            'train/pose_loss': 'train/pose_loss',
-            'train/kobj_loss': 'train/kobj_loss',
-            'val/pose_loss':   'val/pose_loss',
-            'val/kobj_loss':   'val/kobj_loss',
-            'pose_precision':  'metrics/precision(P)',
-            'pose_recall':     'metrics/recall(P)',
-            'pose_mAP50':      'metrics/mAP50(P)',
-            'pose_mAP50_95':   'metrics/mAP50-95(P)',
-        }
-        for key, col in pose_cols.items():
-            if col in df.columns:
-                metrics[key] = row[col]
         mlflow.log_metrics(metrics, step=epoch)
     logger.info(f"{len(df)} epochs logged")
 

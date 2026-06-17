@@ -1,9 +1,9 @@
 """
-Parses a LabelStudio YOLO export and stores bboxes and eye keypoints in MySQL.
+Parses a LabelStudio YOLO export and stores bboxes in MySQL.
 
 Input  : label .txt files from config labels_path
 Needs  : frames already extracted and registered in MySQL
-Output : rows inserted into annotations and keypoints tables
+Output : rows inserted into the annotations table
 """
 
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
@@ -31,51 +31,36 @@ LABEL_MAP = {0: "danio_rerio", 1: "reflection"}
 
 def parse_frame_number(label_file):
     """Extracts frame number from a LabelStudio filename: 'e6d83681-frame_360.txt' → 360."""
-    stem = os.path.splitext(label_file.split("-")[1])[0]  # 'e6d83681-frame_360.txt' → 'frame_360'
-    return int(stem.split("_")[1])                         # 'frame_360' → 360
+    stem = os.path.splitext(label_file.split("-")[1])[0]
+    return int(stem.split("_")[1])
 
 
 def parse_annotation_line(tokens):
-    """Parses one YOLO label line into a dict. Returns None if token count is unrecognised."""
+    """Parses one YOLO bbox label line. Returns None if token count is unrecognised."""
     if len(tokens) == 5:
         return {
-            'class_id':     int(tokens[0]),
-            'x_center':     float(tokens[1]),
-            'y_center':     float(tokens[2]),
-            'width':        float(tokens[3]),
-            'height':       float(tokens[4]),
-            'has_keypoint': False,
-        }
-    if len(tokens) == 8:
-        return {
-            'class_id':     int(tokens[0]),
-            'x_center':     float(tokens[1]),
-            'y_center':     float(tokens[2]),
-            'width':        float(tokens[3]),
-            'height':       float(tokens[4]),
-            'kp_x':         float(tokens[5]),
-            'kp_y':         float(tokens[6]),
-            'kp_visible':   int(tokens[7]),   # visibility flag: 2 = visible, 0 = not visible
-            'has_keypoint': True,
+            'class_id': int(tokens[0]),
+            'x_center': float(tokens[1]),
+            'y_center': float(tokens[2]),
+            'width':    float(tokens[3]),
+            'height':   float(tokens[4]),
         }
     return None
 
 
-def print_summary(session_id, labels_path, frames_folder, total_frames, total_annotations, total_keypoints):
+def print_summary(session_id, labels_path, frames_folder, total_frames, total_annotations):
     print("\n" + "─" * 50)
     print("  SUMMARY")
     print("─" * 50)
-    print(f"  Session ID       : {session_id}")
-    print(f"  Created at       : {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"  Labels path      : {labels_path}")
-    print(f"  Frames folder    : {frames_folder}")
+    print(f"  Session ID           : {session_id}")
+    print(f"  Created at           : {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"  Labels path          : {labels_path}")
+    print(f"  Frames folder        : {frames_folder}")
     print(f"  Frames processed     : {total_frames}")
     print(f"  Annotations inserted : {total_annotations}")
-    print(f"  Keypoints inserted   : {total_keypoints}")
     print("─" * 50)
     print(f"\n  Cross-check in SQL:")
     print(f"  SELECT COUNT(*) FROM annotations WHERE session_id = '{session_id}';")
-    print(f"  SELECT COUNT(*) FROM keypoints k JOIN annotations a ON a.id = k.annotation_id WHERE a.session_id = '{session_id}';")
     print("─" * 50)
 
 
@@ -94,7 +79,6 @@ def main(conn=None, labels_path=None, frames_folder=None):
 
     total_frames      = 0
     total_annotations = 0
-    total_keypoints   = 0
 
     if conn is None:
         conn = get_connection()
@@ -109,41 +93,26 @@ def main(conn=None, labels_path=None, frames_folder=None):
         total_frames += 1
         logger.debug(f"frame_number={frame_number} → frame_id={frame_id}")
 
-        annotation_path = os.path.join(labels_path, label_file)
-        with open(annotation_path) as f:
+        with open(os.path.join(labels_path, label_file)) as f:
             lines = f.readlines()
 
         for line in lines:
-            tokens = line.split()
-            ann    = parse_annotation_line(tokens)
-
+            ann = parse_annotation_line(line.split())
             if ann is None:
-                logger.warning(f"{label_file} — {len(tokens)} tokens, expected 5 or 8. Skipping.")
+                logger.warning(f"{label_file} — unexpected token count. Skipping.")
                 continue
-
-            label      = LABEL_MAP[ann['class_id']]
-            created_at = datetime.datetime.now()
 
             insert_cursor.execute(
                 "INSERT INTO annotations (frame_id, class_id, label, x_center, y_center, width, height, created_at, session_id) "
                 "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (frame_id, ann['class_id'], label, ann['x_center'], ann['y_center'], ann['width'], ann['height'], created_at, session_id)
+                (frame_id, ann['class_id'], LABEL_MAP[ann['class_id']],
+                 ann['x_center'], ann['y_center'], ann['width'], ann['height'],
+                 datetime.datetime.now(), session_id)
             )
-            annotation_id  = insert_cursor.lastrowid
             total_annotations += 1
 
-            if ann['has_keypoint'] and label == 'danio_rerio':
-                insert_cursor.execute(
-                    "INSERT INTO keypoints (annotation_id, name, x, y, visible, created_at) "
-                    "VALUES (%s, %s, %s, %s, %s, %s)",
-                    (annotation_id, 'eye', ann['kp_x'], ann['kp_y'], ann['kp_visible'], created_at)
-                )
-                total_keypoints += 1
-                logger.debug(f"keypoint eye → ({ann['kp_x']:.4f}, {ann['kp_y']:.4f}) visible={ann['kp_visible']}")
-
     conn.commit()
-
-    print_summary(session_id, labels_path, frames_folder, total_frames, total_annotations, total_keypoints)
+    print_summary(session_id, labels_path, frames_folder, total_frames, total_annotations)
 
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
@@ -165,15 +134,10 @@ def test_parse_frame_number():
 def test_parse_annotation_line():
     print("\n*****************************************************")
     print("\n--- testing: parse_annotation_line ---")
-    bbox_only = parse_annotation_line(['0', '0.5', '0.4', '0.1', '0.08'])
-    assert bbox_only['class_id']     == 0
-    assert bbox_only['has_keypoint'] == False
-
-    with_keypoint = parse_annotation_line(['0', '0.5', '0.4', '0.1', '0.08', '0.31', '0.58', '2'])
-    assert with_keypoint['has_keypoint'] == True
-    assert with_keypoint['kp_x']         == 0.31
-
-    assert parse_annotation_line(['0', '0.5']) is None  # unknown token count → None
+    bbox = parse_annotation_line(['0', '0.5', '0.4', '0.1', '0.08'])
+    assert bbox['class_id'] == 0
+    assert bbox['x_center'] == 0.5
+    assert parse_annotation_line(['0', '0.5']) is None
 
 def test_main(db_conn):
     print("\n*****************************************************")
@@ -181,4 +145,4 @@ def test_main(db_conn):
     main(db_conn, labels_path='fixtures/labels', frames_folder='frames/frames_IMG_0350_20260101_2000')
     cursor = db_conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM annotations")
-    assert cursor.fetchone()[0] == 2  # fixtures/labels has 1 file with 2 annotation lines
+    assert cursor.fetchone()[0] == 2
