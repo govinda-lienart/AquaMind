@@ -27,6 +27,10 @@ extract-frames:
 # Import frames, label in LabelStudio, export annotations
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Back up all LabelStudio projects as JSON to a dated folder in labelstudio_backup/
+backup-labelstudio:
+	python -m scripts.backup_labelstudio
+
 # Create a new LabelStudio project and upload frames for labeling
 # Auto-detects latest crossing_frames folder if frames_dir is empty in config
 import-labelstudio:
@@ -124,7 +128,6 @@ ml-backend:
 test:
 	pytest -v
 
-
 # ══════════════════════════════════════════════════════════════════════════════
 # HELP
 # ══════════════════════════════════════════════════════════════════════════════
@@ -140,6 +143,7 @@ help:
 	@echo "  make extract-frames       Extract 1fps frames → MySQL"
 	@echo ""
 	@echo "  STAGE 2 — Annotation"
+	@echo "  make backup-labelstudio   Back up all LS projects as JSON"
 	@echo "  make import-labelstudio   Create LS project + upload frames"
 	@echo "  make export-labelstudio   Export annotations from LabelStudio"
 	@echo "  make store-annotations    Store annotations in MySQL"

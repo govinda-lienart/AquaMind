@@ -1,8 +1,11 @@
 
 # extract_frames_script
 extract_frames:
-  video_path: videos/IMG_1189.MOV # videos/test.MOV
-  frames_dir: frames
+  video_path:     videos/IMG_1189.MOV # videos/test.MOV
+  frames_dir:     frames
+  sample_rate:    1     # frames per second to extract (1=1fps, 2=2fps, 60=every frame)
+  start_seconds:  0     # leave 0 for beginning of video
+  end_seconds:    null  # leave null for full video
 
 # export_labelstudio_script
 export_labelstudio:
@@ -22,15 +25,16 @@ import_labelstudio:
 store_annotations:
   labels_path: labelstudio_export/labelstudio_bbox_hard_mining_IMG_0350_17062026_09h03/labels # test -> fixtures/labels
   frames_folder: frames/crossing_frames_IMG_0350_20260615_22h51 # test -> frames/frames_test
+  video_name: IMG_0350                  # used to look up video_id in MySQL
+  frame_source: crossing_event          # 1fps or crossing_event
+  notes: hard-mined crossing frames
 
 # prepare_dataset_script
 prepare_dataset:
-  dataset_name: dataset_2026_06_17_1252_IMG_0350_0764_0909_0350HM
-  annotation_sessions:
-    - labelstudio_pose_IMG_0350_11062026_08h50
-    - labelstudio_pose_IMG_0764_11062026_11h04
-    - labelstudio_pose_IMG_0909_11062026_10h35
-    - labelstudio_bbox_hard_mining_IMG_0350_17062026_09h03
+  dataset_name: dataset_v1
+  annotation_set_ids:   # integer IDs from annotation_sets table — run store_annotations.py first
+    - 1
+    - 2
 
 # log_artifact_mlflow_script
 log_artifact_mlflow:
@@ -55,7 +59,9 @@ track_zebrafish:
 #_______________________________________________________
 # extract_crossing_frames_script - hard negative mining
 extract_crossing_frames:
-  log_path:    logs/tracker_IMG_0350_2026_06_16_2152_hard_data_mining.log
-  video_path:  videos/IMG_0350.MOV
-  output_dir:  frames/crossing_frames
+  log_path:       logs/tracker_IMG_0350_2026_06_16_2152_hard_data_mining.log
+  video_path:     videos/IMG_0350.MOV
+  output_dir:     frames/crossing_frames
+  iou_threshold:  0.4   # minimum IoU to count as a crossing event (0=any overlap, 1=full overlap)
+  dedup_window:   5     # minimum frames between two crossing events to treat them as separate
 

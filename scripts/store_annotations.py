@@ -3,7 +3,7 @@ Parses a LabelStudio YOLO export and stores bboxes in MySQL.
 
 Input  : label .txt files from config labels_path
 Needs  : frames already extracted and registered in MySQL
-Output : rows inserted into the annotations table
+Output : one row in annotation_sets + rows in annotations table
 """
 
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
@@ -48,11 +48,43 @@ def parse_annotation_line(tokens):
     return None
 
 
-def print_summary(session_id, labels_path, frames_folder, total_frames, total_annotations):
+def get_video_id(cursor, video_name):
+    """Looks up video_id from videos table using video filename."""
+    cursor.execute("SELECT id FROM videos WHERE file_path LIKE %s", (f"%{video_name}%",))
+    row = cursor.fetchone()
+    if row is None:
+        raise ValueError(f"video '{video_name}' not found in videos table — run sync_videos.py first")
+    return row[0]
+
+
+def read_sidecar(frames_folder):
+    """Reads extraction_params.yaml from the frames folder if present."""
+    path = os.path.join(frames_folder, 'extraction_params.yaml')
+    if not os.path.exists(path):
+        return {}
+    with open(path) as f:
+        return yaml.safe_load(f)
+
+
+def create_annotation_set(cursor, video_id, frame_source, notes, frames_extracted,
+                          iou_threshold, dedup_window, sample_rate, start_seconds, end_seconds):
+    """Creates one annotation_sets row and returns its id."""
+    cursor.execute(
+        """INSERT INTO annotation_sets
+           (video_id, frame_source, notes, frames_extracted, iou_threshold, dedup_window,
+            sample_rate, start_seconds, end_seconds, created_at)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+        (video_id, frame_source, notes, frames_extracted, iou_threshold, dedup_window,
+         sample_rate, start_seconds, end_seconds, datetime.datetime.now())
+    )
+    return cursor.lastrowid
+
+
+def print_summary(annotation_set_id, labels_path, frames_folder, total_frames, total_annotations):
     print("\n" + "─" * 50)
     print("  SUMMARY")
     print("─" * 50)
-    print(f"  Session ID           : {session_id}")
+    print(f"  annotation_set_id    : {annotation_set_id}")
     print(f"  Created at           : {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  Labels path          : {labels_path}")
     print(f"  Frames folder        : {frames_folder}")
@@ -60,22 +92,24 @@ def print_summary(session_id, labels_path, frames_folder, total_frames, total_an
     print(f"  Annotations inserted : {total_annotations}")
     print("─" * 50)
     print(f"\n  Cross-check in SQL:")
-    print(f"  SELECT COUNT(*) FROM annotations WHERE session_id = '{session_id}';")
+    print(f"  SELECT COUNT(*) FROM annotations WHERE annotation_set_id = {annotation_set_id};")
     print("─" * 50)
 
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
-def main(conn=None, labels_path=None, frames_folder=None):
+def main(conn=None, labels_path=None, frames_folder=None, video_name=None, frame_source=None, notes=None):
+    with open(CONFIG_PATH) as f:
+        cfg = yaml.safe_load(f)
+
     if labels_path is None:
-        with open(CONFIG_PATH) as f:
-            cfg = yaml.safe_load(f)
         labels_path   = cfg['store_annotations']['labels_path']
         frames_folder = cfg['store_annotations']['frames_folder']
+        video_name    = cfg['store_annotations']['video_name']
+        frame_source  = cfg['store_annotations']['frame_source']
+        notes         = cfg['store_annotations'].get('notes', '')
 
-    p          = Path(labels_path)
-    session_id = p.parent.name if p.name == 'labels' else p.name
-    logger.info(f"session_id={session_id}, labels_path={labels_path}, frames_folder={frames_folder}")
+    logger.info(f"video_name={video_name}, frame_source={frame_source}, labels_path={labels_path}")
 
     total_frames      = 0
     total_annotations = 0
@@ -85,6 +119,21 @@ def main(conn=None, labels_path=None, frames_folder=None):
 
     reading_cursor = conn.cursor()
     insert_cursor  = conn.cursor()
+
+    sidecar           = read_sidecar(frames_folder)
+    frame_source      = sidecar.get('frame_source', frame_source)
+    frames_extracted  = sidecar.get('frames_extracted')
+    iou_threshold     = sidecar.get('iou_threshold')
+    dedup_window      = sidecar.get('dedup_window')
+    sample_rate       = sidecar.get('sample_rate')
+    start_seconds     = sidecar.get('start_seconds')
+    end_seconds       = sidecar.get('end_seconds')
+
+    video_id          = get_video_id(reading_cursor, video_name)
+    annotation_set_id = create_annotation_set(insert_cursor, video_id, frame_source, notes,
+                                              frames_extracted, iou_threshold, dedup_window,
+                                              sample_rate, start_seconds, end_seconds)
+    logger.info(f"annotation_set_id={annotation_set_id}")
 
     for label_file in os.listdir(labels_path):
 
@@ -103,16 +152,16 @@ def main(conn=None, labels_path=None, frames_folder=None):
                 continue
 
             insert_cursor.execute(
-                "INSERT INTO annotations (frame_id, class_id, label, x_center, y_center, width, height, created_at, session_id) "
+                "INSERT INTO annotations (frame_id, annotation_set_id, class_id, label, x_center, y_center, width, height, created_at) "
                 "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (frame_id, ann['class_id'], LABEL_MAP[ann['class_id']],
+                (frame_id, annotation_set_id, ann['class_id'], LABEL_MAP[ann['class_id']],
                  ann['x_center'], ann['y_center'], ann['width'], ann['height'],
-                 datetime.datetime.now(), session_id)
+                 datetime.datetime.now())
             )
             total_annotations += 1
 
     conn.commit()
-    print_summary(session_id, labels_path, frames_folder, total_frames, total_annotations)
+    print_summary(annotation_set_id, labels_path, frames_folder, total_frames, total_annotations)
 
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
@@ -142,7 +191,8 @@ def test_parse_annotation_line():
 def test_main(db_conn):
     print("\n*****************************************************")
     print("\n--- testing: main ---")
-    main(db_conn, labels_path='fixtures/labels', frames_folder='frames/frames_IMG_0350_20260101_2000')
+    main(db_conn, labels_path='fixtures/labels', frames_folder='frames/frames_IMG_0350_20260101_2000',
+         video_name='IMG_0350', frame_source='1fps', notes='test import')
     cursor = db_conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM annotations")
-    assert cursor.fetchone()[0] == 2
+    cursor.execute("SELECT COUNT(*) FROM annotations WHERE annotation_set_id = 2")
+    assert cursor.fetchone()[0] == 1

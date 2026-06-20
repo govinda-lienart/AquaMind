@@ -1,7 +1,7 @@
 """
 Queries MySQL for annotated frames and builds a YOLO-ready dataset folder.
 
-Input  : annotation session IDs from config.yaml
+Input  : annotation_set_ids from config.yaml (integers from annotation_sets table)
 Needs  : annotations stored in MySQL (run store_annotations.py first)
 Output : dataset/{name}/images + labels folders, dataset_card.yaml, dataset.yaml
 """
@@ -13,7 +13,9 @@ import logging
 import os
 import random
 import shutil
+import subprocess
 
+import mlflow
 import yaml
 
 from scripts.db import get_connection
@@ -30,11 +32,14 @@ RANDOM_SEED  = 42
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
-def fetch_annotated_frames(cursor, sessions):
-    placeholders = ','.join(['%s'] * len(sessions))
+def fetch_annotated_frames(cursor, annotation_set_ids):
+    placeholders = ','.join(['%s'] * len(annotation_set_ids))
     cursor.execute(
-        f"SELECT DISTINCT f.id, f.frame_path FROM annotations a JOIN frames f ON a.frame_id = f.id WHERE a.session_id IN ({placeholders})",
-        sessions
+        f"""SELECT DISTINCT f.id, f.frame_path
+            FROM annotations a
+            JOIN frames f ON a.frame_id = f.id
+            WHERE a.annotation_set_id IN ({placeholders})""",
+        annotation_set_ids
     )
     return cursor.fetchall()
 
@@ -79,8 +84,8 @@ def generate_dataset(frames, split, dataset_name, conn):
         logger.debug(f"label file → {txt_file}")
 
 
-def fetch_video_metadata(cursor, sessions):
-    placeholders = ','.join(['%s'] * len(sessions))
+def fetch_video_metadata(cursor, annotation_set_ids):
+    placeholders = ','.join(['%s'] * len(annotation_set_ids))
     cursor.execute(
         f"""SELECT DISTINCT v.file_path, v.species, v.morph,
                    v.tank_width_cm, v.tank_height_cm, v.tank_depth_cm,
@@ -89,24 +94,32 @@ def fetch_video_metadata(cursor, sessions):
             FROM videos v
             JOIN frames f ON f.video_id = v.id
             JOIN annotations a ON a.frame_id = f.id
-            WHERE a.session_id IN ({placeholders})""",
-        sessions
+            WHERE a.annotation_set_id IN ({placeholders})""",
+        annotation_set_ids
     )
     return cursor.fetchall()
 
 
-def write_dataset_card(dataset_name, sessions, videos_meta, n_train, n_val):
+def get_git_commit():
+    try:
+        return subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode().strip()
+    except Exception:
+        return 'unknown'
+
+
+def write_dataset_card(dataset_name, annotation_set_ids, videos_meta, n_train, n_val, git_commit):
     card = {
-        'dataset_name':        dataset_name,
-        'annotation_sessions': sessions,
-        'videos':              videos_meta,
-        'num_train':           n_train,
-        'num_val':             n_val,
-        'total_frames':        n_train + n_val,
-        'classes':             {0: 'danio_rerio', 1: 'reflection'},
-        'split':               '80/20 train/val',
-        'random_seed':         RANDOM_SEED,
-        'created_at':          str(datetime.datetime.now()),
+        'dataset_name':       dataset_name,
+        'annotation_set_ids': annotation_set_ids,
+        'git_commit':         git_commit,
+        'videos':             videos_meta,
+        'num_train':          n_train,
+        'num_val':            n_val,
+        'total_frames':       n_train + n_val,
+        'classes':            {0: 'danio_rerio', 1: 'reflection'},
+        'split':              '80/20 train/val',
+        'random_seed':        RANDOM_SEED,
+        'created_at':         str(datetime.datetime.now()),
     }
     path = f"dataset/{dataset_name}/dataset_card.yaml"
     with open(path, 'w') as f:
@@ -127,45 +140,63 @@ def write_yolo_yaml(dataset_name):
     logger.info(f"dataset.yaml updated → {dataset_name}")
 
 
+def log_to_mlflow(dataset_name, annotation_set_ids, git_commit, n_train, n_val):
+    mlflow.set_experiment("prepare_dataset")
+    with mlflow.start_run(run_name=dataset_name):
+        mlflow.log_params({
+            'dataset_name':       dataset_name,
+            'annotation_set_ids': str(annotation_set_ids),
+            'git_commit':         git_commit,
+            'train_split':        TRAIN_SPLIT,
+            'random_seed':        RANDOM_SEED,
+        })
+        mlflow.log_metrics({
+            'num_train': n_train,
+            'num_val':   n_val,
+            'total':     n_train + n_val,
+        })
+    logger.info(f"MLflow run logged — dataset={dataset_name}, annotation_set_ids={annotation_set_ids}")
+
+
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
 def main(conn=None):
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
 
-    sessions     = cfg['prepare_dataset']['annotation_sessions']
-    dataset_name = cfg['prepare_dataset']['dataset_name']
+    annotation_set_ids = cfg['prepare_dataset']['annotation_set_ids']
+    dataset_name       = cfg['prepare_dataset']['dataset_name']
 
-    logger.info(f"sessions={sessions}, dataset_name={dataset_name}")
+    logger.info(f"annotation_set_ids={annotation_set_ids}, dataset_name={dataset_name}")
 
     if conn is None:
         conn = get_connection()
 
     reading_cursor = conn.cursor()
 
-    frames                   = fetch_annotated_frames(reading_cursor, sessions)
+    frames                   = fetch_annotated_frames(reading_cursor, annotation_set_ids)
     train_frames, val_frames = split_train_val(frames)
 
     logger.info(f"total={len(frames)} | train={len(train_frames)} | val={len(val_frames)}")
 
     create_dataset_dirs(dataset_name)
-
     generate_dataset(train_frames, 'train', dataset_name, conn)
     generate_dataset(val_frames,   'val',   dataset_name, conn)
 
     meta_cursor = conn.cursor(dictionary=True)
-    videos_meta = fetch_video_metadata(meta_cursor, sessions)
+    videos_meta = fetch_video_metadata(meta_cursor, annotation_set_ids)
+    git_commit  = get_git_commit()
 
-    write_dataset_card(dataset_name, sessions, videos_meta, len(train_frames), len(val_frames))
+    write_dataset_card(dataset_name, annotation_set_ids, videos_meta, len(train_frames), len(val_frames), git_commit)
     write_yolo_yaml(dataset_name)
+    log_to_mlflow(dataset_name, annotation_set_ids, git_commit, len(train_frames), len(val_frames))
 
     print("\n" + "─" * 50)
     print("  DATASET SUMMARY")
     print("─" * 50)
     print(f"  Dataset              : {dataset_name}")
-    print(f"  Sessions             : {len(sessions)}")
-    for s in sessions:
-        print(f"    - {s}")
+    print(f"  Annotation set IDs   : {annotation_set_ids}")
+    print(f"  Git commit           : {git_commit}")
     print(f"  Total frames         : {len(frames)}")
     print(f"  Train                : {len(train_frames)}")
     print(f"  Val                  : {len(val_frames)}")
@@ -208,12 +239,13 @@ def test_write_dataset_card(tmp_path, monkeypatch):
     print("\n--- testing: write_dataset_card ---")
     monkeypatch.chdir(tmp_path)
     os.makedirs('dataset/test_ds')
-    write_dataset_card('test_ds', ['annot_test'], [], n_train=8, n_val=2)
+    write_dataset_card('test_ds', [1, 2], [], n_train=8, n_val=2, git_commit='abc1234')
     with open('dataset/test_ds/dataset_card.yaml') as f:
         card = yaml.safe_load(f)
-    assert card['dataset_name'] == 'test_ds'
-    assert card['num_train']    == 8
-    assert card['num_val']      == 2
+    assert card['dataset_name']       == 'test_ds'
+    assert card['annotation_set_ids'] == [1, 2]
+    assert card['num_train']          == 8
+    assert card['num_val']            == 2
 
 def test_write_yolo_yaml(tmp_path, monkeypatch):
     print("\n*****************************************************")
@@ -229,6 +261,9 @@ def test_write_yolo_yaml(tmp_path, monkeypatch):
 def test_main(db_conn, tmp_path, monkeypatch):
     print("\n*****************************************************")
     print("\n--- testing: main ---")
+    frame_dir = tmp_path / 'frames' / 'frames_IMG_0350_20260101_2000'
+    frame_dir.mkdir(parents=True)
+    (frame_dir / 'frame_360_IMG_0350.png').write_bytes(b'')
     shutil.copy('config.yaml', tmp_path)
     monkeypatch.chdir(tmp_path)
     main(db_conn)

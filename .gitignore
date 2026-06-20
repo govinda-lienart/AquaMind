@@ -30,3 +30,5 @@ open_links.sh
 AquaMind/
 scripts/trigger_kaggle.py
 docs/
+mysql_requests_backup/
+labelstudio_backup/

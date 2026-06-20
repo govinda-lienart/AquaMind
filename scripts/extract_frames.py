@@ -16,6 +16,21 @@ import os
 import cv2
 from scripts.db import get_connection, get_video_id, register_frames
 
+def write_sidecar(frame_folder_path, video_path, sample_rate, start_seconds, end_seconds, frames_stored):
+    """Write extraction metadata alongside the frames so store_annotations.py can read it."""
+    sidecar = {
+        'frame_source':     '1fps',
+        'video_path':       video_path,
+        'sample_rate':      sample_rate,
+        'start_seconds':    start_seconds,
+        'end_seconds':      end_seconds,
+        'frames_extracted': frames_stored,
+        'extracted_at':     datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    }
+    path = os.path.join(frame_folder_path, 'extraction_params.yaml')
+    with open(path, 'w') as f:
+        yaml.dump(sidecar, f, default_flow_style=False, sort_keys=False)
+
 # ── LOGGER ────────────────────────────────────────────────────────────────────
 
 logger = logging.getLogger(__name__)
@@ -53,12 +68,15 @@ def frames_already_extracted(cursor, video_id):
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
-def main(conn, video_path=None, frames_dir=None):
+def main(conn, video_path=None, frames_dir=None, sample_rate=None, start_seconds=None, end_seconds=None):
     logger.info("starting...")
     if video_path is None: # if video_path explicity provided in argument - test mode
         cfg = yaml.safe_load(open(CONFIG_PATH))
-        video_path = cfg['extract_frames']['video_path']
-        frames_dir = cfg['extract_frames']['frames_dir']
+        video_path    = cfg['extract_frames']['video_path']
+        frames_dir    = cfg['extract_frames']['frames_dir']
+        sample_rate   = cfg['extract_frames'].get('sample_rate', 1)
+        start_seconds = cfg['extract_frames'].get('start_seconds', 0) or 0
+        end_seconds   = cfg['extract_frames'].get('end_seconds')
 
     frame_folder_path = build_path_storage_frames(video_path, frames_dir)
 
@@ -77,20 +95,24 @@ def main(conn, video_path=None, frames_dir=None):
     # ── EXTRACTION LOOP ───────────────────────────────────────────────────────
 
     cap = cv2.VideoCapture(video_path)
-    fps = round(cap.get(cv2.CAP_PROP_FPS))
-    logger.info(f"fps: {fps}")
+    fps         = round(cap.get(cv2.CAP_PROP_FPS))
+    step        = max(1, round(fps / sample_rate))
+    start_frame = int(start_seconds * fps)
+    end_frame   = int(end_seconds * fps) if end_seconds else int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    logger.info(f"fps={fps}, sample_rate={sample_rate}, step={step}, frames={start_frame}→{end_frame}")
 
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
     os.makedirs(frame_folder_path, exist_ok=True)
 
-    frame_count   = 0
+    frame_count   = start_frame
     frames_stored = 0
 
-    while True:
+    while frame_count < end_frame:
         ret, frame = cap.read()
         if not ret:
             break
 
-        if frame_count % fps == 0:
+        if (frame_count - start_frame) % step == 0:
             frame_name = f"frame_{frame_count}_{os.path.splitext(os.path.basename(video_path))[0]}"
             filename   = f"{frame_folder_path}/{frame_name}.jpg"
             cv2.imwrite(filename, frame)
@@ -101,6 +123,7 @@ def main(conn, video_path=None, frames_dir=None):
 
     cap.release()
     register_frames(conn, frame_folder_path, video_path)
+    write_sidecar(frame_folder_path, video_path, sample_rate, start_seconds, end_seconds, frames_stored)
     logger.info(f"done — {frames_stored} frames saved to {frame_folder_path}")
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────

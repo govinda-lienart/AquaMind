@@ -72,16 +72,16 @@ def log_dataset_card(dataset_path):
         logger.warning(f"no dataset_card.yaml found in {dataset_path} — skipping")
 
 
-def fetch_video_sources(conn, sessions):
-    placeholders = ','.join(['%s'] * len(sessions))
+def fetch_video_sources(conn, annotation_set_ids):
+    placeholders = ','.join(['%s'] * len(annotation_set_ids))
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
         f"""SELECT DISTINCT v.file_path, v.filmed_at, v.session_type, v.obstacles, v.fish_count, v.notes
             FROM videos v
             JOIN frames fr ON fr.video_id = v.id
             JOIN annotations a ON a.frame_id = fr.id
-            WHERE a.session_id IN ({placeholders})""",
-        sessions
+            WHERE a.annotation_set_id IN ({placeholders})""",
+        annotation_set_ids
     )
     rows = cursor.fetchall()
     for row in rows:
@@ -108,10 +108,10 @@ def main():
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
 
-    run_path     = cfg['log_artifact_mlflow']['run_path']
-    run_name     = run_path.strip('/').split('/')[-1]
-    dataset_path = f"dataset/{cfg['prepare_dataset']['dataset_name']}"
-    sessions     = cfg['prepare_dataset']['annotation_sessions']
+    run_path           = cfg['log_artifact_mlflow']['run_path']
+    run_name           = run_path.strip('/').split('/')[-1]
+    dataset_path       = f"dataset/{cfg['prepare_dataset']['dataset_name']}"
+    annotation_set_ids = cfg['prepare_dataset']['annotation_set_ids']
 
     num_train = count_images(os.path.join(dataset_path, 'images', 'train'))
     num_val   = count_images(os.path.join(dataset_path, 'images', 'val'))
@@ -125,17 +125,18 @@ def main():
 
     with mlflow.start_run(run_name=run_name):
 
-        mlflow.log_param('yolo_model',     YOLO_MODEL)
-        mlflow.log_param('dataset_folder', dataset_path)
-        mlflow.log_param('num_train',      num_train)
-        mlflow.log_param('num_val',        num_val)
-        logger.info(f"params logged: model={YOLO_MODEL} train={num_train} val={num_val}")
+        mlflow.log_param('yolo_model',          YOLO_MODEL)
+        mlflow.log_param('dataset_folder',      dataset_path)
+        mlflow.log_param('annotation_set_ids',  str(annotation_set_ids))
+        mlflow.log_param('num_train',           num_train)
+        mlflow.log_param('num_val',             num_val)
+        logger.info(f"params logged: model={YOLO_MODEL} annotation_set_ids={annotation_set_ids} train={num_train} val={num_val}")
 
         log_epoch_metrics(df)
         log_dataset_card(dataset_path)
 
         with get_connection() as conn:
-            video_sources = fetch_video_sources(conn, sessions)
+            video_sources = fetch_video_sources(conn, annotation_set_ids)
         log_video_sources(video_sources)
 
         mlflow.log_artifacts(run_path)
@@ -149,3 +150,33 @@ if __name__ == '__main__':
     from scripts.logger import setup_logging
     setup_logging()
     main()
+
+
+# ── TESTS ─────────────────────────────────────────────────────────────────────
+#  pytest scripts/log_artifact_mlflow.py -v -s
+
+def test_count_images(tmp_path):
+    print("\n*****************************************************")
+    print("\n--- testing: count_images ---")
+    (tmp_path / 'frame_001.jpg').write_text('x')
+    (tmp_path / 'frame_002.jpg').write_text('x')
+    (tmp_path / 'frame_003.png').write_text('x')
+    (tmp_path / 'labels.txt').write_text('x')   # should not be counted
+    assert count_images(str(tmp_path)) == 3
+
+
+def test_load_results_csv(tmp_path):
+    print("\n*****************************************************")
+    print("\n--- testing: load_results_csv ---")
+    csv_path = tmp_path / 'results.csv'
+    csv_path.write_text(
+        " epoch, train/box_loss, train/cls_loss, train/dfl_loss,"
+        " val/box_loss, val/cls_loss, val/dfl_loss,"
+        " metrics/precision(B), metrics/recall(B), metrics/mAP50(B), metrics/mAP50-95(B),"
+        " lr/pg0, lr/pg1, lr/pg2\n"
+        "0, 1.0, 0.5, 0.3, 0.9, 0.4, 0.2, 0.8, 0.7, 0.6, 0.4, 0.01, 0.01, 0.01\n"
+    )
+    df = load_results_csv(str(tmp_path))
+    assert 'epoch' in df.columns
+    assert 'train/box_loss' in df.columns
+    assert len(df) == 1
