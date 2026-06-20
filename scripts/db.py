@@ -12,7 +12,7 @@ import os
 from typing import Any
 
 import cv2
-import mysql.connector
+import mysql.connector # 
 from dotenv import load_dotenv
 
 
