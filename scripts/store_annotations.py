@@ -143,7 +143,7 @@ def main(conn: Any = None, labels_path: str | None = None, frames_folder: str | 
         for line in lines:
             ann = parse_annotation_line(line.split())
             if ann is None:
-                logger.warning(f"{label_file} — unexpected token count. Skipping.")
+                logger.warning(f"{label_file} — unexpected token count. Skipping.") #
                 continue
 
             insert_cursor.execute(
