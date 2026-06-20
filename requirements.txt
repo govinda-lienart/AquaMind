@@ -1,0 +1,9 @@
+mysql-connector-python
+python-dotenv
+opencv-python-headless
+pyyaml
+openpyxl
+mlflow
+pandas
+requests
+pytest

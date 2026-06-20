@@ -1,0 +1,50 @@
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: aquamind
+          MYSQL_DATABASE: aquamind_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -paquamind"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create .env files
+        run: |
+          echo "DB_HOST=127.0.0.1" >> .env
+          echo "DB_PORT=3306"      >> .env
+          echo "DB_USER=root"      >> .env
+          echo "DB_PASSWORD=aquamind" >> .env
+          echo "DB_NAME=aquamind_test" >> .env
+          echo "DB_NAME=aquamind_test" >> .env.test
+
+      - name: Load test schema and fixtures
+        run: |
+          mysql -h 127.0.0.1 -u root -paquamind aquamind_test < fixtures/aquamind_schema.sql
+          mysql -h 127.0.0.1 -u root -paquamind aquamind_test < fixtures/fixtures.sql
+
+      - name: Run tests
+        run: pytest -v
