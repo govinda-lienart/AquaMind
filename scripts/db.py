@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 # ── CONSTANTS ─────────────────────────────────────────────────────────────────
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__) # log
 
 
 # ── FUNCTIONS ─────────────────────────────────────────────────────────────────
