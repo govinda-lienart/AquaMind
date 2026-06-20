@@ -137,7 +137,7 @@ def main(conn: Any = None, labels_path: str | None = None, frames_folder: str | 
         total_frames += 1
         logger.debug(f"frame_number={frame_number} → frame_id={frame_id}")
 
-        with open(os.path.join(labels_path, label_file)) as f:
+        with open(os.path.join(labels_path, label_file)) as f: #
             lines = f.readlines()
 
         for line in lines:
@@ -145,7 +145,7 @@ def main(conn: Any = None, labels_path: str | None = None, frames_folder: str | 
             if ann is None:
                 logger.warning(f"{label_file} — unexpected token count. Skipping.") #
                 continue
-
+ 
             insert_cursor.execute(
                 "INSERT INTO annotations (frame_id, annotation_set_id, class_id, label, x_center, y_center, width, height, created_at) "
                 "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
