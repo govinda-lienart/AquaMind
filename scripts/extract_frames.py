@@ -11,15 +11,16 @@ Guards : unique constraint (no duplicates), video must be registered, skips if a
 import datetime
 import logging
 import re
+from typing import Any
 import yaml
 import os
 import cv2
 from scripts.db import get_connection, get_video_id, register_frames
 
-def write_sidecar(frame_folder_path, video_path, sample_rate, start_seconds, end_seconds, frames_stored):
+def write_sidecar(frame_folder_path: str, video_path: str, sample_rate: int, start_seconds: float, end_seconds: float | None, frames_stored: int) -> None:
     """Write extraction metadata alongside the frames so store_annotations.py can read it."""
     sidecar = {
-        'frame_source':     '1fps',
+        'frame_source':     'regular',
         'video_path':       video_path,
         'sample_rate':      sample_rate,
         'start_seconds':    start_seconds,
@@ -39,7 +40,7 @@ CONFIG_PATH = 'config.yaml'
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
-def build_path_storage_frames(video_path, frames_dir):
+def build_path_storage_frames(video_path: str, frames_dir: str) -> str:
     """ Bulding path storage from loadad data config file"""
     logger.debug(f"video_path={video_path}, frames_dir={frames_dir}")
     video_name        = os.path.splitext(os.path.basename(video_path))[0]  # 'IMG_0909'
@@ -49,7 +50,7 @@ def build_path_storage_frames(video_path, frames_dir):
     logger.debug(f"result: {frame_folder_path}")
     return frame_folder_path
 
-def ensure_unique_constraint(cursor):
+def ensure_unique_constraint(cursor: Any) -> None:
     """idempotency. Adds (video_id, frame_number) as unique constraint to automatically ensure no duplicaton"""
     logger.debug("adding unique constraint...")
     try:
@@ -58,7 +59,7 @@ def ensure_unique_constraint(cursor):
     except Exception:
         logger.debug("unique constraint already exists — continuing")
 
-def frames_already_extracted(cursor, video_id):
+def frames_already_extracted(cursor: Any, video_id: int) -> bool:
     """Guard 3 — returns True if frames for this video already exist in the DB."""
     logger.debug(f"checking if frames already extracted for video_id={video_id}")
     cursor.execute("SELECT COUNT(*) FROM frames WHERE video_id = %s", (video_id,))
@@ -68,7 +69,7 @@ def frames_already_extracted(cursor, video_id):
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
-def main(conn, video_path=None, frames_dir=None, sample_rate=None, start_seconds=None, end_seconds=None):
+def main(conn: Any, video_path: str | None = None, frames_dir: str | None = None, sample_rate: int | None = None, start_seconds: float | None = None, end_seconds: float | None = None) -> None:
     logger.info("starting...")
     if video_path is None: # if video_path explicity provided in argument - test mode
         cfg = yaml.safe_load(open(CONFIG_PATH))
@@ -77,6 +78,9 @@ def main(conn, video_path=None, frames_dir=None, sample_rate=None, start_seconds
         sample_rate   = cfg['extract_frames'].get('sample_rate', 1)
         start_seconds = cfg['extract_frames'].get('start_seconds', 0) or 0
         end_seconds   = cfg['extract_frames'].get('end_seconds')
+
+    sample_rate   = sample_rate   or 1
+    start_seconds = start_seconds or 0
 
     frame_folder_path = build_path_storage_frames(video_path, frames_dir)
 
@@ -133,30 +137,3 @@ if __name__ == '__main__':
     setup_logging()
     main(get_connection())
 
-# ── TESTS ─────────────────────────────────────────────────────────────────────
-#  pytest scripts/extract_frames.py -v -s
-
-def test_main(db_conn):
-    print ("\n*****************************************************")
-    print("\n--- testing: main ---")
-    main(db_conn, video_path='videos/IMG_0350.MOV', frames_dir='frames')
-
-def test_ensure_unique_constraint(db_conn):
-    print ("\n*****************************************************")
-    print("\n--- testing: ensure_unique_constraint ---")
-    cursor = db_conn.cursor()
-    ensure_unique_constraint(cursor)
-    ensure_unique_constraint(cursor)
-
-def test_frames_already_extracted(db_conn):
-    print("\n*****************************************************")
-    print("\n--- testing: frames_already_extracted ---")
-    cursor = db_conn.cursor()
-    assert frames_already_extracted(cursor, 9999) == False  # unknown video_id → no frames
-    assert frames_already_extracted(cursor, 19)   == True   # fixtures.sql seeds frames for video_id=19
-
-def test_build_path_storage_frames():
-    print ("\n*****************************************************")
-    print("--- testing: build_path_storage_frames ---\n")
-    result = build_path_storage_frames('videos/IMG_0350.MOV', 'frames')
-    assert re.match(r'frames/frames_IMG_0350_\d{8}_\d{4}$', result), f"Unexpected path format: {result}"

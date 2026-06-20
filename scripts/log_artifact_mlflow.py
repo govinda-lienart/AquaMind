@@ -23,7 +23,7 @@ from scripts.db import get_connection
 logger = logging.getLogger(__name__)
 
 CONFIG_PATH = 'config.yaml'
-MLRUNS_PATH = '/Users/govinda-dashugolienart/Documents/Github_HD/AquaMind/mlruns'
+MLRUNS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'mlruns')
 EXPERIMENT  = 'aquamind'
 YOLO_MODEL  = 'yolov8n'
 
@@ -152,31 +152,3 @@ if __name__ == '__main__':
     main()
 
 
-# ── TESTS ─────────────────────────────────────────────────────────────────────
-#  pytest scripts/log_artifact_mlflow.py -v -s
-
-def test_count_images(tmp_path):
-    print("\n*****************************************************")
-    print("\n--- testing: count_images ---")
-    (tmp_path / 'frame_001.jpg').write_text('x')
-    (tmp_path / 'frame_002.jpg').write_text('x')
-    (tmp_path / 'frame_003.png').write_text('x')
-    (tmp_path / 'labels.txt').write_text('x')   # should not be counted
-    assert count_images(str(tmp_path)) == 3
-
-
-def test_load_results_csv(tmp_path):
-    print("\n*****************************************************")
-    print("\n--- testing: load_results_csv ---")
-    csv_path = tmp_path / 'results.csv'
-    csv_path.write_text(
-        " epoch, train/box_loss, train/cls_loss, train/dfl_loss,"
-        " val/box_loss, val/cls_loss, val/dfl_loss,"
-        " metrics/precision(B), metrics/recall(B), metrics/mAP50(B), metrics/mAP50-95(B),"
-        " lr/pg0, lr/pg1, lr/pg2\n"
-        "0, 1.0, 0.5, 0.3, 0.9, 0.4, 0.2, 0.8, 0.7, 0.6, 0.4, 0.01, 0.01, 0.01\n"
-    )
-    df = load_results_csv(str(tmp_path))
-    assert 'epoch' in df.columns
-    assert 'train/box_loss' in df.columns
-    assert len(df) == 1

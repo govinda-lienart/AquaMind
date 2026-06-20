@@ -26,7 +26,7 @@ store_annotations:
   labels_path: labelstudio_export/labelstudio_bbox_hard_mining_IMG_0350_17062026_09h03/labels # test -> fixtures/labels
   frames_folder: frames/crossing_frames_IMG_0350_20260615_22h51 # test -> frames/frames_test
   video_name: IMG_0350                  # used to look up video_id in MySQL
-  frame_source: crossing_event          # 1fps or crossing_event
+  frame_source: crossing_event          # regular or crossing_event
   notes: hard-mined crossing frames
 
 # prepare_dataset_script

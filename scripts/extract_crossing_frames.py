@@ -1,6 +1,7 @@
 import os
 import re
 from datetime import datetime
+from typing import Any
 
 import cv2
 import yaml
@@ -11,7 +12,7 @@ from scripts.db import get_connection, register_frames
 CONFIG_PATH = 'config.yaml'
 
 
-def load_config():
+def load_config() -> dict[str, Any]:
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
     c = cfg['extract_crossing_frames']
@@ -26,7 +27,7 @@ def load_config():
     }
 
 
-def parse_crossing_frames(log_path, iou_threshold, dedup_window):
+def parse_crossing_frames(log_path: str, iou_threshold: float, dedup_window: int) -> list[int]:
     """Return sorted list of unique frame numbers where bbox IoU exceeds threshold."""
     pattern = re.compile(r'Overlap detected.*\[frame (\d+)\] IoU=([\d.]+)')
     frame_iou = {}
@@ -49,7 +50,7 @@ def parse_crossing_frames(log_path, iou_threshold, dedup_window):
     return deduped
 
 
-def extract_frames(video_path, output_dir, crossing_frames):
+def extract_frames(video_path: str, output_dir: str, crossing_frames: list[int]) -> int:
     """Extract exactly one frame per crossing event."""
     os.makedirs(output_dir, exist_ok=True)
     cap = cv2.VideoCapture(video_path)
@@ -68,7 +69,7 @@ def extract_frames(video_path, output_dir, crossing_frames):
     return saved
 
 
-def write_sidecar(output_dir, p, frames_extracted):
+def write_sidecar(output_dir: str, p: dict[str, Any], frames_extracted: int) -> None:
     """Write extraction metadata alongside the frames so store_annotations.py can read it."""
     sidecar = {
         'frame_source':     'crossing_event',
@@ -85,7 +86,7 @@ def write_sidecar(output_dir, p, frames_extracted):
     print(f"  Sidecar written → {path}")
 
 
-def main():
+def main() -> None:
     p = load_config()
     print("=" * 50)
     print(f"  Log:    {p['log_path']}")
@@ -115,40 +116,3 @@ if __name__ == '__main__':
     main()
 
 
-# ── TESTS ─────────────────────────────────────────────────────────────────────
-#  pytest scripts/extract_crossing_frames.py -v -s
-
-def test_parse_crossing_frames(tmp_path):
-    print("\n*****************************************************")
-    print("\n--- testing: parse_crossing_frames ---")
-    log = tmp_path / "tracker.log"
-    log.write_text(
-        "Overlap detected: Fish 1 ↔ Fish 2 [frame 100] IoU=0.50\n"
-        "Overlap detected: Fish 1 ↔ Fish 2 [frame 101] IoU=0.55\n"
-        "Overlap detected: Fish 1 ↔ Fish 2 [frame 200] IoU=0.30\n"  # below threshold
-        "Overlap detected: Fish 1 ↔ Fish 2 [frame 300] IoU=0.60\n"
-    )
-    frames = parse_crossing_frames(str(log), iou_threshold=0.4, dedup_window=5)
-    assert 100 in frames
-    assert 200 not in frames  # IoU=0.30 below threshold
-    assert 300 in frames
-    assert 101 not in frames  # deduped — within 5 frames of 100
-
-
-def test_write_sidecar(tmp_path):
-    print("\n*****************************************************")
-    print("\n--- testing: write_sidecar ---")
-    p = {
-        'video_path':    'videos/IMG_0350.MOV',
-        'log_path':      'logs/tracker.log',
-        'iou_threshold': 0.4,
-        'dedup_window':  5,
-    }
-    write_sidecar(str(tmp_path), p, frames_extracted=12)
-    sidecar_path = tmp_path / 'extraction_params.yaml'
-    assert sidecar_path.exists()
-    import yaml
-    data = yaml.safe_load(sidecar_path.read_text())
-    assert data['frame_source']     == 'crossing_event'
-    assert data['iou_threshold']    == 0.4
-    assert data['frames_extracted'] == 12

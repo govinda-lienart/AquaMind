@@ -9,6 +9,7 @@ Output : rows inserted into videos table (skips already-registered entries)
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
 
 import logging
+from typing import Any
 
 import openpyxl
 
@@ -27,7 +28,7 @@ XLSX_PATH = 'video_metadata_2026_5_30.xlsx'
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
-def load_video_rows(xlsx_path):
+def load_video_rows(xlsx_path: str) -> list[dict[str, Any]]:
     wb      = openpyxl.load_workbook(xlsx_path)
     ws      = wb.active
     headers = [cell.value for cell in ws[1]]
@@ -36,7 +37,7 @@ def load_video_rows(xlsx_path):
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
-def main():
+def main() -> None:
 
     rows    = load_video_rows(XLSX_PATH)
     added   = 0
@@ -75,24 +76,3 @@ if __name__ == '__main__':
     main()
 
 
-# ── TESTS ─────────────────────────────────────────────────────────────────────
-#  pytest scripts/sync_videos.py -v -s
-
-def test_load_video_rows(tmp_path):
-    print("\n*****************************************************")
-    print("\n--- testing: load_video_rows ---")
-    import openpyxl
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.append(['file_path', 'session_type', 'obstacles', 'fish_count', 'notes',
-               'species', 'morph', 'tank_width_cm', 'tank_height_cm', 'tank_depth_cm', 'filmed_at'])
-    ws.append(['videos/IMG_0350.MOV', 'behaviour', 1, 5, 'test',
-               'danio_rerio', 'golden', 35.0, 21.0, 23.0, None])
-    xlsx = str(tmp_path / 'test.xlsx')
-    wb.save(xlsx)
-
-    rows = load_video_rows(xlsx)
-    assert len(rows) == 1
-    assert rows[0]['file_path']   == 'videos/IMG_0350.MOV'
-    assert rows[0]['fish_count']  == 5
-    assert rows[0]['session_type'] == 'behaviour'

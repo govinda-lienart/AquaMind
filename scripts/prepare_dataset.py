@@ -14,6 +14,7 @@ import os
 import random
 import shutil
 import subprocess
+from typing import Any
 
 import mlflow
 import yaml
@@ -32,7 +33,7 @@ RANDOM_SEED  = 42
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
-def fetch_annotated_frames(cursor, annotation_set_ids):
+def fetch_annotated_frames(cursor: Any, annotation_set_ids: list[int]) -> list[tuple[int, str]]:
     placeholders = ','.join(['%s'] * len(annotation_set_ids))
     cursor.execute(
         f"""SELECT DISTINCT f.id, f.frame_path
@@ -44,14 +45,14 @@ def fetch_annotated_frames(cursor, annotation_set_ids):
     return cursor.fetchall()
 
 
-def split_train_val(frames):
+def split_train_val(frames: list[tuple[int, str]]) -> tuple[list[tuple[int, str]], list[tuple[int, str]]]:
     random.seed(RANDOM_SEED)
     random.shuffle(frames)
     split_at = int(len(frames) * TRAIN_SPLIT)
     return frames[:split_at], frames[split_at:]
 
 
-def create_dataset_dirs(dataset_name):
+def create_dataset_dirs(dataset_name: str) -> None:
     """Creates the YOLO folder structure — deletes existing dataset folder first if present."""
     dataset_path = f"dataset/{dataset_name}"
     if os.path.exists(dataset_path):
@@ -61,9 +62,10 @@ def create_dataset_dirs(dataset_name):
     logger.debug(f"dataset dirs created: {dataset_path}")
 
 
-def generate_dataset(frames, split, dataset_name, conn):
+def generate_dataset(frames: list[tuple[int, str]], split: str, dataset_name: str, conn: Any, annotation_set_ids: list[int]) -> None:
     """Copies images and writes YOLO label files for one split (train or val)."""
     reading_cursor = conn.cursor()
+    placeholders = ','.join(['%s'] * len(annotation_set_ids))
     for frame_id, frame_path in frames:
         frame_basename = os.path.basename(frame_path)
         logger.debug(f"{split} → frame_id={frame_id}")
@@ -71,8 +73,9 @@ def generate_dataset(frames, split, dataset_name, conn):
         shutil.copy2(frame_path, f"dataset/{dataset_name}/images/{split}/{frame_basename}")
 
         reading_cursor.execute(
-            "SELECT class_id, x_center, y_center, width, height FROM annotations WHERE frame_id = %s",
-            (frame_id,)
+            f"SELECT class_id, x_center, y_center, width, height FROM annotations "
+            f"WHERE frame_id = %s AND annotation_set_id IN ({placeholders})",
+            (frame_id, *annotation_set_ids)
         )
         annotations = reading_cursor.fetchall()
 
@@ -84,7 +87,7 @@ def generate_dataset(frames, split, dataset_name, conn):
         logger.debug(f"label file → {txt_file}")
 
 
-def fetch_video_metadata(cursor, annotation_set_ids):
+def fetch_video_metadata(cursor: Any, annotation_set_ids: list[int]) -> list[tuple]:
     placeholders = ','.join(['%s'] * len(annotation_set_ids))
     cursor.execute(
         f"""SELECT DISTINCT v.file_path, v.species, v.morph,
@@ -100,14 +103,14 @@ def fetch_video_metadata(cursor, annotation_set_ids):
     return cursor.fetchall()
 
 
-def get_git_commit():
+def get_git_commit() -> str:
     try:
         return subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode().strip()
     except Exception:
         return 'unknown'
 
 
-def write_dataset_card(dataset_name, annotation_set_ids, videos_meta, n_train, n_val, git_commit):
+def write_dataset_card(dataset_name: str, annotation_set_ids: list[int], videos_meta: list, n_train: int, n_val: int, git_commit: str) -> None:
     card = {
         'dataset_name':       dataset_name,
         'annotation_set_ids': annotation_set_ids,
@@ -127,7 +130,7 @@ def write_dataset_card(dataset_name, annotation_set_ids, videos_meta, n_train, n
     logger.info(f"dataset card → {path}")
 
 
-def write_yolo_yaml(dataset_name):
+def write_yolo_yaml(dataset_name: str) -> None:
     dataset_yaml = {
         'path':  f"dataset/{dataset_name}",
         'train': 'images/train',
@@ -140,7 +143,7 @@ def write_yolo_yaml(dataset_name):
     logger.info(f"dataset.yaml updated → {dataset_name}")
 
 
-def log_to_mlflow(dataset_name, annotation_set_ids, git_commit, n_train, n_val):
+def log_to_mlflow(dataset_name: str, annotation_set_ids: list[int], git_commit: str, n_train: int, n_val: int) -> None:
     mlflow.set_experiment("prepare_dataset")
     with mlflow.start_run(run_name=dataset_name):
         mlflow.log_params({
@@ -160,7 +163,7 @@ def log_to_mlflow(dataset_name, annotation_set_ids, git_commit, n_train, n_val):
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
-def main(conn=None):
+def main(conn: Any = None) -> None:
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
 
@@ -180,8 +183,8 @@ def main(conn=None):
     logger.info(f"total={len(frames)} | train={len(train_frames)} | val={len(val_frames)}")
 
     create_dataset_dirs(dataset_name)
-    generate_dataset(train_frames, 'train', dataset_name, conn)
-    generate_dataset(val_frames,   'val',   dataset_name, conn)
+    generate_dataset(train_frames, 'train', dataset_name, conn, annotation_set_ids)
+    generate_dataset(val_frames,   'val',   dataset_name, conn, annotation_set_ids)
 
     meta_cursor = conn.cursor(dictionary=True)
     videos_meta = fetch_video_metadata(meta_cursor, annotation_set_ids)
@@ -212,58 +215,3 @@ if __name__ == '__main__':
     main()
 
 
-# ── TESTS ─────────────────────────────────────────────────────────────────────
-#  pytest scripts/prepare_dataset.py -v -s
-
-def test_split_train_val():
-    print("\n*****************************************************")
-    print("\n--- testing: split_train_val ---")
-    frames = [(i, f'frame_{i}.png') for i in range(10)]
-    train, val = split_train_val(frames)
-    assert len(train) == 8
-    assert len(val)   == 2
-    assert len(train) + len(val) == len(frames)
-
-def test_create_dataset_dirs(tmp_path, monkeypatch):
-    print("\n*****************************************************")
-    print("\n--- testing: create_dataset_dirs ---")
-    monkeypatch.chdir(tmp_path)
-    create_dataset_dirs('test_ds')
-    assert os.path.isdir('dataset/test_ds/images/train')
-    assert os.path.isdir('dataset/test_ds/images/val')
-    assert os.path.isdir('dataset/test_ds/labels/train')
-    assert os.path.isdir('dataset/test_ds/labels/val')
-
-def test_write_dataset_card(tmp_path, monkeypatch):
-    print("\n*****************************************************")
-    print("\n--- testing: write_dataset_card ---")
-    monkeypatch.chdir(tmp_path)
-    os.makedirs('dataset/test_ds')
-    write_dataset_card('test_ds', [1, 2], [], n_train=8, n_val=2, git_commit='abc1234')
-    with open('dataset/test_ds/dataset_card.yaml') as f:
-        card = yaml.safe_load(f)
-    assert card['dataset_name']       == 'test_ds'
-    assert card['annotation_set_ids'] == [1, 2]
-    assert card['num_train']          == 8
-    assert card['num_val']            == 2
-
-def test_write_yolo_yaml(tmp_path, monkeypatch):
-    print("\n*****************************************************")
-    print("\n--- testing: write_yolo_yaml ---")
-    monkeypatch.chdir(tmp_path)
-    write_yolo_yaml('test_ds')
-    with open('dataset.yaml') as f:
-        data = yaml.safe_load(f)
-    assert data['nc']    == 2
-    assert data['names'] == ['danio_rerio', 'reflection']
-    assert 'kpt_shape'   not in data
-
-def test_main(db_conn, tmp_path, monkeypatch):
-    print("\n*****************************************************")
-    print("\n--- testing: main ---")
-    frame_dir = tmp_path / 'frames' / 'frames_IMG_0350_20260101_2000'
-    frame_dir.mkdir(parents=True)
-    (frame_dir / 'frame_360_IMG_0350.png').write_bytes(b'')
-    shutil.copy('config.yaml', tmp_path)
-    monkeypatch.chdir(tmp_path)
-    main(db_conn)

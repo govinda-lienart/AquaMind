@@ -9,6 +9,7 @@ Credentials are read from .env (DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME)
 
 import logging
 import os
+from typing import Any
 
 import cv2
 import mysql.connector
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # ── FUNCTIONS ─────────────────────────────────────────────────────────────────
 
-def get_connection():
+def get_connection() -> Any:
     load_dotenv()
     db_name = os.getenv("DB_NAME")
     logger.debug(f"connecting to database={db_name}")
@@ -35,10 +36,10 @@ def get_connection():
     )
 
 
-def register_video(file_path, session_type, obstacles, fish_count, notes=None,
-                   species='danio_rerio', morph=None,
-                   tank_width_cm=None, tank_height_cm=None, tank_depth_cm=None,
-                   filmed_at=None):
+def register_video(file_path: str, session_type: str, obstacles: bool, fish_count: int,
+                   notes: str | None = None, species: str = 'danio_rerio', morph: str | None = None,
+                   tank_width_cm: float | None = None, tank_height_cm: float | None = None,
+                   tank_depth_cm: float | None = None, filmed_at: str | None = None) -> int:
     """Registers a video in MySQL — reads FPS and resolution directly from the video file."""
     cap        = cv2.VideoCapture(file_path)
     fps        = int(cap.get(cv2.CAP_PROP_FPS))
@@ -63,16 +64,16 @@ def register_video(file_path, session_type, obstacles, fish_count, notes=None,
     return video_id
 
 
-def get_video_id(cursor, video_path):
-    cursor.execute("SELECT id FROM videos WHERE file_path = %s", (video_path,))
+def get_video_id(cursor: Any, video_path: str) -> int:
+    cursor.execute("SELECT id FROM videos WHERE file_path LIKE %s", (f"%{video_path}%",))
     row = cursor.fetchone()
     if row is None:
-        raise ValueError(f"Video {video_path} not registered. Run sync_videos.py first.")
+        raise ValueError(f"Video '{video_path}' not found in videos table — run sync_videos.py first.")
     logger.debug(f"get_video_id: {video_path} → id={row[0]}")
     return row[0]
 
 
-def get_frame_id(cursor, frames_folder, frame_number):
+def get_frame_id(cursor: Any, frames_folder: str, frame_number: int) -> int:
     for pattern in [
         f"{frames_folder}/frame_{frame_number}_%",       # 1fps frames: frame_60_IMG_0350.png
         f"{frames_folder}/frame_{frame_number:06d}.%",   # crossing frames: frame_002080.jpg
@@ -86,7 +87,7 @@ def get_frame_id(cursor, frames_folder, frame_number):
     raise ValueError(f"No DB record found for frame {frame_number} in {frames_folder}")
 
 
-def register_frames(conn, frames_folder, video_path):
+def register_frames(conn: Any, frames_folder: str, video_path: str) -> int:
     """Register all frame_*.jpg/png files in a folder into MySQL. Safe to re-run (INSERT IGNORE)."""
     import re
     from datetime import datetime

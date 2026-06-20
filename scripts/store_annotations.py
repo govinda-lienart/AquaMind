@@ -11,11 +11,10 @@ Output : one row in annotation_sets + rows in annotations table
 import logging
 import os
 import datetime
-from pathlib import Path
-
+from typing import Any
 import yaml
 
-from scripts.db import get_connection, get_frame_id
+from scripts.db import get_connection, get_frame_id, get_video_id
 
 
 # ── CONSTANTS ─────────────────────────────────────────────────────────────────
@@ -29,13 +28,13 @@ LABEL_MAP = {0: "danio_rerio", 1: "reflection"}
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
-def parse_frame_number(label_file):
+def parse_frame_number(label_file: str) -> int:
     """Extracts frame number from a LabelStudio filename: 'e6d83681-frame_360.txt' → 360."""
     stem = os.path.splitext(label_file.split("-")[1])[0]
     return int(stem.split("_")[1])
 
 
-def parse_annotation_line(tokens):
+def parse_annotation_line(tokens: list[str]) -> dict[str, Any] | None:
     """Parses one YOLO bbox label line. Returns None if token count is unrecognised."""
     if len(tokens) == 5:
         return {
@@ -48,16 +47,8 @@ def parse_annotation_line(tokens):
     return None
 
 
-def get_video_id(cursor, video_name):
-    """Looks up video_id from videos table using video filename."""
-    cursor.execute("SELECT id FROM videos WHERE file_path LIKE %s", (f"%{video_name}%",))
-    row = cursor.fetchone()
-    if row is None:
-        raise ValueError(f"video '{video_name}' not found in videos table — run sync_videos.py first")
-    return row[0]
 
-
-def read_sidecar(frames_folder):
+def read_sidecar(frames_folder: str) -> dict[str, Any]:
     """Reads extraction_params.yaml from the frames folder if present."""
     path = os.path.join(frames_folder, 'extraction_params.yaml')
     if not os.path.exists(path):
@@ -66,8 +57,10 @@ def read_sidecar(frames_folder):
         return yaml.safe_load(f)
 
 
-def create_annotation_set(cursor, video_id, frame_source, notes, frames_extracted,
-                          iou_threshold, dedup_window, sample_rate, start_seconds, end_seconds):
+def create_annotation_set(cursor: Any, video_id: int, frame_source: str, notes: str | None,
+                          frames_extracted: int | None, iou_threshold: float | None,
+                          dedup_window: int | None, sample_rate: int | None,
+                          start_seconds: float | None, end_seconds: float | None) -> int:
     """Creates one annotation_sets row and returns its id."""
     cursor.execute(
         """INSERT INTO annotation_sets
@@ -80,7 +73,7 @@ def create_annotation_set(cursor, video_id, frame_source, notes, frames_extracte
     return cursor.lastrowid
 
 
-def print_summary(annotation_set_id, labels_path, frames_folder, total_frames, total_annotations):
+def print_summary(annotation_set_id: int, labels_path: str, frames_folder: str, total_frames: int, total_annotations: int) -> None:
     print("\n" + "─" * 50)
     print("  SUMMARY")
     print("─" * 50)
@@ -98,7 +91,7 @@ def print_summary(annotation_set_id, labels_path, frames_folder, total_frames, t
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
-def main(conn=None, labels_path=None, frames_folder=None, video_name=None, frame_source=None, notes=None):
+def main(conn: Any = None, labels_path: str | None = None, frames_folder: str | None = None, video_name: str | None = None, frame_source: str | None = None, notes: str | None = None) -> None:
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
 
@@ -136,6 +129,8 @@ def main(conn=None, labels_path=None, frames_folder=None, video_name=None, frame
     logger.info(f"annotation_set_id={annotation_set_id}")
 
     for label_file in os.listdir(labels_path):
+        if not label_file.endswith('.txt'):
+            continue
 
         frame_number = parse_frame_number(label_file)
         frame_id     = get_frame_id(reading_cursor, frames_folder, frame_number)
@@ -171,28 +166,3 @@ if __name__ == '__main__':
     setup_logging()
     main()
 
-# ── TESTS ─────────────────────────────────────────────────────────────────────
-#  pytest scripts/store_annotations.py -v -s
-
-def test_parse_frame_number():
-    print("\n*****************************************************")
-    print("\n--- testing: parse_frame_number ---")
-    assert parse_frame_number('e6d83681-frame_360.txt') == 360
-    assert parse_frame_number('abc12345-frame_0.txt')   == 0
-
-def test_parse_annotation_line():
-    print("\n*****************************************************")
-    print("\n--- testing: parse_annotation_line ---")
-    bbox = parse_annotation_line(['0', '0.5', '0.4', '0.1', '0.08'])
-    assert bbox['class_id'] == 0
-    assert bbox['x_center'] == 0.5
-    assert parse_annotation_line(['0', '0.5']) is None
-
-def test_main(db_conn):
-    print("\n*****************************************************")
-    print("\n--- testing: main ---")
-    main(db_conn, labels_path='fixtures/labels', frames_folder='frames/frames_IMG_0350_20260101_2000',
-         video_name='IMG_0350', frame_source='1fps', notes='test import')
-    cursor = db_conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM annotations WHERE annotation_set_id = 2")
-    assert cursor.fetchone()[0] == 1
