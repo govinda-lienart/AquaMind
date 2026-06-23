@@ -104,10 +104,8 @@ def log_video_sources(video_sources):
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
 def main():
-
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
-
     run_path           = cfg['log_artifact_mlflow']['run_path']
     run_name           = run_path.strip('/').split('/')[-1]
     dataset_path       = f"dataset/{cfg['prepare_dataset']['dataset_name']}"

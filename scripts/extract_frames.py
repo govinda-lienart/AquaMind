@@ -17,21 +17,6 @@ import os
 import cv2
 from scripts.db import get_connection, get_video_id, register_frames
 
-def write_sidecar(frame_folder_path: str, video_path: str, sample_rate: int, start_seconds: float, end_seconds: float | None, frames_stored: int) -> None:
-    """Write extraction metadata alongside the frames so store_annotations.py can read it."""
-    sidecar = {
-        'frame_source':     'regular',
-        'video_path':       video_path,
-        'sample_rate':      sample_rate,
-        'start_seconds':    start_seconds,
-        'end_seconds':      end_seconds,
-        'frames_extracted': frames_stored,
-        'extracted_at':     datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-    }
-    path = os.path.join(frame_folder_path, 'extraction_params.yaml')
-    with open(path, 'w') as f:
-        yaml.dump(sidecar, f, default_flow_style=False, sort_keys=False)
-
 # ── LOGGER ────────────────────────────────────────────────────────────────────
 
 logger = logging.getLogger(__name__)
@@ -67,37 +52,23 @@ def frames_already_extracted(cursor: Any, video_id: int) -> bool:
     logger.debug(f"frames already extracted: {result}")
     return result
 
-# ── MAIN ──────────────────────────────────────────────────────────────────────
+def write_sidecar(frame_folder_path: str, video_path: str, sample_rate: int, start_seconds: float, end_seconds: float | None, frames_stored: int) -> None:
+    """Write extraction metadata alongside the frames so store_annotations.py can read it."""
+    sidecar = {
+        'frame_source':     'regular',
+        'video_path':       video_path,
+        'sample_rate':      sample_rate,
+        'start_seconds':    start_seconds,
+        'end_seconds':      end_seconds,
+        'frames_extracted': frames_stored,
+        'extracted_at':     datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    }
+    path = os.path.join(frame_folder_path, 'extraction_params.yaml')
+    with open(path, 'w') as f:
+        yaml.dump(sidecar, f, default_flow_style=False, sort_keys=False)
 
-def main(conn: Any, video_path: str | None = None, frames_dir: str | None = None, sample_rate: int | None = None, start_seconds: float | None = None, end_seconds: float | None = None) -> None:
-    logger.info("starting...")
-    if video_path is None: # if video_path explicity provided in argument - test mode
-        cfg = yaml.safe_load(open(CONFIG_PATH))
-        video_path    = cfg['extract_frames']['video_path']
-        frames_dir    = cfg['extract_frames']['frames_dir']
-        sample_rate   = cfg['extract_frames'].get('sample_rate', 1)
-        start_seconds = cfg['extract_frames'].get('start_seconds', 0) or 0
-        end_seconds   = cfg['extract_frames'].get('end_seconds')
-
-    sample_rate   = sample_rate   or 1
-    start_seconds = start_seconds or 0
-
-    frame_folder_path = build_path_storage_frames(video_path, frames_dir)
-
-    cursor = conn.cursor()
-
-    ensure_unique_constraint(cursor) # guard 1 - makeing sure no duplicates allowed in sql
-    logger.debug(f"checking video exists: {video_path}")
-    video_id = get_video_id(cursor, video_path) # guard 2 - check video exist
-
-    logger.info("setup complete | %s", {"video_path": video_path, "frames_dir": frames_dir, "frame_folder": frame_folder_path, "database": conn.database, "video_id": video_id})
-
-    if frames_already_extracted(cursor, video_id): # guard 3 - skip if already done
-        logger.info(f"frames already exist for {video_path} — skipping extraction")
-        return
-
-    # ── EXTRACTION LOOP ───────────────────────────────────────────────────────
-
+def extract_and_save_frames(video_path: str, frame_folder_path: str, sample_rate: int, start_seconds: float, end_seconds: float | None) -> int:
+    """Opens video, extracts frames at sample_rate, saves as JPG. Returns number of frames saved."""
     cap = cv2.VideoCapture(video_path)
     fps         = round(cap.get(cv2.CAP_PROP_FPS))
     step        = max(1, round(fps / sample_rate))
@@ -126,6 +97,35 @@ def main(conn: Any, video_path: str | None = None, frames_dir: str | None = None
         frame_count += 1
 
     cap.release()
+    return frames_stored
+
+# ── MAIN ──────────────────────────────────────────────────────────────────────
+
+def main(conn: Any) -> None:
+    logger.info("starting...")
+    with open(CONFIG_PATH) as f:
+        cfg = yaml.safe_load(f)['extract_frames']
+    video_path    = cfg['video_path']
+    frames_dir    = cfg['frames_dir']
+    sample_rate   = cfg.get('sample_rate', 1)
+    start_seconds = cfg.get('start_seconds', 0) or 0
+    end_seconds   = cfg.get('end_seconds')
+
+    frame_folder_path = build_path_storage_frames(video_path, frames_dir)
+
+    cursor = conn.cursor()
+
+    ensure_unique_constraint(cursor) # guard 1 - making sure no duplicates allowed in sql
+    logger.debug(f"checking video exists: {video_path}")
+    video_id = get_video_id(cursor, video_path) # guard 2 - check video exist
+
+    logger.info("setup complete | %s", {"video_path": video_path, "frames_dir": frames_dir, "frame_folder": frame_folder_path, "database": conn.database, "video_id": video_id})
+
+    if frames_already_extracted(cursor, video_id): # guard 3 - skip if already done
+        logger.info(f"frames already exist for {video_path} — skipping extraction")
+        return
+
+    frames_stored = extract_and_save_frames(video_path, frame_folder_path, sample_rate, start_seconds, end_seconds)
     register_frames(conn, frame_folder_path, video_path)
     write_sidecar(frame_folder_path, video_path, sample_rate, start_seconds, end_seconds, frames_stored)
     logger.info(f"done — {frames_stored} frames saved to {frame_folder_path}")

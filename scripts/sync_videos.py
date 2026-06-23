@@ -1,5 +1,5 @@
 """
-Reads video metadata from an Excel sheet and registers videos in MySQL.
+Reads video metadata from an Excel sheet and registers it in MySQL.
 
 Input  : XLSX_PATH spreadsheet with one video per row
 Needs  : MySQL running, videos table created
@@ -11,10 +11,9 @@ Output : rows inserted into videos table (skips already-registered entries)
 import logging
 from typing import Any
 
-import openpyxl
+import openpyxl # reads excel files
 
 from scripts.db import register_video
-
 
 # ── CONSTANTS ─────────────────────────────────────────────────────────────────
 
@@ -23,17 +22,18 @@ logger = logging.getLogger(__name__)
 
 # ── CONSTANTS ─────────────────────────────────────────────────────────────────
 
-XLSX_PATH = 'video_metadata_2026_5_30.xlsx'
+XLSX_PATH = 'video_metadata.xlsx'
 
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
-def load_video_rows(xlsx_path: str) -> list[dict[str, Any]]:
-    wb      = openpyxl.load_workbook(xlsx_path)
-    ws      = wb.active
-    headers = [cell.value for cell in ws[1]]
-    return [dict(zip(headers, row)) for row in ws.iter_rows(min_row=2, values_only=True)]
+def load_video_rows(xlsx_path: str) -> list[dict[str, Any]]: # e.g. [{"file_path": "videos/IMG_0350.MOV", "fish_count": 5, ...},{"file_path": "videos/IMG_0651...]  # row 2 of xlsx
 
+    wb      = openpyxl.load_workbook(xlsx_path) # the entire file
+    ws      = wb.active # ws is worksheet - single sheet
+    headers = [cell.value for cell in ws[1]] # select row 1 as tuple (all headers) # iterates over each of cell objects (headers)  eg # file_path | fish_count | -> 'file_path', 'fps', 'fish_count
+    rows = ws.iter_rows(min_row=2, values_only=True) #generator object - getting the data rows start from row 2 - give aw value -> ('videos/IMG_0350.MOV', 5, 60, 'tracking', ...)
+    return [dict(zip(headers, row)) for row in rows] #  pairs each header name with its matching value by position [  {'file_path': 'videos/IMG_0350.MOV', 'fish_count': 5},  # row 2...
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 

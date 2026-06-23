@@ -57,7 +57,7 @@ def register_video(file_path: str, session_type: str, obstacles: bool, fish_coun
     """, (file_path, fps, resolution, session_type, obstacles, fish_count, notes, filmed_at,
           species, morph, tank_width_cm, tank_height_cm, tank_depth_cm))
     conn.commit()
-    video_id = cursor.lastrowid
+    video_id = cursor.lastrowid  # after INSERT this will allow to fetch the auto-incremented video id for futher use
     cursor.close()
     conn.close()
     logger.debug(f"register_video result: video_id={video_id}")
@@ -92,12 +92,16 @@ def register_frames(conn: Any, frames_folder: str, video_path: str) -> int:
     import re
     from datetime import datetime
 
+    #  look up the video 
+
     cursor = conn.cursor()
-    cursor.execute("SELECT id, fps FROM videos WHERE file_path = %s", (video_path,))
+    cursor.execute("SELECT id, fps FROM videos WHERE file_path = %s", (video_path,)) # queries videos by file_path to get video_id and fps
     row = cursor.fetchone()
     if row is None:
         raise ValueError(f"Video {video_path} not registered. Run sync_videos.py first.")
     video_id, fps = row
+
+    # scan the folder + insert each frame — for each matching file, inserts a row into frames with:
 
     name_pattern = re.compile(r'frame_(\d+)\.(jpg|png)$')
     registered = 0

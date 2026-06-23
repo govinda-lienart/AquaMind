@@ -32,3 +32,4 @@ scripts/trigger_kaggle.py
 docs/
 mysql_requests_backup/
 labelstudio_backup/
+diagram_pipeline/

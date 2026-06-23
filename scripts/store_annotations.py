@@ -91,16 +91,14 @@ def print_summary(annotation_set_id: int, labels_path: str, frames_folder: str, 
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
-def main(conn: Any = None, labels_path: str | None = None, frames_folder: str | None = None, video_name: str | None = None, frame_source: str | None = None, notes: str | None = None) -> None:
+def main(conn: Any = None) -> None:
     with open(CONFIG_PATH) as f:
-        cfg = yaml.safe_load(f)
-
-    if labels_path is None:
-        labels_path   = cfg['store_annotations']['labels_path']
-        frames_folder = cfg['store_annotations']['frames_folder']
-        video_name    = cfg['store_annotations']['video_name']
-        frame_source  = cfg['store_annotations']['frame_source']
-        notes         = cfg['store_annotations'].get('notes', '')
+        cfg = yaml.safe_load(f)['store_annotations']
+    labels_path   = cfg['labels_path']
+    frames_folder = cfg['frames_folder']
+    video_name    = cfg['video_name']
+    frame_source  = cfg['frame_source']
+    notes         = cfg.get('notes', '')
 
     logger.info(f"video_name={video_name}, frame_source={frame_source}, labels_path={labels_path}")
 
@@ -137,7 +135,7 @@ def main(conn: Any = None, labels_path: str | None = None, frames_folder: str | 
         total_frames += 1
         logger.debug(f"frame_number={frame_number} → frame_id={frame_id}")
 
-        with open(os.path.join(labels_path, label_file)) as f: #
+        with open(os.path.join(labels_path, label_file)) as f: #s
             lines = f.readlines()
 
         for line in lines:

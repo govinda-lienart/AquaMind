@@ -165,10 +165,9 @@ def log_to_mlflow(dataset_name: str, annotation_set_ids: list[int], git_commit: 
 
 def main(conn: Any = None) -> None:
     with open(CONFIG_PATH) as f:
-        cfg = yaml.safe_load(f)
-
-    annotation_set_ids = cfg['prepare_dataset']['annotation_set_ids']
-    dataset_name       = cfg['prepare_dataset']['dataset_name']
+        cfg = yaml.safe_load(f)['prepare_dataset']
+    annotation_set_ids = cfg['annotation_set_ids']
+    dataset_name       = cfg['dataset_name']
 
     logger.info(f"annotation_set_ids={annotation_set_ids}, dataset_name={dataset_name}")
 
