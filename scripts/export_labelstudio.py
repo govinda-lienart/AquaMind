@@ -23,7 +23,6 @@ with open(CONFIG_PATH) as f:
     _cfg = yaml.safe_load(f)['export_labelstudio']
 
 PROJECT_NAME = _cfg['project_name']
-EXPORT_TYPE  = _cfg['export_type']
 MIN_TASK_ID  = _cfg.get('min_task_id') or None
 MAX_TASK_ID  = _cfg.get('max_task_id') or None
 MODE         = _cfg.get('mode', 'export')
@@ -31,7 +30,7 @@ SEARCH_TERM  = _cfg.get('search_term', '')
 
 _video_name = PROJECT_NAME.split("_", 1)[1]
 _ts         = datetime.now().strftime("%d%m%Y_%Hh%M")
-OUTPUT_DIR  = f"labelstudio_export/labelstudio_{EXPORT_TYPE}_{_video_name}_{_ts}"
+OUTPUT_DIR  = f"labelstudio_export/labelstudio_{_video_name}_{_ts}"
 
 logger = logging.getLogger(__name__)
 

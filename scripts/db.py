@@ -36,13 +36,13 @@ def get_connection() -> Any:
     )
 
 
-def register_video(file_path: str, session_type: str, obstacles: bool, fish_count: int,
+def register_video(file_path: str, activity: str, plants: int, fish_count: int,
                    notes: str | None = None, species: str = 'danio_rerio', morph: str | None = None,
                    tank_width_cm: float | None = None, tank_height_cm: float | None = None,
                    tank_depth_cm: float | None = None, filmed_at: str | None = None) -> int:
     """Registers a video in MySQL — reads FPS and resolution directly from the video file."""
     cap        = cv2.VideoCapture(file_path)
-    fps        = int(cap.get(cv2.CAP_PROP_FPS))
+    fps        = round(cap.get(cv2.CAP_PROP_FPS))
     width      = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     resolution = '4K' if width >= 3840 else '1080p' if width >= 1920 else '720p'
     cap.release()
@@ -51,17 +51,35 @@ def register_video(file_path: str, session_type: str, obstacles: bool, fish_coun
     conn   = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT IGNORE INTO videos (file_path, fps, resolution, session_type, obstacles, fish_count, notes, filmed_at,
-                                   species, morph, tank_width_cm, tank_height_cm, tank_depth_cm)
+        INSERT INTO videos (file_path, fps, resolution, activity, plants, fish_count, notes, filmed_at,
+                            species, morph, tank_width_cm, tank_height_cm, tank_depth_cm)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """, (file_path, fps, resolution, session_type, obstacles, fish_count, notes, filmed_at,
+        ON DUPLICATE KEY UPDATE
+            fps            = VALUES(fps),
+            resolution     = VALUES(resolution),
+            activity       = VALUES(activity),
+            plants         = VALUES(plants),
+            fish_count     = VALUES(fish_count),
+            notes          = VALUES(notes),
+            filmed_at      = VALUES(filmed_at),
+            species        = VALUES(species),
+            morph          = VALUES(morph),
+            tank_width_cm  = VALUES(tank_width_cm),
+            tank_height_cm = VALUES(tank_height_cm),
+            tank_depth_cm  = VALUES(tank_depth_cm)
+    """, (file_path, fps, resolution, activity, plants, fish_count, notes, filmed_at,
           species, morph, tank_width_cm, tank_height_cm, tank_depth_cm))
     conn.commit()
-    video_id = cursor.lastrowid  # after INSERT this will allow to fetch the auto-incremented video id for futher use
+    rowcount = cursor.rowcount  # 1=inserted, 2=updated, 0=unchanged
+    if cursor.lastrowid:
+        video_id = cursor.lastrowid
+    else:
+        cursor.execute("SELECT id FROM videos WHERE file_path = %s", (file_path,))
+        video_id = cursor.fetchone()[0]
     cursor.close()
     conn.close()
-    logger.debug(f"register_video result: video_id={video_id}")
-    return video_id
+    logger.debug(f"register_video result: video_id={video_id} rowcount={rowcount}")
+    return video_id, rowcount
 
 
 def get_video_id(cursor: Any, video_path: str) -> int:
@@ -103,7 +121,7 @@ def register_frames(conn: Any, frames_folder: str, video_path: str) -> int:
 
     # scan the folder + insert each frame — for each matching file, inserts a row into frames with:
 
-    name_pattern = re.compile(r'frame_(\d+)\.(jpg|png)$')
+    name_pattern = re.compile(r'frame_(\d+)[^.]*\.(jpg|png)$')
     registered = 0
     for fname in sorted(os.listdir(frames_folder)):
         m = name_pattern.match(fname)

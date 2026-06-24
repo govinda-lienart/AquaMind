@@ -126,9 +126,9 @@ def main(conn: Any) -> None:
         return
 
     frames_stored = extract_and_save_frames(video_path, frame_folder_path, sample_rate, start_seconds, end_seconds)
-    register_frames(conn, frame_folder_path, video_path)
+    frames_registered = register_frames(conn, frame_folder_path, video_path)
     write_sidecar(frame_folder_path, video_path, sample_rate, start_seconds, end_seconds, frames_stored)
-    logger.info(f"done — {frames_stored} frames saved to {frame_folder_path}")
+    logger.info(f"done — {frames_stored} frames saved to disk, {frames_registered} registered in MySQL")
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 

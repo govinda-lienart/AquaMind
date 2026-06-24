@@ -33,22 +33,23 @@ def load_video_rows(xlsx_path: str) -> list[dict[str, Any]]: # e.g. [{"file_path
     ws      = wb.active # ws is worksheet - single sheet
     headers = [cell.value for cell in ws[1]] # select row 1 as tuple (all headers) # iterates over each of cell objects (headers)  eg # file_path | fish_count | -> 'file_path', 'fps', 'fish_count
     rows = ws.iter_rows(min_row=2, values_only=True) #generator object - getting the data rows start from row 2 - give aw value -> ('videos/IMG_0350.MOV', 5, 60, 'tracking', ...)
-    return [dict(zip(headers, row)) for row in rows] #  pairs each header name with its matching value by position [  {'file_path': 'videos/IMG_0350.MOV', 'fish_count': 5},  # row 2...
+    return [dict(zip(headers, row)) for row in rows] #  pairs each header name with its matching value by position as a list of dictrionaries[  {'file_path': 'videos/IMG_0350.MOV', 'fish_count': 5},  # row 2...
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
 
-    rows    = load_video_rows(XLSX_PATH)
-    added   = 0
-    skipped = 0
+    rows      = load_video_rows(XLSX_PATH)
+    added     = 0
+    updated   = 0
+    unchanged = 0
 
-    for data in rows:
-        video_id = register_video(
-            file_path      = data['file_path'],
-            session_type   = data['session_type'],
-            obstacles      = bool(data['obstacles']),
-            fish_count     = data['fish_count'],
+    for data in rows:  # loop reads over the loaded list of dictionaries and stores it in mysql
+        video_id, rowcount = register_video( # pulls the arguments form the dictionary, inserts in mysql and the outcome of the function is  an integer refering to video id
+            file_path      = data['file_path'],# it stores it as a dictionary. e.g row 2 ->  {'file_path': 'videos/IMG_0350.MOV', 'activity': 'normal', 'plants': 1, ...}
+            activity       = data['activity'],
+            plants         = int(data['plants']),
+            fish_count     = int(data['fish_count']),
             notes          = data['notes'],
             species        = data['species'],
             morph          = data['morph'],
@@ -58,14 +59,17 @@ def main() -> None:
             filmed_at      = data.get('filmed_at'),
         )
 
-        if video_id:
-            logger.info(f"added   {data['file_path']} → video_id={video_id}")
+        if rowcount == 1:
+            logger.info(f"added     {data['file_path']} → video_id={video_id}")
             added += 1
+        elif rowcount == 2:
+            logger.info(f"updated   {data['file_path']} → video_id={video_id}")
+            updated += 1
         else:
-            logger.info(f"skipped {data['file_path']} (already registered)")
-            skipped += 1
+            logger.info(f"unchanged {data['file_path']}")
+            unchanged += 1
 
-    logger.info(f"done — {added} added, {skipped} skipped")
+    logger.info(f"done — {added} added, {updated} updated, {unchanged} unchanged")
 
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
