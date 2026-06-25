@@ -16,8 +16,7 @@ import requests
 import yaml
 from dotenv import load_dotenv
 
-CONFIG_PATH = 'config.yaml'
-PROGRESS_EVERY = 20
+CONFIG_PATH = 'config.yaml' #  project_name · frames_dir
 
 LABEL_CONFIG = """
 <View>
@@ -26,13 +25,19 @@ LABEL_CONFIG = """
     <Label value="danio_rerio" background="#00a3d7" hotkey="d"/>
     <Label value="reflection" background="#d357fe" hotkey="r"/>
   </RectangleLabels>
-  <KeyPointLabels name="keypoint" toName="image" opacity="0.9" strokeWidth="3">
-    <Label value="eye" background="#ff0000" hotkey="e" model_index="0"/>
-  </KeyPointLabels>
 </View>
 """
+# configation set up is send to labelstudio to already predefine the 2 labels used for tagging - reflection and dario.
 
 logger = logging.getLogger(__name__)
+
+load_dotenv()
+
+LS_URL   = os.getenv("LABEL_STUDIO_URL")
+LS_TOKEN = os.getenv("LABEL_STUDIO_API_KEY")
+
+if not LS_TOKEN:
+    raise RuntimeError("LABEL_STUDIO_API_KEY not found — check your .env file")
 
 
 # ── CONFIG + AUTH ──────────────────────────────────────────────────────────────
@@ -42,33 +47,32 @@ def load_config():
         cfg = yaml.safe_load(f)
     c  = cfg['import_labelstudio']
     ts = datetime.now().strftime('%Y%m%d_%Hh%M')
-    frames_dir = c.get('frames_dir') or _latest_crossing_dir()
+    frames_dir = c.get('frames_dir')
+    if not frames_dir:
+        raise ValueError("frames_dir must be set in config.yaml under import_labelstudio")
     return {
         'project_name': f"{c['project_name']}_{ts}",
         'frames_dir':   frames_dir,
     }
 
 
-def _latest_crossing_dir():
-    base = Path('frames')
-    dirs = sorted(base.glob('crossing_frames_*'), key=os.path.getmtime, reverse=True)
-    if not dirs:
-        raise FileNotFoundError("No crossing_frames_* folder found. Run make extract-crossings first.")
-    return str(dirs[0])
-
-
-def get_access_token(url, api_key):
-    resp = requests.post(f"{url}/api/token/refresh", json={"refresh": api_key})
+def get_access_token() -> str:
+    """Exchanges the long-lived refresh token for a short-lived access token."""
+    resp = requests.post(f"{LS_URL}/api/token/refresh", json={"refresh": LS_TOKEN})
     resp.raise_for_status()
     return resp.json()["access"]
 
 
+HEADERS = {"Authorization": f"Bearer {get_access_token()}"}
+
+
 # ── LABELSTUDIO API ───────────────────────────────────────────────────────────
 
-def create_project(url, headers, name):
+def create_project(name: str) -> int:
+    """Creates a new LabelStudio project and returns its id."""
     resp = requests.post(
-        f"{url}/api/projects",
-        headers=headers,
+        f"{LS_URL}/api/projects",
+        headers=HEADERS,
         json={"title": name, "label_config": LABEL_CONFIG},
     )
     resp.raise_for_status()
@@ -77,14 +81,15 @@ def create_project(url, headers, name):
     return project_id
 
 
-def upload_images(url, headers, project_id, images):
+def upload_images(project_id: int, images: list) -> int:
+    """Uploads JPG frames to a LabelStudio project one by one. Returns total uploaded."""
     total = 0
     for i, img in enumerate(images, 1):
         with open(img, 'rb') as f:
             resp = requests.post(
-                f"{url}/api/projects/{project_id}/import",
-                headers=headers,
-                files=[('file', (Path(img).name, f, 'image/jpeg'))],
+                f"{LS_URL}/api/projects/{project_id}/import",
+                headers=HEADERS,
+                files=[('file', (Path(img).name, f, 'image/jpeg'))], # send image via HTTP POST ->   files (convention) = The structure ('file' (convention), (filename -> e.g frame_0060_IMG_0350.jpg, file_object f -> the actual bites , content_type chared with server)) is what LabelStudio's API expects specificall
             )
         resp.raise_for_status()
         total += 1
@@ -95,17 +100,11 @@ def upload_images(url, headers, project_id, images):
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
-def main():
-    load_dotenv(Path(__file__).parent.parent / ".env")
-    ls_url   = os.getenv("LABEL_STUDIO_URL")
-    ls_token = os.getenv("LABEL_STUDIO_API_KEY")
-    if not ls_token:
-        raise RuntimeError("LABEL_STUDIO_API_KEY not found — check your .env file")
+def main() -> None:
+    """Creates a LabelStudio project and uploads frames from the configured folder."""
+    p = load_config()  # project_name - frames_dir
 
-    p       = load_config()
-    headers = {"Authorization": f"Bearer {get_access_token(ls_url, ls_token)}"}
-
-    images = sorted(Path(p['frames_dir']).glob('*.jpg'))
+    images = sorted(Path(p['frames_dir']).glob('*.jpg')) # contains a list of path objects [ Path('frames/crossing_frames_IMG_0350_20260624_1641/frame_0060_IMG_0350.jpg'), Path('frames/crossing_frames_IMG_0350_20260624_1641/frame_0120_IMG_0350.jpg'),....]
     if not images:
         print(f"  No .jpg files found in {p['frames_dir']}")
         return
@@ -115,10 +114,10 @@ def main():
     print(f"  Frames:   {p['frames_dir']} ({len(images)} images)")
     print("=" * 50)
 
-    project_id = create_project(ls_url, headers, p['project_name'])
-    total = upload_images(ls_url, headers, project_id, images)
+    project_id = create_project(p['project_name'])
+    total = upload_images(project_id, images)
     print(f"\nDone. {total} tasks imported into '{p['project_name']}'")
-    print(f"Open: {ls_url}/projects/{project_id}/")
+    print(f"Open: {LS_URL}/projects/{project_id}/")
 
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────

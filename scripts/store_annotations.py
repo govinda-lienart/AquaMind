@@ -48,9 +48,8 @@ def parse_annotation_line(tokens: list[str]) -> dict[str, Any] | None:
 
 
 
-def read_sidecar(frames_folder: str) -> dict[str, Any]:
-    """Reads extraction_params.yaml from the frames folder if present."""
-    path = os.path.join(frames_folder, 'extraction_params.yaml')
+def read_sidecar(path: str) -> dict[str, Any]:
+    """Reads a YAML sidecar file if present, returns empty dict if not found."""
     if not os.path.exists(path):
         return {}
     with open(path) as f:
@@ -60,15 +59,21 @@ def read_sidecar(frames_folder: str) -> dict[str, Any]:
 def create_annotation_set(cursor: Any, video_id: int, frame_source: str, notes: str | None,
                           frames_extracted: int | None, iou_threshold: float | None,
                           dedup_window: int | None, sample_rate: int | None,
-                          start_seconds: float | None, end_seconds: float | None) -> int:
+                          start_seconds: float | None, end_seconds: float | None,
+                          ls_project_name: str | None, ls_project_id: int | None,
+                          ls_task_ids: list | None, ls_downloaded_at: str | None) -> int:
     """Creates one annotation_sets row and returns its id."""
+    import json
     cursor.execute(
         """INSERT INTO annotation_sets
            (video_id, frame_source, notes, frames_extracted, iou_threshold, dedup_window,
-            sample_rate, start_seconds, end_seconds, created_at)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            sample_rate, start_seconds, end_seconds, created_at,
+            ls_project_name, ls_project_id, ls_task_ids, ls_downloaded_at)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
         (video_id, frame_source, notes, frames_extracted, iou_threshold, dedup_window,
-         sample_rate, start_seconds, end_seconds, datetime.datetime.now())
+         sample_rate, start_seconds, end_seconds, datetime.datetime.now(),
+         ls_project_name, ls_project_id,
+         json.dumps(ls_task_ids) if ls_task_ids else None, ls_downloaded_at)
     )
     return cursor.lastrowid
 
@@ -111,7 +116,7 @@ def main(conn: Any = None) -> None:
     reading_cursor = conn.cursor()
     insert_cursor  = conn.cursor()
 
-    sidecar           = read_sidecar(frames_folder)
+    sidecar           = read_sidecar(os.path.join(frames_folder, 'extraction_params.yaml'))
     frame_source      = sidecar.get('frame_source', frame_source)
     frames_extracted  = sidecar.get('frames_extracted')
     iou_threshold     = sidecar.get('iou_threshold')
@@ -120,10 +125,18 @@ def main(conn: Any = None) -> None:
     start_seconds     = sidecar.get('start_seconds')
     end_seconds       = sidecar.get('end_seconds')
 
+    dl_sidecar        = read_sidecar(os.path.join(os.path.dirname(labels_path), 'download_params.yaml'))
+    ls_project_name   = dl_sidecar.get('project_name')
+    ls_project_id     = dl_sidecar.get('project_id')
+    ls_task_ids       = dl_sidecar.get('task_ids')
+    ls_downloaded_at  = dl_sidecar.get('downloaded_at')
+
     video_id          = get_video_id(reading_cursor, video_name)
     annotation_set_id = create_annotation_set(insert_cursor, video_id, frame_source, notes,
                                               frames_extracted, iou_threshold, dedup_window,
-                                              sample_rate, start_seconds, end_seconds)
+                                              sample_rate, start_seconds, end_seconds,
+                                              ls_project_name, ls_project_id,
+                                              ls_task_ids, ls_downloaded_at)
     logger.info(f"annotation_set_id={annotation_set_id}")
 
     for label_file in os.listdir(labels_path):
@@ -139,7 +152,7 @@ def main(conn: Any = None) -> None:
             lines = f.readlines()
 
         for line in lines:
-            ann = parse_annotation_line(line.split())
+            ann = parse_annotation_line(line.split()[:5])
             if ann is None:
                 logger.warning(f"{label_file} — unexpected token count. Skipping.") #
                 continue

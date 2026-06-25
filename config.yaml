@@ -7,8 +7,8 @@ extract_frames:
   start_seconds:  0     # leave 0 for beginning of video
   end_seconds:    null  # leave null for full video
 
-# export_labelstudio_script
-export_labelstudio:
+# download_labelstudio_script
+download_labelstudio:
   project_name: AquaMind_IMG_0350     # Label Studio project name
   min_task_id:                           # leave empty for no lower limit
   max_task_id:                            # leave empty for no upper limit
@@ -16,17 +16,17 @@ export_labelstudio:
   search_term: frame_2220                # used only when mode = search
 
 # import_labelstudio_script - hard negative mining - import files into labestudio
-import_labelstudio:
+upload_labelstudio:
   project_name: test_project_IMG_0350
   frames_dir: frames/frames_IMG_0350_20260624_1641  # leave empty to auto-detect latest crossing_frames folder
 
 # store_annotations_script
 store_annotations:
-  labels_path: labelstudio_export/labelstudio_bbox_hard_mining_IMG_0350_17062026_09h03/labels # test -> fixtures/labels
-  frames_folder: frames/crossing_frames_IMG_0350_20260615_22h51 # test -> frames/frames_test
+  labels_path: labelstudio_download/labelstudio_IMG_0350_25062026_13h34/labels # test -> fixtures/labels
+  frames_folder: frames/frames_IMG_0350_20260624_1641 # test -> frames/frames_test
   video_name: IMG_0350                  # used to look up video_id in MySQL
-  frame_source: crossing_event          # regular or crossing_event
-  notes: hard-mined crossing frames 
+  frame_source: regular         # regular or crossing_event
+  notes: 
 
 # prepare_dataset_script
 prepare_dataset:

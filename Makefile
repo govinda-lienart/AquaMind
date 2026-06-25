@@ -33,13 +33,12 @@ backup-labelstudio:
 
 # Create a new LabelStudio project and upload frames for labeling
 # Auto-detects latest crossing_frames folder if frames_dir is empty in config
-import-labelstudio:
-	python -m scripts.import_labelstudio
+upload-labelstudio:
+	python -m scripts.upload_labelstudio
 
-# Export labeled annotations from LabelStudio as YOLO .txt files
-# Supports bbox and pose (eye keypoints) export modes — set in config
-export-labelstudio:
-	python -m scripts.export_labelstudio
+# Download labeled annotations from LabelStudio as YOLO .txt files
+download-labelstudio:
+	python -m scripts.download_labelstudio
 
 # Parse exported YOLO .txt files → store bboxes + keypoints in MySQL annotations table
 store-annotations:
@@ -144,8 +143,8 @@ help:
 	@echo ""
 	@echo "  STAGE 2 — Annotation"
 	@echo "  make backup-labelstudio   Back up all LS projects as JSON"
-	@echo "  make import-labelstudio   Create LS project + upload frames"
-	@echo "  make export-labelstudio   Export annotations from LabelStudio"
+	@echo "  make upload-labelstudio   Create LS project + upload frames"
+	@echo "  make download-labelstudio Download annotations from LabelStudio"
 	@echo "  make store-annotations    Store annotations in MySQL"
 	@echo ""
 	@echo "  STAGE 3 — Dataset"

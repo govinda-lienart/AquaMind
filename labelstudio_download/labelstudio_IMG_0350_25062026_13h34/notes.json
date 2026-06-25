@@ -1,0 +1,23 @@
+{
+  "categories": [
+    {
+      "id": 0,
+      "name": "danio_rerio",
+      "keypoints": [
+        "eye"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "reflection",
+      "keypoints": [
+        "eye"
+      ]
+    }
+  ],
+  "info": {
+    "year": 2026,
+    "version": "1.0",
+    "contributor": "Label Studio"
+  }
+}

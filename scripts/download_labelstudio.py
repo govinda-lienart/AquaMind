@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 CONFIG_PATH = 'config.yaml'
 
 with open(CONFIG_PATH) as f:
-    _cfg = yaml.safe_load(f)['export_labelstudio']
+    _cfg = yaml.safe_load(f)['download_labelstudio']
 
 PROJECT_NAME = _cfg['project_name']
 MIN_TASK_ID  = _cfg.get('min_task_id') or None
@@ -28,7 +28,7 @@ SEARCH_TERM  = _cfg.get('search_term', '')
 
 _video_name = PROJECT_NAME.split("_", 1)[1]
 _ts         = datetime.now().strftime("%d%m%Y_%Hh%M")
-OUTPUT_DIR  = f"labelstudio_export/labelstudio_{_video_name}_{_ts}"
+OUTPUT_DIR  = f"labelstudio_download/labelstudio_{_video_name}_{_ts}"
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ if not LS_TOKEN:
 # ── AUTH ──────────────────────────────────────────────────────────────────────
 
 def get_access_token() -> str:
+    """Exchanges the long-lived refresh token for a short-lived access token."""
     resp = requests.post(f"{LS_URL}/api/token/refresh", json={"refresh": LS_TOKEN}) # showing the permanent ID - apply for "day pass"
     resp.raise_for_status() # check for errors
     return resp.json()["access"] # extract the access token from json response file access e.g {"access": "eyJhbGciOiJIUz........, "refresh": "eyJhbGciO....}. The long eyJ...JWT tokens...contains encoded data like user id, expirty time...
@@ -55,6 +56,7 @@ HEADERS = {"Authorization": f"Bearer {get_access_token()}"} # store in HEADERS o
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
 def get_project_id(name: str) -> int:
+    """Looks up a LabelStudio project by name and returns its numeric id."""
     resp = requests.get(f"{LS_URL}/api/projects", headers=HEADERS)   # gets the full response...{"count": 3,"results": [{ "id": 1,   "title": "AquaMind_IMG_0350"}, {"id": 2,"title": "AquaMind_IMG_0651",...}]
     resp.raise_for_status()
     for p in resp.json()['results']:
@@ -65,6 +67,7 @@ def get_project_id(name: str) -> int:
 
 
 def fetch_all_tasks(project_id: int) -> list[dict]:
+    """Fetches all tasks (frames) from a LabelStudio project, labeled or not."""
     url  = f"{LS_URL}/api/tasks?project={project_id}&page_size=1000"
     resp = requests.get(url, headers=HEADERS)
     resp.raise_for_status()
@@ -72,8 +75,9 @@ def fetch_all_tasks(project_id: int) -> list[dict]:
 
 
 def get_labeled_task_ids(project_id: int, min_id: int | None = None, max_id: int | None = None) -> list[int]:
+    """Returns ids of labeled tasks only, optionally filtered to a task id range."""
     tasks = fetch_all_tasks(project_id)
-    ids   = [t['id'] for t in tasks if t['is_labeled']] # For each dict t in the list — check is_labeled — if True, pull out t['id'] and add it to ids.-->    tasks is a list of dics t [{"id": 51, "is_labeled": True,  "data": {...}}, {"id": 52, "is_labeled": False, "data": {...}}
+    ids   = [t['id'] for t in tasks if t['is_labeled']] # For each dict t in the list — check is_labeled — if True, pull out t['id'] and add it to ids.-->    tasks is a list of dics t [{"id": 51, "is_labeled": True,  "data": {...}}, {"id": 52, "is_labeled": False, "data": {...}} - > creates a list
         
     if min_id:
         ids = [i for i in ids if i >= min_id]
@@ -84,6 +88,7 @@ def get_labeled_task_ids(project_id: int, min_id: int | None = None, max_id: int
 
 
 def search_task(project_id: int, term: str) -> None:
+    """Searches all tasks for a matching image filename and prints the results."""
     tasks = fetch_all_tasks(project_id)
     results = [t for t in tasks if term in t['data'].get('image', '')]
     if not results:
@@ -93,7 +98,25 @@ def search_task(project_id: int, term: str) -> None:
         print(f"task id: {t['id']}  |  {t['data']['image']}  |  labeled: {t['is_labeled']}")
 
 
-def export_yolo(project_id: int, task_ids: list[int], output_dir: str) -> None:
+def write_sidecar(output_dir: str, project_name: str, project_id: int, task_ids: list[int], min_id: int | None, max_id: int | None) -> None:
+    """Writes download metadata alongside the labels folder for provenance."""
+    sidecar = {
+        'project_name':  project_name,
+        'project_id':    project_id,
+        'task_ids':      task_ids,
+        'num_tasks':     len(task_ids),
+        'min_task_id':   min_id,
+        'max_task_id':   max_id,
+        'downloaded_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+    }
+    path = os.path.join(output_dir, 'download_params.yaml')
+    with open(path, 'w') as f:
+        yaml.dump(sidecar, f, default_flow_style=False, sort_keys=False)
+    logger.info(f"sidecar written → {path}")
+
+
+def download_from_labelstudio(project_id: int, task_ids: list[int], output_dir: str) -> None:
+    """Downloads YOLO annotations for the given task ids, extracts the zip, and prints a summary."""
     os.makedirs(output_dir, exist_ok=True)
     params = "exportType=YOLO&" + "&".join([f"ids[]={i}" for i in task_ids])
     url    = f"{LS_URL}/api/projects/{project_id}/export?{params}"
@@ -127,12 +150,14 @@ def export_yolo(project_id: int, task_ids: list[int], output_dir: str) -> None:
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    """Runs export or search mode depending on config.yaml."""
     project_id = get_project_id(PROJECT_NAME)
     if MODE == "search":
         search_task(project_id, SEARCH_TERM)
     elif MODE == "export":
         task_ids = get_labeled_task_ids(project_id, MIN_TASK_ID, MAX_TASK_ID)
-        export_yolo(project_id, task_ids, OUTPUT_DIR)
+        download_from_labelstudio(project_id, task_ids, OUTPUT_DIR)
+        write_sidecar(OUTPUT_DIR, PROJECT_NAME, project_id, task_ids, MIN_TASK_ID, MAX_TASK_ID)
     else:
         raise ValueError(f"unknown MODE '{MODE}' — use 'export' or 'search'")
 
