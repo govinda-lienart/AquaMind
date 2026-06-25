@@ -11,8 +11,6 @@ import logging
 import os
 import zipfile
 from datetime import datetime #
-from pathlib import Path
-
 import requests
 import yaml
 from dotenv import load_dotenv
@@ -34,7 +32,7 @@ OUTPUT_DIR  = f"labelstudio_export/labelstudio_{_video_name}_{_ts}"
 
 logger = logging.getLogger(__name__)
 
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv()
 
 LS_URL   = os.getenv("LABEL_STUDIO_URL")
 LS_TOKEN = os.getenv("LABEL_STUDIO_API_KEY")
@@ -45,19 +43,19 @@ if not LS_TOKEN:
 
 # ── AUTH ──────────────────────────────────────────────────────────────────────
 
-def get_access_token():
-    resp = requests.post(f"{LS_URL}/api/token/refresh", json={"refresh": LS_TOKEN})
-    resp.raise_for_status()
-    return resp.json()["access"]
+def get_access_token() -> str:
+    resp = requests.post(f"{LS_URL}/api/token/refresh", json={"refresh": LS_TOKEN}) # showing the permanent ID - apply for "day pass"
+    resp.raise_for_status() # check for errors
+    return resp.json()["access"] # extract the access token from json response file access e.g {"access": "eyJhbGciOiJIUz........, "refresh": "eyJhbGciO....}. The long eyJ...JWT tokens...contains encoded data like user id, expirty time...
 
 
-HEADERS = {"Authorization": f"Bearer {get_access_token()}"}
+HEADERS = {"Authorization": f"Bearer {get_access_token()}"} # store in HEADERS of the HTTP request - the "day pass"
 
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
-def get_project_id(name):
-    resp = requests.get(f"{LS_URL}/api/projects", headers=HEADERS)
+def get_project_id(name: str) -> int:
+    resp = requests.get(f"{LS_URL}/api/projects", headers=HEADERS)   # gets the full response...{"count": 3,"results": [{ "id": 1,   "title": "AquaMind_IMG_0350"}, {"id": 2,"title": "AquaMind_IMG_0651",...}]
     resp.raise_for_status()
     for p in resp.json()['results']:
         if p['title'] == name:
@@ -66,16 +64,17 @@ def get_project_id(name):
     raise ValueError(f"project '{name}' not found in Label Studio")
 
 
-def fetch_all_tasks(project_id):
+def fetch_all_tasks(project_id: int) -> list[dict]:
     url  = f"{LS_URL}/api/tasks?project={project_id}&page_size=1000"
     resp = requests.get(url, headers=HEADERS)
     resp.raise_for_status()
     return resp.json()['tasks']
 
 
-def get_labeled_task_ids(project_id, min_id=None, max_id=None):
+def get_labeled_task_ids(project_id: int, min_id: int | None = None, max_id: int | None = None) -> list[int]:
     tasks = fetch_all_tasks(project_id)
-    ids   = [t['id'] for t in tasks if t['is_labeled']]
+    ids   = [t['id'] for t in tasks if t['is_labeled']] # For each dict t in the list — check is_labeled — if True, pull out t['id'] and add it to ids.-->    tasks is a list of dics t [{"id": 51, "is_labeled": True,  "data": {...}}, {"id": 52, "is_labeled": False, "data": {...}}
+        
     if min_id:
         ids = [i for i in ids if i >= min_id]
     if max_id:
@@ -84,7 +83,7 @@ def get_labeled_task_ids(project_id, min_id=None, max_id=None):
     return ids
 
 
-def search_task(project_id, term):
+def search_task(project_id: int, term: str) -> None:
     tasks = fetch_all_tasks(project_id)
     results = [t for t in tasks if term in t['data'].get('image', '')]
     if not results:
@@ -94,7 +93,7 @@ def search_task(project_id, term):
         print(f"task id: {t['id']}  |  {t['data']['image']}  |  labeled: {t['is_labeled']}")
 
 
-def export_yolo(project_id, task_ids, output_dir):
+def export_yolo(project_id: int, task_ids: list[int], output_dir: str) -> None:
     os.makedirs(output_dir, exist_ok=True)
     params = "exportType=YOLO&" + "&".join([f"ids[]={i}" for i in task_ids])
     url    = f"{LS_URL}/api/projects/{project_id}/export?{params}"
@@ -127,7 +126,7 @@ def export_yolo(project_id, task_ids, output_dir):
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
-def main():
+def main() -> None:
     project_id = get_project_id(PROJECT_NAME)
     if MODE == "search":
         search_task(project_id, SEARCH_TERM)
