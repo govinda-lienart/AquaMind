@@ -1,4 +1,4 @@
-path: dataset/dataset_2026_06_17_1252_IMG_0350_0764_0909_0350HM
+path: dataset/dataset_ann_3_4_5
 train: images/train
 val: images/val
 nc: 2

@@ -61,19 +61,18 @@ def create_annotation_set(cursor: Any, video_id: int, frame_source: str, notes: 
                           dedup_window: int | None, sample_rate: int | None,
                           start_seconds: float | None, end_seconds: float | None,
                           ls_project_name: str | None, ls_project_id: int | None,
-                          ls_task_ids: list | None, ls_downloaded_at: str | None) -> int:
+                          ls_min_task_id: int | None, ls_max_task_id: int | None,
+                          ls_downloaded_at: str | None) -> int:
     """Creates one annotation_sets row and returns its id."""
-    import json
     cursor.execute(
         """INSERT INTO annotation_sets
            (video_id, frame_source, notes, frames_extracted, iou_threshold, dedup_window,
             sample_rate, start_seconds, end_seconds, created_at,
-            ls_project_name, ls_project_id, ls_task_ids, ls_downloaded_at)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            ls_project_name, ls_project_id, ls_min_task_id, ls_max_task_id, ls_downloaded_at)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
         (video_id, frame_source, notes, frames_extracted, iou_threshold, dedup_window,
          sample_rate, start_seconds, end_seconds, datetime.datetime.now(),
-         ls_project_name, ls_project_id,
-         json.dumps(ls_task_ids) if ls_task_ids else None, ls_downloaded_at)
+         ls_project_name, ls_project_id, ls_min_task_id, ls_max_task_id, ls_downloaded_at)
     )
     return cursor.lastrowid
 
@@ -128,7 +127,8 @@ def main(conn: Any = None) -> None:
     dl_sidecar        = read_sidecar(os.path.join(os.path.dirname(labels_path), 'download_params.yaml'))
     ls_project_name   = dl_sidecar.get('project_name')
     ls_project_id     = dl_sidecar.get('project_id')
-    ls_task_ids       = dl_sidecar.get('task_ids')
+    ls_min_task_id    = dl_sidecar.get('min_task_id')
+    ls_max_task_id    = dl_sidecar.get('max_task_id')
     ls_downloaded_at  = dl_sidecar.get('downloaded_at')
 
     video_id          = get_video_id(reading_cursor, video_name)
@@ -136,7 +136,7 @@ def main(conn: Any = None) -> None:
                                               frames_extracted, iou_threshold, dedup_window,
                                               sample_rate, start_seconds, end_seconds,
                                               ls_project_name, ls_project_id,
-                                              ls_task_ids, ls_downloaded_at)
+                                              ls_min_task_id, ls_max_task_id, ls_downloaded_at)
     logger.info(f"annotation_set_id={annotation_set_id}")
 
     for label_file in os.listdir(labels_path):

@@ -103,7 +103,6 @@ def write_sidecar(output_dir: str, project_name: str, project_id: int, task_ids:
     sidecar = {
         'project_name':  project_name,
         'project_id':    project_id,
-        'task_ids':      task_ids,
         'num_tasks':     len(task_ids),
         'min_task_id':   min_id,
         'max_task_id':   max_id,

@@ -9,7 +9,7 @@ extract_frames:
 
 # download_labelstudio_script
 download_labelstudio:
-  project_name: AquaMind_IMG_0350     # Label Studio project name
+  project_name: AquaMind_IMG_0909     # Label Studio project name
   min_task_id:                           # leave empty for no lower limit
   max_task_id:                            # leave empty for no upper limit
   mode: export                           # export or search
@@ -22,18 +22,19 @@ upload_labelstudio:
 
 # store_annotations_script
 store_annotations:
-  labels_path: labelstudio_download/labelstudio_IMG_0350_25062026_13h34/labels # test -> fixtures/labels
-  frames_folder: frames/frames_IMG_0350_20260624_1641 # test -> frames/frames_test
-  video_name: IMG_0350                  # used to look up video_id in MySQL
+  labels_path: labelstudio_download/labelstudio_IMG_0909_25062026_14h01/labels # test -> fixtures/labels
+  frames_folder: frames/frames_IMG_0909_20260624_1643 # test -> frames/frames_test
+  video_name: IMG_0909                  # used to look up video_id in MySQL
   frame_source: regular         # regular or crossing_event
   notes: 
 
 # prepare_dataset_script
 prepare_dataset:
-  dataset_name: dataset_v1
+  dataset_name: dataset_ann_3_4_5
   annotation_set_ids:   # integer IDs from annotation_sets table — run store_annotations.py first
-    - 1
-    - 2
+    - 3
+    - 4
+    - 5
 
 # log_artifact_mlflow_script
 log_artifact_mlflow:
