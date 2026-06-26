@@ -16,7 +16,6 @@ import shutil
 import subprocess
 from typing import Any
 
-import mlflow
 import yaml
 
 from scripts.db import get_connection
@@ -34,6 +33,7 @@ RANDOM_SEED  = 42
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
 def fetch_annotated_frames(cursor: Any, annotation_set_ids: list[int]) -> list[tuple[int, str]]:
+    """Returns (frame_id, frame_path) for all distinctly annotated frames in the given annotation sets."""
     placeholders = ','.join(['%s'] * len(annotation_set_ids))
     cursor.execute(
         f"""SELECT DISTINCT f.id, f.frame_path
@@ -46,6 +46,7 @@ def fetch_annotated_frames(cursor: Any, annotation_set_ids: list[int]) -> list[t
 
 
 def split_train_val(frames: list[tuple[int, str]]) -> tuple[list[tuple[int, str]], list[tuple[int, str]]]:
+    """Shuffles frames and splits into 80% train and 20% val lists."""
     random.seed(RANDOM_SEED)
     random.shuffle(frames)
     split_at = int(len(frames) * TRAIN_SPLIT)
@@ -88,6 +89,7 @@ def generate_dataset(frames: list[tuple[int, str]], split: str, dataset_name: st
 
 
 def fetch_video_metadata(cursor: Any, annotation_set_ids: list[int]) -> list[tuple]:
+    """Returns video metadata for all videos that contributed frames to the dataset."""
     placeholders = ','.join(['%s'] * len(annotation_set_ids))
     cursor.execute(
         f"""SELECT DISTINCT v.file_path, v.species, v.morph,
@@ -104,6 +106,7 @@ def fetch_video_metadata(cursor: Any, annotation_set_ids: list[int]) -> list[tup
 
 
 def get_git_commit() -> str:
+    """Returns the short git commit hash for reproducibility tracking."""
     try:
         return subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode().strip()
     except Exception:
@@ -111,6 +114,7 @@ def get_git_commit() -> str:
 
 
 def write_dataset_card(dataset_name: str, annotation_set_ids: list[int], videos_meta: list, n_train: int, n_val: int, git_commit: str) -> None:
+    """Writes a dataset_card.yaml alongside the dataset folder for full reproducibility."""
     card = {
         'dataset_name':       dataset_name,
         'annotation_set_ids': annotation_set_ids,
@@ -131,6 +135,7 @@ def write_dataset_card(dataset_name: str, annotation_set_ids: list[int], videos_
 
 
 def write_yolo_yaml(dataset_name: str) -> None:
+    """Writes dataset.yaml at project root — required by YOLOv8 for training."""
     dataset_yaml = {
         'path':  f"dataset/{dataset_name}",
         'train': 'images/train',
@@ -141,24 +146,6 @@ def write_yolo_yaml(dataset_name: str) -> None:
     with open('dataset.yaml', 'w') as f:
         yaml.dump(dataset_yaml, f, default_flow_style=False, sort_keys=False)
     logger.info(f"dataset.yaml updated → {dataset_name}")
-
-
-def log_to_mlflow(dataset_name: str, annotation_set_ids: list[int], git_commit: str, n_train: int, n_val: int) -> None:
-    mlflow.set_experiment("prepare_dataset")
-    with mlflow.start_run(run_name=dataset_name):
-        mlflow.log_params({
-            'dataset_name':       dataset_name,
-            'annotation_set_ids': str(annotation_set_ids),
-            'git_commit':         git_commit,
-            'train_split':        TRAIN_SPLIT,
-            'random_seed':        RANDOM_SEED,
-        })
-        mlflow.log_metrics({
-            'num_train': n_train,
-            'num_val':   n_val,
-            'total':     n_train + n_val,
-        })
-    logger.info(f"MLflow run logged — dataset={dataset_name}, annotation_set_ids={annotation_set_ids}")
 
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
@@ -191,8 +178,6 @@ def main(conn: Any = None) -> None:
 
     write_dataset_card(dataset_name, annotation_set_ids, videos_meta, len(train_frames), len(val_frames), git_commit)
     write_yolo_yaml(dataset_name)
-    log_to_mlflow(dataset_name, annotation_set_ids, git_commit, len(train_frames), len(val_frames))
-
     print("\n" + "─" * 50)
     print("  DATASET SUMMARY")
     print("─" * 50)

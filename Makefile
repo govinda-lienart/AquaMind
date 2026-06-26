@@ -7,6 +7,10 @@
 config:
 	open config.yaml
 
+# Dump MySQL aquamind database to mysql_backup/ with timestamp
+backup-db:
+	docker exec cont-aquamind-sql mysqldump -u root -paquamind aquamind > mysql_backup/aquamind_$$(date +%Y%m%d_%H%M).sql
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STAGE 1 — DATA INGESTION
@@ -55,7 +59,7 @@ prepare-dataset:
 	python -m scripts.prepare_dataset
 
 # Version the dataset with DVC and push to remote storage, then commit to git
-push-dataset_dvc:
+push-dataset:
 	dvc add dataset
 	dvc push
 	git add dataset.yaml dataset.dvc
@@ -87,7 +91,7 @@ download-kaggle:
 log-mlflow:
 	python -m scripts.log_artifact_mlflow
 
-run_mlflow:
+run-mlflow:
 	mlflow ui --backend-store-uri mlruns/
 
 
@@ -156,6 +160,7 @@ help:
 	@echo "  make kaggle-status        Check Kaggle kernel status"
 	@echo "  make watch-kaggle         Poll Kaggle status every 60s"
 	@echo "  make log-mlflow           Log artifacts + metrics to MLflow"
+	@echo "  make run-mlflow           Launch MLflow UI in browser"
 	@echo ""
 	@echo "  STAGE 5 — Tracking"
 	@echo "  make track                Run Kalman tracker → annotated video + log"
@@ -166,4 +171,5 @@ help:
 	@echo ""
 	@echo "  make test                 Run all tests"
 	@echo "  make config               Open config.yaml"
+	@echo "  make backup-db            Dump MySQL to mysql_backup/"
 	@echo ""

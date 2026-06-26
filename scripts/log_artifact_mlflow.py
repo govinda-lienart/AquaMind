@@ -73,10 +73,11 @@ def log_dataset_card(dataset_path):
 
 
 def fetch_video_sources(conn, annotation_set_ids):
+    """Fetches video metadata for all videos that contributed to the annotation sets."""
     placeholders = ','.join(['%s'] * len(annotation_set_ids))
     cursor = conn.cursor(dictionary=True)
     cursor.execute(
-        f"""SELECT DISTINCT v.file_path, v.filmed_at, v.session_type, v.obstacles, v.fish_count, v.notes
+        f"""SELECT DISTINCT v.file_path, v.filmed_at, v.activity, v.plants, v.fish_count, v.notes
             FROM videos v
             JOIN frames fr ON fr.video_id = v.id
             JOIN annotations a ON a.frame_id = fr.id
@@ -90,6 +91,20 @@ def fetch_video_sources(conn, annotation_set_ids):
     return rows
 
 
+def fetch_annotation_set_details(conn, annotation_set_ids):
+    """Fetches annotation set provenance details from MySQL."""
+    placeholders = ','.join(['%s'] * len(annotation_set_ids))
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        f"""SELECT id, frame_source, frames_extracted, sample_rate,
+                   ls_project_name, ls_project_id, ls_min_task_id, ls_max_task_id, ls_downloaded_at
+            FROM annotation_sets
+            WHERE id IN ({placeholders})""",
+        annotation_set_ids
+    )
+    return cursor.fetchall()
+
+
 def log_video_sources(video_sources):
     """Serialises video metadata to a temp YAML, logs it as an artifact, then deletes the temp file."""
     path = 'video_sources.yaml'
@@ -98,7 +113,17 @@ def log_video_sources(video_sources):
     mlflow.log_artifact(path)
     os.remove(path)
     for v in video_sources:
-        logger.info(f"{v['file_path']}  filmed={v['filmed_at']}  fish={v['fish_count']}  obstacles={v['obstacles']}")
+        logger.info(f"{v['file_path']}  filmed={v['filmed_at']}  fish={v['fish_count']}  plants={v['plants']}")
+
+
+def log_annotation_set_details(annotation_sets):
+    """Serialises annotation set provenance to a temp YAML, logs it as an artifact, then deletes it."""
+    path = 'annotation_sets.yaml'
+    with open(path, 'w') as f:
+        yaml.dump({'annotation_sets': annotation_sets}, f, default_flow_style=False)
+    mlflow.log_artifact(path)
+    os.remove(path)
+    logger.info(f"annotation set details logged for ids={[a['id'] for a in annotation_sets]}")
 
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
@@ -124,18 +149,21 @@ def main():
     with mlflow.start_run(run_name=run_name):
 
         mlflow.log_param('yolo_model',          YOLO_MODEL)
+        mlflow.log_param('dataset_name',        cfg['prepare_dataset']['dataset_name'])
         mlflow.log_param('dataset_folder',      dataset_path)
         mlflow.log_param('annotation_set_ids',  str(annotation_set_ids))
         mlflow.log_param('num_train',           num_train)
         mlflow.log_param('num_val',             num_val)
-        logger.info(f"params logged: model={YOLO_MODEL} annotation_set_ids={annotation_set_ids} train={num_train} val={num_val}")
+        logger.info(f"params logged: model={YOLO_MODEL} dataset={cfg['prepare_dataset']['dataset_name']} annotation_set_ids={annotation_set_ids} train={num_train} val={num_val}")
 
         log_epoch_metrics(df)
         log_dataset_card(dataset_path)
 
         with get_connection() as conn:
-            video_sources = fetch_video_sources(conn, annotation_set_ids)
+            video_sources      = fetch_video_sources(conn, annotation_set_ids)
+            annotation_sets    = fetch_annotation_set_details(conn, annotation_set_ids)
         log_video_sources(video_sources)
+        log_annotation_set_details(annotation_sets)
 
         mlflow.log_artifacts(run_path)
 
