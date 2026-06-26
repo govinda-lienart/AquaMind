@@ -15,8 +15,6 @@ import mlflow
 import pandas as pd
 import yaml
 
-from scripts.db import get_connection
-
 
 # ── CONSTANTS ─────────────────────────────────────────────────────────────────
 
@@ -72,58 +70,11 @@ def log_dataset_card(dataset_path):
         logger.warning(f"no dataset_card.yaml found in {dataset_path} — skipping")
 
 
-def fetch_video_sources(conn, annotation_set_ids):
-    """Fetches video metadata for all videos that contributed to the annotation sets."""
-    placeholders = ','.join(['%s'] * len(annotation_set_ids))
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute(
-        f"""SELECT DISTINCT v.file_path, v.filmed_at, v.activity, v.plants, v.fish_count, v.notes
-            FROM videos v
-            JOIN frames fr ON fr.video_id = v.id
-            JOIN annotations a ON a.frame_id = fr.id
-            WHERE a.annotation_set_id IN ({placeholders})""",
-        annotation_set_ids
-    )
-    rows = cursor.fetchall()
-    for row in rows:
-        if row['filmed_at']:
-            row['filmed_at'] = str(row['filmed_at'])
-    return rows
-
-
-def fetch_annotation_set_details(conn, annotation_set_ids):
-    """Fetches annotation set provenance details from MySQL."""
-    placeholders = ','.join(['%s'] * len(annotation_set_ids))
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute(
-        f"""SELECT id, frame_source, frames_extracted, sample_rate,
-                   ls_project_name, ls_project_id, ls_min_task_id, ls_max_task_id, ls_downloaded_at
-            FROM annotation_sets
-            WHERE id IN ({placeholders})""",
-        annotation_set_ids
-    )
-    return cursor.fetchall()
-
-
-def log_video_sources(video_sources):
-    """Serialises video metadata to a temp YAML, logs it as an artifact, then deletes the temp file."""
-    path = 'video_sources.yaml'
-    with open(path, 'w') as f:
-        yaml.dump({'videos': video_sources}, f, default_flow_style=False)
-    mlflow.log_artifact(path)
-    os.remove(path)
-    for v in video_sources:
-        logger.info(f"{v['file_path']}  filmed={v['filmed_at']}  fish={v['fish_count']}  plants={v['plants']}")
-
-
-def log_annotation_set_details(annotation_sets):
-    """Serialises annotation set provenance to a temp YAML, logs it as an artifact, then deletes it."""
-    path = 'annotation_sets.yaml'
-    with open(path, 'w') as f:
-        yaml.dump({'annotation_sets': annotation_sets}, f, default_flow_style=False)
-    mlflow.log_artifact(path)
-    os.remove(path)
-    logger.info(f"annotation set details logged for ids={[a['id'] for a in annotation_sets]}")
+def load_dataset_card(dataset_path):
+    """Loads dataset_card.yaml — the single source of truth for dataset provenance."""
+    card_path = os.path.join(dataset_path, 'dataset_card.yaml')
+    with open(card_path) as f:
+        return yaml.safe_load(f)
 
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
@@ -131,10 +82,11 @@ def log_annotation_set_details(annotation_sets):
 def main():
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
-    run_path           = cfg['log_artifact_mlflow']['run_path']
-    run_name           = run_path.strip('/').split('/')[-1]
-    dataset_path       = f"dataset/{cfg['prepare_dataset']['dataset_name']}"
-    annotation_set_ids = cfg['prepare_dataset']['annotation_set_ids']
+    run_path     = cfg['log_artifact_mlflow']['run_path']
+    run_name     = run_path.strip('/').split('/')[-1]
+    dataset_path = f"dataset/{cfg['prepare_dataset']['dataset_name']}"
+
+    card = load_dataset_card(dataset_path)
 
     num_train = count_images(os.path.join(dataset_path, 'images', 'train'))
     num_val   = count_images(os.path.join(dataset_path, 'images', 'val'))
@@ -149,22 +101,16 @@ def main():
     with mlflow.start_run(run_name=run_name):
 
         mlflow.log_param('yolo_model',          YOLO_MODEL)
-        mlflow.log_param('dataset_name',        cfg['prepare_dataset']['dataset_name'])
+        mlflow.log_param('dataset_name',        card['dataset_name'])
         mlflow.log_param('dataset_folder',      dataset_path)
-        mlflow.log_param('annotation_set_ids',  str(annotation_set_ids))
+        mlflow.log_param('annotation_set_ids',  str(card['annotation_set_ids']))
         mlflow.log_param('num_train',           num_train)
         mlflow.log_param('num_val',             num_val)
-        logger.info(f"params logged: model={YOLO_MODEL} dataset={cfg['prepare_dataset']['dataset_name']} annotation_set_ids={annotation_set_ids} train={num_train} val={num_val}")
+        mlflow.log_param('git_commit',          card['git_commit'])
+        logger.info(f"params logged: model={YOLO_MODEL} dataset={card['dataset_name']} annotation_set_ids={card['annotation_set_ids']} train={num_train} val={num_val}")
 
         log_epoch_metrics(df)
         log_dataset_card(dataset_path)
-
-        with get_connection() as conn:
-            video_sources      = fetch_video_sources(conn, annotation_set_ids)
-            annotation_sets    = fetch_annotation_set_details(conn, annotation_set_ids)
-        log_video_sources(video_sources)
-        log_annotation_set_details(annotation_sets)
-
         mlflow.log_artifacts(run_path)
 
     logger.info("all metrics and artifacts logged — you can now delete the runs/ folder")

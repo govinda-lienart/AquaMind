@@ -94,12 +94,27 @@ def fetch_video_metadata(cursor: Any, annotation_set_ids: list[int]) -> list[tup
     cursor.execute(
         f"""SELECT DISTINCT v.file_path, v.species, v.morph,
                    v.tank_width_cm, v.tank_height_cm, v.tank_depth_cm,
-                   v.fps, v.resolution, v.fish_count, v.notes,
+                   v.fps, v.resolution, v.fish_count, v.activity, v.plants, v.notes,
                    CAST(v.filmed_at AS CHAR) AS filmed_at
             FROM videos v
             JOIN frames f ON f.video_id = v.id
             JOIN annotations a ON a.frame_id = f.id
             WHERE a.annotation_set_id IN ({placeholders})""",
+        annotation_set_ids
+    )
+    return cursor.fetchall()
+
+
+def fetch_annotation_set_details(cursor: Any, annotation_set_ids: list[int]) -> list[dict]:
+    """Returns annotation set provenance for all sets that contributed to the dataset."""
+    placeholders = ','.join(['%s'] * len(annotation_set_ids))
+    cursor.execute(
+        f"""SELECT id, frame_source, frames_extracted, sample_rate,
+                   start_seconds, end_seconds, iou_threshold, dedup_window,
+                   ls_project_name, ls_project_id, ls_min_task_id, ls_max_task_id,
+                   CAST(ls_downloaded_at AS CHAR) AS ls_downloaded_at
+            FROM annotation_sets
+            WHERE id IN ({placeholders})""",
         annotation_set_ids
     )
     return cursor.fetchall()
@@ -113,13 +128,14 @@ def get_git_commit() -> str:
         return 'unknown'
 
 
-def write_dataset_card(dataset_name: str, annotation_set_ids: list[int], videos_meta: list, n_train: int, n_val: int, git_commit: str) -> None:
+def write_dataset_card(dataset_name: str, annotation_set_ids: list[int], videos_meta: list, annotation_sets: list, n_train: int, n_val: int, git_commit: str) -> None:
     """Writes a dataset_card.yaml alongside the dataset folder for full reproducibility."""
     card = {
         'dataset_name':       dataset_name,
         'annotation_set_ids': annotation_set_ids,
         'git_commit':         git_commit,
         'videos':             videos_meta,
+        'annotation_sets':    annotation_sets,
         'num_train':          n_train,
         'num_val':            n_val,
         'total_frames':       n_train + n_val,
@@ -172,11 +188,12 @@ def main(conn: Any = None) -> None:
     generate_dataset(train_frames, 'train', dataset_name, conn, annotation_set_ids)
     generate_dataset(val_frames,   'val',   dataset_name, conn, annotation_set_ids)
 
-    meta_cursor = conn.cursor(dictionary=True)
-    videos_meta = fetch_video_metadata(meta_cursor, annotation_set_ids)
-    git_commit  = get_git_commit()
+    meta_cursor      = conn.cursor(dictionary=True)
+    videos_meta      = fetch_video_metadata(meta_cursor, annotation_set_ids)
+    annotation_sets  = fetch_annotation_set_details(meta_cursor, annotation_set_ids)
+    git_commit       = get_git_commit()
 
-    write_dataset_card(dataset_name, annotation_set_ids, videos_meta, len(train_frames), len(val_frames), git_commit)
+    write_dataset_card(dataset_name, annotation_set_ids, videos_meta, annotation_sets, len(train_frames), len(val_frames), git_commit)
     write_yolo_yaml(dataset_name)
     print("\n" + "─" * 50)
     print("  DATASET SUMMARY")

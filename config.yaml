@@ -30,15 +30,16 @@ store_annotations:
 
 # prepare_dataset_script
 prepare_dataset:
-  dataset_name: dataset_ann_3_4_5
+  dataset_name: dataset_ann_3_4_5_2026_06_26_1934
   annotation_set_ids:   # integer IDs from annotation_sets table — run store_annotations.py first
     - 3
     - 4
     - 5
 
 # log_artifact_mlflow_script
-log_artifact_mlflow:
+log_artifact_mlflow: # 
   run_path: runs/dataset_2026_06_17_1252_IMG_0350_0764_0909_0350HM
+  # dataset: it reads the dataset listed in prepare dataset to pull the sidecar metadata from this dataset 
 
 # track_zebrafish_script
 track_zebrafish:
