@@ -122,5 +122,3 @@ if __name__ == '__main__':
     from scripts.logger import setup_logging
     setup_logging()
     main()
-
-

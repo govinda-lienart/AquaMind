@@ -20,11 +20,13 @@ CONFIG_PATH = 'config.yaml'
 with open(CONFIG_PATH) as f:
     _cfg = yaml.safe_load(f)['download_labelstudio']
 
-PROJECT_NAME = _cfg['project_name']
-MIN_TASK_ID  = _cfg.get('min_task_id') or None
-MAX_TASK_ID  = _cfg.get('max_task_id') or None
-MODE         = _cfg.get('mode', 'export')
-SEARCH_TERM  = _cfg.get('search_term', '')
+PROJECT_NAME   = _cfg['project_name']
+MIN_TASK_ID    = _cfg.get('min_task_id') or None
+MAX_TASK_ID    = _cfg.get('max_task_id') or None
+MODE           = _cfg.get('mode', 'export')
+SEARCH_TERM    = _cfg.get('search_term', '')
+EXPORT_LABELS  = _cfg.get('export_labels', True)
+EXPORT_IMAGES  = _cfg.get('export_images', False)
 
 _video_name = PROJECT_NAME.split("_", 1)[1]
 _ts         = datetime.now().strftime("%d%m%Y_%Hh%M")
@@ -106,12 +108,40 @@ def write_sidecar(output_dir: str, project_name: str, project_id: int, task_ids:
         'num_tasks':     len(task_ids),
         'min_task_id':   min_id,
         'max_task_id':   max_id,
+        'export_labels': EXPORT_LABELS,
+        'export_images': EXPORT_IMAGES,
         'downloaded_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
     }
     path = os.path.join(output_dir, 'download_params.yaml')
     with open(path, 'w') as f:
         yaml.dump(sidecar, f, default_flow_style=False, sort_keys=False)
     logger.info(f"sidecar written → {path}")
+
+
+def download_images(project_id: int, task_ids: list[int], output_dir: str) -> int:
+    """Downloads source images for the given task ids into images/ subfolder."""
+    images_dir = os.path.join(output_dir, 'images')
+    os.makedirs(images_dir, exist_ok=True)
+    tasks    = fetch_all_tasks(project_id)
+    task_map = {t['id']: t for t in tasks}
+    downloaded = 0
+    for task_id in task_ids:
+        task      = task_map.get(task_id)
+        image_url = task['data'].get('image', '') if task else ''
+        if not image_url:
+            continue
+        if image_url.startswith('/data/'):
+            image_url = LS_URL + image_url
+        filename = os.path.basename(image_url.split('?')[0])
+        if '-' in filename:                        # strip LabelStudio UUID prefix
+            filename = filename.split('-', 1)[1]
+        resp = requests.get(image_url, headers=HEADERS)
+        resp.raise_for_status()
+        with open(os.path.join(images_dir, filename), 'wb') as f:
+            f.write(resp.content)
+        downloaded += 1
+    logger.info(f"downloaded {downloaded} images → {images_dir}")
+    return downloaded
 
 
 def download_from_labelstudio(project_id: int, task_ids: list[int], output_dir: str) -> None:
@@ -142,6 +172,7 @@ def download_from_labelstudio(project_id: int, task_ids: list[int], output_dir: 
     print("─" * 50)
     print(f"  Frames exported      : {len(txt_files)}")
     print(f"  Annotations          : {total_annotations}")
+    print(f"  Images               : {'see below' if EXPORT_IMAGES else 'not downloaded (export_images: false)'}")
     print(f"  Output               : {output_dir}")
     print("─" * 50)
 
@@ -155,7 +186,12 @@ def main() -> None:
         search_task(project_id, SEARCH_TERM)
     elif MODE == "export":
         task_ids = get_labeled_task_ids(project_id, MIN_TASK_ID, MAX_TASK_ID)
-        download_from_labelstudio(project_id, task_ids, OUTPUT_DIR)
+        if EXPORT_LABELS:
+            download_from_labelstudio(project_id, task_ids, OUTPUT_DIR)
+        if EXPORT_IMAGES:
+            n = download_images(project_id, task_ids, OUTPUT_DIR)
+            print(f"  Images downloaded    : {n}")
+            print("─" * 50)
         write_sidecar(OUTPUT_DIR, PROJECT_NAME, project_id, task_ids, MIN_TASK_ID, MAX_TASK_ID)
     else:
         raise ValueError(f"unknown MODE '{MODE}' — use 'export' or 'search'")

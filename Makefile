@@ -92,7 +92,8 @@ log-mlflow:
 	python -m scripts.log_artifact_mlflow
 
 run-mlflow:
-	mlflow ui --backend-store-uri mlruns/
+	mlflow ui --backend-store-uri mlruns/ --port 5001
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════

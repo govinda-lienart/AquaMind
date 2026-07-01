@@ -9,11 +9,13 @@ extract_frames:
 
 # download_labelstudio_script
 download_labelstudio:
-  project_name: AquaMind_IMG_0909     # Label Studio project name
+  project_name: AquaMind_hard_mining_IMG_0350    # Label Studio project name
   min_task_id:                           # leave empty for no lower limit
   max_task_id:                            # leave empty for no upper limit
   mode: export                           # export or search
   search_term: frame_2220                # used only when mode = search
+  export_labels: true                    # download YOLO .txt label files into labels/ folder
+  export_images: true                    # download source images into images/ folder
 
 # import_labelstudio_script - hard negative mining - import files into labestudio
 upload_labelstudio:
@@ -22,32 +24,32 @@ upload_labelstudio:
 
 # store_annotations_script
 store_annotations:
-  labels_path: labelstudio_download/labelstudio_IMG_0909_25062026_14h01/labels # test -> fixtures/labels
-  frames_folder: frames/frames_IMG_0909_20260624_1643 # test -> frames/frames_test
-  video_name: IMG_0909                  # used to look up video_id in MySQL
-  frame_source: regular         # regular or crossing_event
-  notes: 
+  labels_path: labelstudio_download/labelstudio_IMG_0764_25062026_14h00/labels
+  frames_folder: frames/frames_IMG_0764_20260624_1635
+  video_name: IMG_0764
+  notes:
 
 # prepare_dataset_script
 prepare_dataset:
-  dataset_name: dataset_ann_3_4_5_2026_06_26_1934
+  dataset_name: dataset_ann_3r_4r_5r_8c_2026_06_30_2111
   annotation_set_ids:   # integer IDs from annotation_sets table — run store_annotations.py first
     - 3
     - 4
     - 5
+    - 8
 
 # log_artifact_mlflow_script
-log_artifact_mlflow: # 
-  run_path: runs/dataset_2026_06_17_1252_IMG_0350_0764_0909_0350HM
+log_artifact_mlflow:
+  run_path: runs/aquamind_yolov8_run_an_3r_4r_5r_8c_2026_06_20_2121_20260630_1434
   # dataset: it reads the dataset listed in prepare dataset to pull the sidecar metadata from this dataset 
 
 # track_zebrafish_script
 track_zebrafish:
-  input_video_path:  videos/IMG_0350.MOV
-  model_path:        runs/dataset_2026_06_17_1252_IMG_0350_0764_0909_0350HM/weights/best.pt
-  output_video_path: output_video_zebratracker/tracker_IMG_0350_2026_06_17_run2_freeze_fix_1548.mp4
+  input_video_path:  videos/IMG_1839.MOV
+  model_path:        runs/aquamind_yolov8_run_an_3r_4r_5r_8c_2026_06_20_2121_20260630_1434/weights/best.pt
+  output_video_path: output_video_zebratracker/tracker_as_3r_4r_5r_8c_2026_06_30_2148.mp4
   start_seconds:     0    # start video
-  end_seconds:       20 # end video choose'null' for the whole video
+  end_seconds:       null # end video choose'null' for the whole video
   num_fish:          5
   calibration_secs:  10    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match
@@ -57,10 +59,13 @@ track_zebrafish:
 
 
 
+
+
+
 #_______________________________________________________
 # extract_crossing_frames_script - hard negative mining
 extract_crossing_frames:
-  log_path:       logs/tracker_IMG_0350_2026_06_16_2152_hard_data_mining.log
+  log_path:       logs/tracker_2026_06_17_1252_IMG_0350_0764_0909_0350HM_track_14_03.log
   video_path:     videos/IMG_0350.MOV
   output_dir:     frames/crossing_frames
   iou_threshold:  0.4   # minimum IoU to count as a crossing event (0=any overlap, 1=full overlap)

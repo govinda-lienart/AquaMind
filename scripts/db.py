@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__) # log
 
 # ── FUNCTIONS ─────────────────────────────────────────────────────────────────
 
-def get_connection() -> Any:
+def get_connection() -> MySQLConnection:
     load_dotenv()
     db_name = os.getenv("DB_NAME")
     logger.debug(f"connecting to database={db_name}")

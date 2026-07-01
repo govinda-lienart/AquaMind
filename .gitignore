@@ -5,6 +5,7 @@
 site/
 mysql_backup/
 /chat
+/practice
 claude.md
 .DS_Store 
 annotations/
@@ -34,3 +35,5 @@ mysql_requests_backup/
 labelstudio_backup/
 diagram_pipeline/
 labelstudio_download/
+scripts/test.py
+practice/
