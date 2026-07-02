@@ -47,14 +47,16 @@ log_artifact_mlflow:
 track_zebrafish:
   input_video_path:  videos/IMG_1839.MOV
   model_path:        runs/aquamind_yolov8_run_an_3r_4r_5r_8c_2026_06_20_2121_20260630_1434/weights/best.pt
-  output_video_path: output_video_zebratracker/tracker_as_3r_4r_5r_8c_2026_06_30_2148.mp4
+  output_video_path: output_video_zebratracker/tracker_as_3r_4r_5r_8c_2026_07_02_1003.mp4
   start_seconds:     0    # start video
-  end_seconds:       null # end video choose'null' for the whole video
+  end_seconds:       20 # end video choose'null' for the whole video
   num_fish:          5
   calibration_secs:  10    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match
   confirm_hits:      200   # frames a detection must persist to get a permanent fish ID (~3 sec at 60fps, outlasts reflections)
   max_missing:       300   # frames a tentative track can disappear before being dropped
+  show_trail:        true  # draw each fish's recent path as a colored trail
+  trail_length:      300   # e.g. 150 = keep last 150 frames of trail per fish; null = keep the entire video's trail (in-memory only, never saved to disk)
 
 
 

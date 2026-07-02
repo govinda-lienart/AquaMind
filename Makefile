@@ -132,6 +132,23 @@ ml-backend:
 test:
 	pytest -v
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# BACK UP ALL
+# ════════════
+
+backup_rclone:
+	rclone sync . "aquamind-full-backup:AquaMind/backup_20260614" \
+	--progress \
+	--exclude ".git/**" \
+	--exclude "__pycache__/**" \
+	--exclude "*.pyc" \
+	--exclude ".dvc/cache/**" \
+	--exclude "yolov5/utils/**" \
+	--exclude "yolov5/models/**" \
+	--exclude "yolov5/data/**"
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # HELP
 # ══════════════════════════════════════════════════════════════════════════════

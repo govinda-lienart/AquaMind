@@ -17,9 +17,20 @@ warnings.filterwarnings('ignore')
 
 CONFIG_PATH = 'config.yaml'
 DEVICE      = 'mps'
-HISTORY_LEN    = 20   # observed positions kept per track for polyfit
-PROJ_AHEAD     = 60   # frames to project arrow forward for visualisation (~1 sec at 60fps)
+HISTORY_LEN    = 20   # observed positions kept per track for crossing/velocity checks
 CROSS_DISTANCE = 80   # px — centroid distance below which two tracks are considered crossing
+
+# fixed per-fish identity colors (BGR) — color = identity, line style = tracking confidence
+ID_COLORS = [
+    (255, 0, 0),     # blue
+    (0, 165, 255),   # orange
+    (255, 0, 255),   # magenta
+    (0, 255, 255),   # yellow
+    (255, 255, 0),   # cyan
+    (0, 128, 255),   # amber
+    (147, 20, 255),  # pink
+    (0, 255, 128),   # spring green
+]
 
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -61,6 +72,8 @@ def load_config():
         'max_distance':     t['max_distance'],
         'confirm_hits':     t['confirm_hits'],
         'max_missing':      t['max_missing'],
+        'show_trail':       t['show_trail'],
+        'trail_length':     t['trail_length'],
     }
 
 
@@ -75,6 +88,7 @@ def print_run_config(p):
     print(f"  confirm_hits:   {p['confirm_hits']} frames")
     print(f"  max_distance:   {p['max_distance']} px")
     print(f"  max_missing:    {p['max_missing']} frames")
+    print(f"  show_trail:     {p['show_trail']}")
     print("=" * 50)
     input("Press Enter to start...")
 
@@ -105,39 +119,50 @@ def bbox_iou(a, b):
     return inter / (area_a + area_b - inter)
 
 
-def draw_frame(frame, confirmed_tracks, tentative_boxes, in_calibration, history=None):
+def draw_dashed_rect(frame, pt1, pt2, color, thickness=1, dash_len=6):
+    """Dashed rectangle — used to mark a track as 'ghost' (coasting on prediction, not detected)."""
+    x1, y1 = pt1
+    x2, y2 = pt2
+    for y in (y1, y2):
+        x = x1
+        while x < x2:
+            cv2.line(frame, (x, y), (min(x + dash_len, x2), y), color, thickness)
+            x += dash_len * 2
+    for x in (x1, x2):
+        y = y1
+        while y < y2:
+            cv2.line(frame, (x, y), (x, min(y + dash_len, y2)), color, thickness)
+            y += dash_len * 2
+
+
+def id_color(tid):
+    return ID_COLORS[(tid - 1) % len(ID_COLORS)]
+
+
+def draw_frame(frame, confirmed_tracks, tentative_boxes, in_calibration, trail=None):
     if in_calibration:
         for x1, y1, x2, y2 in tentative_boxes:
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 215, 255), 1)
         cv2.putText(frame, "CALIBRATION", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 165, 255), 3)
 
-    for tid, x1, y1, x2, y2, missing in confirmed_tracks:
-        if missing > 0:
-            color     = (120, 120, 120)   # gray — not detected this frame, coasting on prediction
-            label     = f"Fish {tid} (lost)"
-            thickness = 1
-        else:
-            color     = (0, 255, 0)       # green — actively matched this frame
-            label     = f"Fish {tid}"
-            thickness = 2
-        cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
-        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-
-    if history:
-        for tid, x1, y1, x2, y2, missing in confirmed_tracks:
-            if missing > 0:
-                continue   # no arrow for tracks not detected this frame
-            pts = history.get(tid, [])
+    if trail:
+        for tid, _, _, _, _, _ in confirmed_tracks:
+            pts = trail.get(tid, [])
             if len(pts) < 2:
                 continue
-            t_vals = np.arange(len(pts))
-            px     = np.polyfit(t_vals, [p[0] for p in pts], 1)
-            py     = np.polyfit(t_vals, [p[1] for p in pts], 1)
-            t_proj = len(pts) - 1 + PROJ_AHEAD
-            x_proj = int(np.polyval(px, t_proj))
-            y_proj = int(np.polyval(py, t_proj))
-            cx_now, cy_now = int(pts[-1][0]), int(pts[-1][1])
-            cv2.arrowedLine(frame, (cx_now, cy_now), (x_proj, y_proj), (0, 255, 255), 2, tipLength=0.3)
+            color = id_color(tid)
+            for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
+                cv2.line(frame, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
+
+    for tid, x1, y1, x2, y2, missing in confirmed_tracks:
+        color = id_color(tid)
+        if missing > 0:
+            label = f"Fish {tid} (lost)"
+            draw_dashed_rect(frame, (x1, y1), (x2, y2), color, thickness=1)
+        else:
+            label = f"Fish {tid}"
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
 
 # ── KALMAN TRACK ──────────────────────────────────────────────────────────────
@@ -200,20 +225,34 @@ class ZebrafishTracker:
     reversed relative to their pre-crossing heading, their IDs are swapped back.
     """
 
-    def __init__(self, num_fish, max_distance, confirm_hits, max_missing):
+    def __init__(self, num_fish, max_distance, confirm_hits, max_missing,
+                 show_trail=False, trail_length=150):
         self.num_fish        = num_fish
         self.max_distance    = max_distance
         self.confirm_hits    = confirm_hits
         self.max_missing     = max_missing
+        self.show_trail      = show_trail
+        self.trail_length    = trail_length
         self.confirmed            = {}    # tid → KalmanTrack
         self.tentative            = []    # list of KalmanTrack (no ID yet)
         self.next_id              = 1
         self.pool_locked          = False
-        self.history              = {}    # tid → list of (cx, cy) bbox centres
+        self.history              = {}    # tid → list of (cx, cy) bbox centres, capped short — crossing/velocity checks only
+        self.trail                = {}    # tid → list of (cx, cy), longer window — visualisation only
         self.crossing_pairs       = set() # frozenset({tid_a, tid_b}) currently crossing
         self.crossing_had_overlap = {}    # frozenset → True if bboxes overlapped during this crossing
         self.pre_cross_pos        = {}    # tid → (cx, cy) position snapshotted at crossing start
         self.pre_cross_vel        = {}    # tid → (vx, vy) velocity snapshotted at crossing start
+
+    def _update_trail(self, tid, bbox):
+        if not self.show_trail:
+            return
+        x1, y1, x2, y2 = bbox
+        cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+        pts = self.trail.setdefault(tid, [])
+        pts.append((cx, cy))
+        if self.trail_length is not None and len(pts) > self.trail_length:
+            self.trail[tid] = pts[-self.trail_length:]
 
     def _update_history(self, tid, bbox):
         x1, y1, x2, y2 = bbox
@@ -274,6 +313,7 @@ class ZebrafishTracker:
                 prev_missing = self.confirmed[tid].missing_frames
                 self.confirmed[tid].update(x, y, bbox)
                 self._update_history(tid, bbox)
+                self._update_trail(tid, bbox)
                 if prev_missing > 0:
                     print(f"  Fish {tid} recovered after {prev_missing} missing frames")
                 matched_conf.add(tid)
@@ -382,6 +422,7 @@ class ZebrafishTracker:
         if should_swap:
             self.confirmed[tid_a], self.confirmed[tid_b] = self.confirmed[tid_b], self.confirmed[tid_a]
             self.history[tid_a],   self.history[tid_b]   = self.history.get(tid_b, []), self.history.get(tid_a, [])
+            self.trail[tid_a],     self.trail[tid_b]     = self.trail.get(tid_b, []),   self.trail.get(tid_a, [])
             print(f"  Fish {tid_a} ↔ Fish {tid_b}: IDs swapped ({reason})")
         else:
             print(f"  Fish {tid_a} ↔ Fish {tid_b}: no swap ({reason})")
@@ -455,6 +496,8 @@ def main():
         max_distance = p['max_distance'],
         confirm_hits = p['confirm_hits'],
         max_missing  = p['max_missing'],
+        show_trail   = p['show_trail'],
+        trail_length = p['trail_length'],
     )
 
     cap, out, fps, max_frames = open_video_io(
@@ -483,7 +526,7 @@ def main():
 
         in_calibration = frame_count < calibration_frames
         tracked        = tracker.update(detections, frame_count=frame_count)
-        draw_frame(frame, tracked, tracker.tentative_boxes(), in_calibration, tracker.history)
+        draw_frame(frame, tracked, tracker.tentative_boxes(), in_calibration, tracker.trail)
         out.write(frame)
 
         if frame_count == calibration_frames and not tracker.pool_locked:
