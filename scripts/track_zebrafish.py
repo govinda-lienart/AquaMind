@@ -65,21 +65,7 @@ class Tee:
 def load_config():
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
-    t = cfg['track_zebrafish']
-    return {
-        'input_video_path': t['input_video_path'],
-        'model_path':       t['model_path'],
-        'output_video_path':t['output_video_path'],
-        'start_seconds':    t['start_seconds'],
-        'end_seconds':      t['end_seconds'],
-        'num_fish':         t['num_fish'],
-        'calibration_secs': t['calibration_secs'],
-        'max_distance':     t['max_distance'],
-        'confirm_hits':     t['confirm_hits'],
-        'max_missing':      t['max_missing'],
-        'show_trail':       t['show_trail'],
-        'trail_length':     t['trail_length'],
-    }
+    return cfg['track_zebrafish']
 
 
 def print_run_config(input_video_path, model_path, output_video_path, start_seconds, end_seconds,
@@ -541,19 +527,63 @@ def main():
             break
 
         results = model(frame, verbose=False, iou=0.5) # estalish fish bboxes / verbose false to avoid stats on every frame / iou controls non-maximum suppression(NMS) - raw output..not just one clean box per fis...everal...- nms looks at heavily overlapping boxes...kill the low confidence one
-        boxes   = results[0].boxes
-
+        boxes   = results[0].boxes  # this is YOLO's full report for a particular frame - every box - if 3 fish and 4 reflections found - 7 entries.
+                                    # results is  a plain python list - contains an instance of a class also called Results which needs to be extracted using [0]
+                                    # boxes contains several arrays including .cls, .xyxy, .conf
+                                    # boxes.xyxy is a 2D matrix consisting of x1,y1,x2,y2 
+                                    # boxes.cls is a 1D array - plain list of numbers, one per detection # [0, 0, 1, 0] so means  (using  class IDs: 0 = danio_rerio, 1 = reflection).
+                                    # boxes.conf -  1D array, one confidence number per detection
+                                    
+        # detection loop 
         detections = []
-        for i, cls_id in enumerate(boxes.cls.cpu().numpy()):
+        for i, cls_id in enumerate(boxes.cls.cpu().numpy()): 
+            # cpu copies array from GPU to CPU so python/numpy can work with it
+            # numpy() converts pytorch tensor into NumpyArray - easier to loop example array([0., 0., 1., 0.])
+            # enumarate - wraps it as pair(index, value) ex ((0, 0.0)(1, 0.0)(2, 1.0)....
+ 
             if int(cls_id) != 0:
                 continue
-            bbox        = boxes.xyxy[i].cpu().numpy().tolist()
+            bbox        = boxes.xyxy[i].cpu().numpy().tolist() # tensor([120.3, 340.1, 160.8, 380.5]) ->array > [120.3, 340.1, 160.8, 380.5]
             x1, y1, x2, y2 = bbox
             cx, cy      = (x1 + x2) / 2, (y1 + y2) / 2
+            conf = boxes.conf[i].cpu().numpy().tolist() 
+
             detections.append((cx, cy, bbox))
 
+
+
         in_calibration = frame_count < calibration_frames
-        tracked        = tracker.update(detections, frame_count=frame_count)
+        tracked        = tracker.update(detections, frame_count=frame_count) # list of tuples (tid, x1, y1, x2, y2, missing) 
+
+        # note on tracked: each confirmed fish, track builds one 6-item tuple
+        # e.g. tracked = [
+        # (1, 120, 340, 160, 380, 0),   # Fish 1 — box corner (120,340) to (160,380), currently seen
+        # (2, 200, 100, 240, 140, 0),   # Fish 2 — seen
+        # (3,  50, 400,  90, 440, 0),   # Fish 3 — seen
+        # (4, 300, 250, 340, 290, 0),   # Fish 4 — seen
+        # (5, 180, 210, 210, 250, 6),   # Fish 5 — hasn't been detected for 6 frames (behind the plant), coasting on Kalman's predicted position
+        # ]
+
+        # loop over tracked - list of tuples
+
+        for tid, x1, y1, x2, y2, missing in tracked:
+            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+            timestamp = start_seconds + frame_count / fps
+            occluded = missing > 0
+            confidence = None
+
+            data = (video_id, tid, frame_count, timestamp, cx, cy, confidence, occluded)
+
+            cursor.execute(
+            """INSERT INTO tracks
+            (video_id, fish_id, frame_number, timestamp, x, y, confidence, occluded)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",(data))
+
+
+
+
+
+
         draw_frame(frame, tracked, tracker.tentative_boxes(), in_calibration, tracker.trail)
         out.write(frame)
 
