@@ -138,7 +138,7 @@ def draw_frame(frame, confirmed_tracks, tentative_boxes, in_calibration, trail=N
         cv2.putText(frame, "CALIBRATION", (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 165, 255), 3)
 
     if trail:
-        for tid, _, _, _, _, _ in confirmed_tracks:
+        for tid, _, _, _, _, _, _ in confirmed_tracks:
             pts = trail.get(tid, [])
             if len(pts) < 2:
                 continue
@@ -146,7 +146,7 @@ def draw_frame(frame, confirmed_tracks, tentative_boxes, in_calibration, trail=N
             for (x1, y1), (x2, y2) in zip(pts, pts[1:]):
                 cv2.line(frame, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
 
-    for tid, x1, y1, x2, y2, missing in confirmed_tracks:
+    for tid, x1, y1, x2, y2, missing, _ in confirmed_tracks:
         color = id_color(tid)
         if missing > 0:
             label = f"Fish {tid} (lost)"
@@ -167,18 +167,19 @@ class KalmanTrack:
     Q = np.eye(4) * 2    # process noise — how much we trust the motion model
     R = np.eye(2) * 10   # measurement noise — how much we trust the detector
 
-    def __init__(self, x, y, bbox):
+    def __init__(self, x, y, bbox, confidence):
         self.hits           = 1
         self.missing_frames = 0
         self.state          = np.array([x, y, 0., 0.])  # [x, y, vx, vy]
         self.P              = np.eye(4) * 100            # initial uncertainty
         self.bbox           = bbox
+        self.confidence     = confidence
 
     def predict(self):
         self.state = self.F @ self.state
         self.P     = self.F @ self.P @ self.F.T + self.Q
 
-    def update(self, x, y, bbox):
+    def update(self, x, y, bbox, confidence):
         z     = np.array([x, y])
         y_res = z - self.H @ self.state
         S     = self.H @ self.P @ self.H.T + self.R
@@ -186,6 +187,7 @@ class KalmanTrack:
         self.state          = self.state + K @ y_res
         self.P              = (np.eye(4) - K @ self.H) @ self.P
         self.bbox           = bbox
+        self.confidence     = confidence
         self.hits          += 1
         self.missing_frames = 0
 
@@ -286,7 +288,7 @@ class ZebrafishTracker:
             self._prune_tentative()
             return self._output()
 
-        det_positions = np.array([(x, y) for x, y, _ in detections])
+        det_positions = np.array([(x, y) for x, y, _, _ in detections]) # this line gets rid of the 2 last elements in (cx, cy, bbox, conf) usung _,  _ and keeps purely the centroid data for furtther use in the hungarian algoritm
         matched_dets  = set()
 
         # ── step 2: match confirmed tracks to detections ──────────────────────
@@ -301,9 +303,9 @@ class ZebrafishTracker:
                 if cost[ri, ci] > self.max_distance:
                     continue
                 tid          = conf_ids[ri]
-                x, y, bbox   = detections[ci]
+                x, y, bbox, conf   = detections[ci]
                 prev_missing = self.confirmed[tid].missing_frames
-                self.confirmed[tid].update(x, y, bbox)
+                self.confirmed[tid].update(x, y, bbox, conf)
                 self._update_history(tid, bbox)
                 self._update_trail(tid, bbox)
                 if prev_missing > 0:
@@ -328,8 +330,8 @@ class ZebrafishTracker:
             for ri, ci in zip(r_idx, c_idx):
                 if cost[ri, ci] > self.max_distance:
                     continue
-                x, y, bbox = detections[remaining[ci]]
-                self.tentative[ri].update(x, y, bbox)
+                x, y, bbox, conf = detections[remaining[ci]]
+                self.tentative[ri].update(x, y, bbox, conf)
                 matched_tent.add(ri)
                 matched_dets.add(remaining[ci])
 
@@ -344,8 +346,8 @@ class ZebrafishTracker:
         if not self.pool_locked:
             for i in range(len(detections)):
                 if i not in matched_dets:
-                    x, y, bbox = detections[i]
-                    self.tentative.append(KalmanTrack(x, y, bbox))
+                    x, y, bbox, conf = detections[i]
+                    self.tentative.append(KalmanTrack(x, y, bbox, conf))
 
         # ── step 5: promote tentative → confirmed when hits threshold reached ─
         if not self.pool_locked:
@@ -467,7 +469,7 @@ class ZebrafishTracker:
         self.tentative = [t for t in self.tentative if t.missing_frames <= self.max_missing]
 
     def _output(self):
-        return [(tid, *[int(v) for v in t.bbox], t.missing_frames) for tid, t in self.confirmed.items()]
+        return [(tid, *[int(v) for v in t.bbox], t.missing_frames, t.confidence) for tid, t in self.confirmed.items()]
 
     def tentative_boxes(self):
         return [[int(v) for v in t.bbox] for t in self.tentative]
@@ -501,7 +503,6 @@ def main():
 
     video_id = get_video_id(cursor, input_video_path)
     logger.info(f"{video_id} found!")
-
 
     model   = YOLO(model_path) # access model
     model.to(DEVICE)
@@ -546,31 +547,16 @@ def main():
             bbox        = boxes.xyxy[i].cpu().numpy().tolist() # tensor([120.3, 340.1, 160.8, 380.5]) ->array > [120.3, 340.1, 160.8, 380.5]
             x1, y1, x2, y2 = bbox
             cx, cy      = (x1 + x2) / 2, (y1 + y2) / 2
-            conf = boxes.conf[i].cpu().numpy().tolist() 
-
-            detections.append((cx, cy, bbox))
-
-
+            conf = float(boxes.conf[i].cpu().numpy()) # no need for tolist...its just one number...convert to float
+            detections.append((cx, cy, bbox, conf))
 
         in_calibration = frame_count < calibration_frames
-        tracked        = tracker.update(detections, frame_count=frame_count) # list of tuples (tid, x1, y1, x2, y2, missing) 
+        tracked        = tracker.update(detections, frame_count=frame_count) # list of tuples (tid, x1, y1, x2, y2, missing, confidence)
 
-        # note on tracked: each confirmed fish, track builds one 6-item tuple
-        # e.g. tracked = [
-        # (1, 120, 340, 160, 380, 0),   # Fish 1 — box corner (120,340) to (160,380), currently seen
-        # (2, 200, 100, 240, 140, 0),   # Fish 2 — seen
-        # (3,  50, 400,  90, 440, 0),   # Fish 3 — seen
-        # (4, 300, 250, 340, 290, 0),   # Fish 4 — seen
-        # (5, 180, 210, 210, 250, 6),   # Fish 5 — hasn't been detected for 6 frames (behind the plant), coasting on Kalman's predicted position
-        # ]
-
-        # loop over tracked - list of tuples
-
-        for tid, x1, y1, x2, y2, missing in tracked:
+        for tid, x1, y1, x2, y2, missing, confidence in tracked:
             cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
             timestamp = start_seconds + frame_count / fps
             occluded = missing > 0
-            confidence = None
 
             data = (video_id, tid, frame_count, timestamp, cx, cy, confidence, occluded)
 
@@ -578,10 +564,6 @@ def main():
             """INSERT INTO tracks
             (video_id, fish_id, frame_number, timestamp, x, y, confidence, occluded)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",(data))
-
-
-
-
 
 
         draw_frame(frame, tracked, tracker.tentative_boxes(), in_calibration, tracker.trail)
@@ -595,11 +577,16 @@ def main():
         if frame_count % 30 == 0:
             current_second = start_seconds + frame_count // fps
             print(f"  Frame {frame_count}/{max_frames} | second {current_second}")
+            conn.commit() # commits every 30 frames to mysql - to now slow down the process but also to not lose all if crash
 
         frame_count += 1
 
     cap.release()
     out.release()
+    conn.commit() # ensuring full commit
+    cursor.close()
+    conn.close()
+
     print(f"\nDone. Saved to {output_video_path}")
     tee.close()
 
