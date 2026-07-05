@@ -36,4 +36,5 @@ labelstudio_backup/
 diagram_pipeline/
 labelstudio_download/
 scripts/test.py
-practice/
+practice/scripts/throwawayAquaMind/
+scripts/throwaway/

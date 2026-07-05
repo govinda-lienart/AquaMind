@@ -5,6 +5,9 @@ Provides get_connection() and reusable query helpers imported by all scripts.
 Credentials are read from .env (DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME).
 """
 
+from __future__ import annotations # avoid type hint issues when import
+
+
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
 
 import logging

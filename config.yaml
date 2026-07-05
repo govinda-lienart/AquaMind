@@ -49,7 +49,7 @@ track_zebrafish:
   model_path:        runs/aquamind_yolov8_run_an_3r_4r_5r_8c_2026_06_20_2121_20260630_1434/weights/best.pt
   output_video_path: output_video_zebratracker/tracker_as_3r_4r_5r_8c_2026_07_02_1003.mp4
   start_seconds:     0    # start video
-  end_seconds:       20 # end video choose'null' for the whole video
+  end_seconds:       30 # end video choose'null' for the whole video
   num_fish:          5
   calibration_secs:  10    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match

@@ -10,7 +10,12 @@ import yaml
 from scipy.optimize import linear_sum_assignment
 from ultralytics import YOLO
 
+from scripts.db import get_connection, get_video_id
+
 warnings.filterwarnings('ignore')
+import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 # ── CONSTANTS ─────────────────────────────────────────────────────────────────
@@ -77,18 +82,19 @@ def load_config():
     }
 
 
-def print_run_config(p):
+def print_run_config(input_video_path, model_path, output_video_path, start_seconds, end_seconds,
+                      num_fish, calibration_secs, confirm_hits, max_distance, max_missing, show_trail):
     print("=" * 50)
-    print(f"  Video:          {p['input_video_path']}")
-    print(f"  Model:          {p['model_path']}")
-    print(f"  Output:         {p['output_video_path']}")
-    print(f"  Seconds:        {p['start_seconds']} → {p['end_seconds']}")
-    print(f"  Fish:           {p['num_fish']}")
-    print(f"  Calibration:    {p['calibration_secs']} seconds")
-    print(f"  confirm_hits:   {p['confirm_hits']} frames")
-    print(f"  max_distance:   {p['max_distance']} px")
-    print(f"  max_missing:    {p['max_missing']} frames")
-    print(f"  show_trail:     {p['show_trail']}")
+    print(f"  Video:          {input_video_path}")
+    print(f"  Model:          {model_path}")
+    print(f"  Output:         {output_video_path}")
+    print(f"  Seconds:        {start_seconds} → {end_seconds}")
+    print(f"  Fish:           {num_fish}")
+    print(f"  Calibration:    {calibration_secs} seconds")
+    print(f"  confirm_hits:   {confirm_hits} frames")
+    print(f"  max_distance:   {max_distance} px")
+    print(f"  max_missing:    {max_missing} frames")
+    print(f"  show_trail:     {show_trail}")
     print("=" * 50)
     input("Press Enter to start...")
 
@@ -485,34 +491,56 @@ class ZebrafishTracker:
 
 def main():
     p = load_config()
-    log_name = os.path.splitext(os.path.basename(p['output_video_path']))[0] + '.log'
-    tee = Tee(os.path.join('logs', log_name))
-    print_run_config(p)
+    input_video_path  = p['input_video_path']
+    model_path        = p['model_path']
+    output_video_path = p['output_video_path']
+    start_seconds     = p['start_seconds']
+    end_seconds       = p['end_seconds']
+    num_fish          = p['num_fish']
+    calibration_secs  = p['calibration_secs']
+    max_distance      = p['max_distance']
+    confirm_hits      = p['confirm_hits']
+    max_missing       = p['max_missing']
+    show_trail        = p['show_trail']
+    trail_length      = p['trail_length']
 
-    model   = YOLO(p['model_path'])
+    log_name = os.path.splitext(os.path.basename(output_video_path))[0] + '.log'
+    tee = Tee(os.path.join('logs', log_name))
+    print_run_config(input_video_path, model_path, output_video_path, start_seconds, end_seconds,
+                      num_fish, calibration_secs, confirm_hits, max_distance, max_missing, show_trail)
+
+    # Connect with mysql
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    video_id = get_video_id(cursor, input_video_path)
+    logger.info(f"{video_id} found!")
+
+
+    model   = YOLO(model_path) # access model
     model.to(DEVICE)
     tracker = ZebrafishTracker(
-        num_fish     = p['num_fish'],
-        max_distance = p['max_distance'],
-        confirm_hits = p['confirm_hits'],
-        max_missing  = p['max_missing'],
-        show_trail   = p['show_trail'],
-        trail_length = p['trail_length'],
+        num_fish     = num_fish,
+        max_distance = max_distance,
+        confirm_hits = confirm_hits,
+        max_missing  = max_missing,
+        show_trail   = show_trail,
+        trail_length = trail_length,
     )
 
     cap, out, fps, max_frames = open_video_io(
-        p['input_video_path'], p['output_video_path'],
-        p['start_seconds'],    p['end_seconds'],
+        input_video_path, output_video_path,
+        start_seconds,    end_seconds,
     )
-    calibration_frames = p['calibration_secs'] * fps
+    calibration_frames = calibration_secs * fps
 
     frame_count = 0
-    while True:
-        ret, frame = cap.read()
-        if not ret or frame_count >= max_frames:
+    while True: # 
+        ret, frame = cap.read() # reading next frame on top of stack # frame ( the image ) a NumPy array (height × width × 3 color channels) / ret (true/false) false if no frame
+        if not ret or frame_count >= max_frames: # if no more frame to read stop
             break
 
-        results = model(frame, verbose=False, iou=0.5)
+        results = model(frame, verbose=False, iou=0.5) # estalish fish bboxes / verbose false to avoid stats on every frame / iou controls non-maximum suppression(NMS) - raw output..not just one clean box per fis...everal...- nms looks at heavily overlapping boxes...kill the low confidence one
         boxes   = results[0].boxes
 
         detections = []
@@ -535,14 +563,14 @@ def main():
             print(f"  Calibration closed — {len(tracker.confirmed)} fish confirmed")
 
         if frame_count % 30 == 0:
-            current_second = p['start_seconds'] + frame_count // fps
+            current_second = start_seconds + frame_count // fps
             print(f"  Frame {frame_count}/{max_frames} | second {current_second}")
 
         frame_count += 1
 
     cap.release()
     out.release()
-    print(f"\nDone. Saved to {p['output_video_path']}")
+    print(f"\nDone. Saved to {output_video_path}")
     tee.close()
 
 
