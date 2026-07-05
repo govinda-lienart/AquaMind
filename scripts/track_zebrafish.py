@@ -10,7 +10,7 @@ import yaml
 from scipy.optimize import linear_sum_assignment
 from ultralytics import YOLO
 
-from scripts.db import get_connection, get_video_id
+from scripts.db import get_connection, get_video_id, register_track
 
 warnings.filterwarnings('ignore')
 import logging
@@ -557,14 +557,7 @@ def main():
             cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
             timestamp = start_seconds + frame_count / fps
             occluded = missing > 0
-
-            data = (video_id, tid, frame_count, timestamp, cx, cy, confidence, occluded)
-
-            cursor.execute(
-            """INSERT INTO tracks
-            (video_id, fish_id, frame_number, timestamp, x, y, confidence, occluded)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",(data))
-
+            register_track(cursor, video_id, tid, frame_count, timestamp, cx, cy, confidence, occluded)
 
         draw_frame(frame, tracked, tracker.tentative_boxes(), in_calibration, tracker.trail)
         out.write(frame)

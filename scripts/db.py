@@ -143,3 +143,14 @@ def register_frames(conn: Any, frames_folder: str, video_path: str) -> int:
     cursor.close()
     logger.debug(f"register_frames: {registered} new frames registered in {frames_folder}")
     return registered
+
+def register_track(cursor: Any, video_id: int, fish_id: int, frame_number: int, timestamp: float, x: float, y: float, confidence: float | None, occluded: bool) -> None:
+    """Register all tracks into MySQL when zebra tracker is running"""
+    data = (video_id, fish_id, frame_number, timestamp, x, y, confidence, occluded)
+
+    cursor.execute(
+            """INSERT INTO tracks
+            (video_id, fish_id, frame_number, timestamp, x, y, confidence, occluded)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",(data))
+
+        
