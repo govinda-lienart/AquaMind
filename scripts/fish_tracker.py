@@ -500,7 +500,10 @@ def main():
     trail_length      = p['trail_length']
     show_frame_number = p['show_frame_number']
 
+    # ----------------------------------------------
     # PARSING, NAMING AND STORING SIDECAR AND LOG
+    # ----------------------------------------------
+
     # Build a dedicated subfolder for this run, named after the video's base filename
     run_name = os.path.splitext(os.path.basename(output_video_path))[0] # run_name = "stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033"
     run_dir = os.path.join(os.path.dirname(output_video_path), run_name) # run_dir = "output_video_zebratracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033"
@@ -511,7 +514,8 @@ def main():
 
     # Save this run's exact config next to the video-sidecar, in the same subfolder
     config_sidecar_path = os.path.join(run_dir, run_name + '_config.yaml')     # config_sidecar_path = "output_video_zebratracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033_config.yaml"
-    p['git_commit'] = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()
+    p['git_commit'] = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip() # # strip gets rid of \n # decode back to normal from raw bites # t5akes last git commit to get referencing code when the trackert was run
+
     with open(config_sidecar_path, 'w') as f:
         yaml.dump(p, f)
 
@@ -521,7 +525,10 @@ def main():
     print_run_config(input_video_path, model_path, output_video_path, start_seconds, end_seconds,
                       num_fish, calibration_secs, confirm_hits, max_distance, max_missing, show_trail)
 
-    # CONNECT WITH MYSQL
+    # ----------------------------------------------
+    # CONNECT WITH MYSQL AND DELETE CURRENT TRACKING DATA
+    # ----------------------------------------------
+    
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -531,6 +538,7 @@ def main():
     cursor.execute("DELETE FROM tracks WHERE video_id = %s", (video_id,)) # delete all tracking info of a particular video to start from scratch
     conn.commit()
 
+    # ----------------------------------------------
 
     model   = YOLO(model_path) # access model
     model.to(DEVICE)
@@ -589,12 +597,26 @@ def main():
 
         draw_frame(frame, tracked, tracker.tentative_boxes(), in_calibration, tracker.trail, frame_count, show_frame_number)
         out.write(frame)
+        
+        # -------------------------------------------------------------
+        # LIVE PREVIEW OF TRACKER
+        # -------------------------------------------------------------
+        cv2.imshow('Fish Tracker', frame) # opens a window titled Fish tracker 
+        key = cv2.waitKey(1) & 0xFF # refreshes what is on the screen (every millisecond) and 0xFF checks if any key was pressed like a q or ESC for escape 
+        if key == ord('q') or key == 27: # 27 refers to ESC
+            print("quit requested - stopping early")            
+            break
+        
+        # -------------------------------------------------------------
 
         if frame_count == calibration_frames and not tracker.pool_locked:
             tracker.pool_locked = True
             tracker.tentative   = []
             print(f"  Calibration closed — {len(tracker.confirmed)} fish confirmed")
 
+        # -------------------------------------------------------------
+        # COMMIT TO MYSQL
+        # -------------------------------------------------------------
         if frame_count % 30 == 0:
             current_second = start_seconds + frame_count // fps
             print(f"  Frame {frame_count}/{max_frames} | second {current_second}")
@@ -604,6 +626,7 @@ def main():
 
     cap.release()
     out.release()
+    cv2.destroyAllWindows() # if pressed q or ESC - closes preview window 
     conn.commit() # ensuring full commit
     cursor.close()
     conn.close()
