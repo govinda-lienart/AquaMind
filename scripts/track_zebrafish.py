@@ -131,7 +131,11 @@ def id_color(tid):
     return ID_COLORS[(tid - 1) % len(ID_COLORS)]
 
 
-def draw_frame(frame, confirmed_tracks, tentative_boxes, in_calibration, trail=None):
+def draw_frame(frame, confirmed_tracks, tentative_boxes, in_calibration, trail=None, frame_count = None, show_frame_number = False):
+    
+    if show_frame_number: # burns frame number on the frame
+        cv2.putText(frame,f"Frame: {frame_count}", (20, frame.shape[0] - 20), cv2.FONT_HERSHEY_COMPLEX, 0.7, (255, 255, 255), 2) # cv2puttext is open text function, Frame: frame_count is the text, Font_hershy 0.7 is font + size, 20 frameshape is the position of the text, (255, 255, 255) is the color, 2 is thikcness  )
+    
     if in_calibration:
         for x1, y1, x2, y2 in tentative_boxes:
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 215, 255), 1)
@@ -478,6 +482,8 @@ class ZebrafishTracker:
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
 def main():
+
+    # LOAD CONFIGURATION 
     p = load_config()
     input_video_path  = p['input_video_path']
     model_path        = p['model_path']
@@ -491,13 +497,14 @@ def main():
     max_missing       = p['max_missing']
     show_trail        = p['show_trail']
     trail_length      = p['trail_length']
+    show_frame_number = p['show_frame_number']
 
     log_name = os.path.splitext(os.path.basename(output_video_path))[0] + '.log'
     tee = Tee(os.path.join('logs', log_name))
     print_run_config(input_video_path, model_path, output_video_path, start_seconds, end_seconds,
                       num_fish, calibration_secs, confirm_hits, max_distance, max_missing, show_trail)
 
-    # Connect with mysql
+    # CONNECT WITH MYSQL
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -559,7 +566,7 @@ def main():
             occluded = missing > 0
             register_track(cursor, video_id, tid, frame_count, timestamp, cx, cy, confidence, occluded)
 
-        draw_frame(frame, tracked, tracker.tentative_boxes(), in_calibration, tracker.trail)
+        draw_frame(frame, tracked, tracker.tentative_boxes(), in_calibration, tracker.trail, frame_count, show_frame_number)
         out.write(frame)
 
         if frame_count == calibration_frames and not tracker.pool_locked:
