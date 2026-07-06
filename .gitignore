@@ -19,7 +19,6 @@ runs/
 track_deepsort.py
 output_video_bytetrack/
 output_video_deepsort/
-output_video_zebratracker/
 labelstudio_export/
 __pycache__/
 logs/
@@ -38,3 +37,8 @@ labelstudio_download/
 scripts/test.py
 practice/scripts/throwawayAquaMind/
 scripts/throwaway/
+output_fish_tracker/*
+output_video_zebratracker/
+!output_fish_tracker/ground_truth_review/
+!output_fish_tracker/ground_truth_review/**
+output_fish_tracker/ground_truth_review/~$*
