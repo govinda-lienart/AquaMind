@@ -45,7 +45,7 @@ def get_model():
     global model
     if model is None:
         with open(CONFIG_PATH) as f:
-            path = yaml.safe_load(f)['track_zebrafish']['model_path']
+            path = yaml.safe_load(f)['fish_tracker']['model_path']
         model = YOLO(path)
         print(f"  Model loaded: {path}")
     return model

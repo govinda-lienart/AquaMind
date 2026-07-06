@@ -3,6 +3,7 @@
 import os
 import sys
 import warnings
+import subprocess
 
 import cv2
 import numpy as np
@@ -65,7 +66,7 @@ class Tee:
 def load_config():
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
-    return cfg['track_zebrafish']
+    return cfg['fish_tracker']
 
 
 def print_run_config(input_video_path, model_path, output_video_path, start_seconds, end_seconds,
@@ -499,8 +500,24 @@ def main():
     trail_length      = p['trail_length']
     show_frame_number = p['show_frame_number']
 
-    log_name = os.path.splitext(os.path.basename(output_video_path))[0] + '.log'
-    tee = Tee(os.path.join('logs', log_name))
+    # PARSING, NAMING AND STORING SIDECAR AND LOG
+    # Build a dedicated subfolder for this run, named after the video's base filename
+    run_name = os.path.splitext(os.path.basename(output_video_path))[0] # run_name = "stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033"
+    run_dir = os.path.join(os.path.dirname(output_video_path), run_name) # run_dir = "output_video_zebratracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033"
+    os.makedirs(run_dir, exist_ok=True)  # creates that folder on disk (no error if it already exists)
+
+    # Redirect the video into that subfolder
+    output_video_path = os.path.join(run_dir, run_name + '.mp4')     # output_video_path = "output_video_zebratracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033.mp4"
+
+    # Save this run's exact config next to the video-sidecar, in the same subfolder
+    config_sidecar_path = os.path.join(run_dir, run_name + '_config.yaml')     # config_sidecar_path = "output_video_zebratracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033_config.yaml"
+    p['git_commit'] = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()
+    with open(config_sidecar_path, 'w') as f:
+        yaml.dump(p, f)
+
+    log_name = os.path.splitext(os.path.basename(output_video_path))[0] + '.log'     # log_name = "stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033.log"
+    tee = Tee(os.path.join(run_dir, log_name))     # writes to "output_video_zebratracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033.log"
+
     print_run_config(input_video_path, model_path, output_video_path, start_seconds, end_seconds,
                       num_fish, calibration_secs, confirm_hits, max_distance, max_missing, show_trail)
 
@@ -510,6 +527,10 @@ def main():
 
     video_id = get_video_id(cursor, input_video_path)
     logger.info(f"{video_id} found!")
+
+    cursor.execute("DELETE FROM tracks WHERE video_id = %s", (video_id,)) # delete all tracking info of a particular video to start from scratch
+    conn.commit()
+
 
     model   = YOLO(model_path) # access model
     model.to(DEVICE)
@@ -589,7 +610,6 @@ def main():
 
     print(f"\nDone. Saved to {output_video_path}")
     tee.close()
-
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 

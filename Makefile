@@ -104,7 +104,7 @@ run-mlflow:
 # Run YOLO detection + Kalman tracker on input video → annotated output video
 # Logs Overlap detected / Crossing started events to logs/ automatically
 track:
-	python -m scripts.track_zebrafish
+	python -m scripts.fish_tracker
 
 
 # ══════════════════════════════════════════════════════════════════════════════
