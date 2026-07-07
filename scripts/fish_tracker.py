@@ -422,9 +422,9 @@ class ZebrafishTracker:
             self.confirmed[tid_a], self.confirmed[tid_b] = self.confirmed[tid_b], self.confirmed[tid_a]
             self.history[tid_a],   self.history[tid_b]   = self.history.get(tid_b, []), self.history.get(tid_a, [])
             self.trail[tid_a],     self.trail[tid_b]     = self.trail.get(tid_b, []),   self.trail.get(tid_a, [])
-            print(f"  Fish {tid_a} ↔ Fish {tid_b}: IDs swapped ({reason})")
+            print(f"  Fish {tid_a} ↔ Fish {tid_b}: IDs swapped ({reason}) [frame {self._frame_count}]")
         else:
-            print(f"  Fish {tid_a} ↔ Fish {tid_b}: no swap ({reason})")
+            print(f"  Fish {tid_a} ↔ Fish {tid_b}: no swap ({reason}) [frame {self._frame_count}]")
 
     def _check_crossings(self):
         """Snapshot trajectory direction when two tracks start crossing; correct IDs when they separate."""
@@ -461,7 +461,7 @@ class ZebrafishTracker:
             if self.crossing_had_overlap.get(pair, False):
                 self._maybe_swap(tid_a, tid_b)
             else:
-                print(f"  Fish {tid_a} ↔ Fish {tid_b}: proximity only, no overlap — swap skipped")
+                print(f"  Fish {tid_a} ↔ Fish {tid_b}: proximity only, no overlap — swap skipped [frame {self._frame_count}]")
             self.pre_cross_pos.pop(tid_a, None)
             self.pre_cross_pos.pop(tid_b, None)
             self.pre_cross_vel.pop(tid_a, None)
