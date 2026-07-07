@@ -2,6 +2,7 @@
 
 import os
 import sys
+import json
 import warnings
 import subprocess
 
@@ -25,6 +26,11 @@ CONFIG_PATH = 'config.yaml'
 DEVICE      = 'mps'
 HISTORY_LEN    = 20   # observed positions kept per track for crossing/velocity checks
 CROSS_DISTANCE = 80   # px — centroid distance below which two tracks are considered crossing
+
+
+def sorted_fish_ids(*ids):
+    """Turn (3, 1) into '1,3' — smallest first, matching the Stage 5 ground-truth convention."""
+    return ",".join(str(i) for i in sorted(int(i) for i in ids))
 
 # fixed per-fish identity colors (BGR) — color = identity, line style = tracking confidence
 ID_COLORS = [
@@ -314,7 +320,7 @@ class ZebrafishTracker:
                 self._update_history(tid, bbox)
                 self._update_trail(tid, bbox)
                 if prev_missing > 0:
-                    print(f"  Fish {tid} recovered after {prev_missing} missing frames")
+                    logger.info(json.dumps({"event": "occlusion_recovery", "fish_ids": str(tid), "decision": "recovered", "frame": self._frame_count, "missing_frames": prev_missing}))
                 matched_conf.add(tid)
                 matched_dets.add(ci)
 
@@ -422,9 +428,9 @@ class ZebrafishTracker:
             self.confirmed[tid_a], self.confirmed[tid_b] = self.confirmed[tid_b], self.confirmed[tid_a]
             self.history[tid_a],   self.history[tid_b]   = self.history.get(tid_b, []), self.history.get(tid_a, [])
             self.trail[tid_a],     self.trail[tid_b]     = self.trail.get(tid_b, []),   self.trail.get(tid_a, [])
-            print(f"  Fish {tid_a} ↔ Fish {tid_b}: IDs swapped ({reason}) [frame {self._frame_count}]")
+            logger.info(json.dumps({"event": "crossing", "fish_ids": sorted_fish_ids(tid_a, tid_b), "decision": "swapped", "frame": self._frame_count, "reason": reason}))
         else:
-            print(f"  Fish {tid_a} ↔ Fish {tid_b}: no swap ({reason}) [frame {self._frame_count}]")
+            logger.info(json.dumps({"event": "crossing", "fish_ids": sorted_fish_ids(tid_a, tid_b), "decision": "no_swap", "frame": self._frame_count, "reason": reason}))
 
     def _check_crossings(self):
         """Snapshot trajectory direction when two tracks start crossing; correct IDs when they separate."""
@@ -461,7 +467,7 @@ class ZebrafishTracker:
             if self.crossing_had_overlap.get(pair, False):
                 self._maybe_swap(tid_a, tid_b)
             else:
-                print(f"  Fish {tid_a} ↔ Fish {tid_b}: proximity only, no overlap — swap skipped [frame {self._frame_count}]")
+                logger.info(json.dumps({"event": "crossing", "fish_ids": sorted_fish_ids(tid_a, tid_b), "decision": "proximity_only_skipped", "frame": self._frame_count}))
             self.pre_cross_pos.pop(tid_a, None)
             self.pre_cross_pos.pop(tid_b, None)
             self.pre_cross_vel.pop(tid_a, None)
@@ -521,6 +527,13 @@ def main():
 
     log_name = os.path.splitext(os.path.basename(output_video_path))[0] + '.log'     # log_name = "stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033.log"
     tee = Tee(os.path.join(run_dir, log_name))     # writes to "output_video_zebratracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033.log"
+
+    # logger.info() (the JSON crossing/occlusion_recovery events) goes to stderr by default via
+    # logging.basicConfig() and is NOT captured by Tee, which only redirects stdout — attach a
+    # FileHandler on the same log path so those events land in the file alongside the print() lines.
+    file_handler = logging.FileHandler(os.path.join(run_dir, log_name))
+    file_handler.setFormatter(logging.Formatter('%(message)s'))
+    logger.addHandler(file_handler)
 
     print_run_config(input_video_path, model_path, output_video_path, start_seconds, end_seconds,
                       num_fish, calibration_secs, confirm_hits, max_distance, max_missing, show_trail)
