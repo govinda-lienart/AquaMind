@@ -1,7 +1,6 @@
 # ── IMPORTS ───────────────────────────────────────────────────────────────────
 
 import os
-import sys
 import json
 import warnings
 import subprocess
@@ -17,7 +16,7 @@ from scripts.db import get_connection, get_video_id, register_track
 warnings.filterwarnings('ignore')
 import logging
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logger.setLevel(logging.INFO)
 
 
 # ── CONSTANTS ─────────────────────────────────────────────────────────────────
@@ -47,28 +46,6 @@ ID_COLORS = [
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
-class Tee:
-    """Mirror stdout to a log file simultaneously."""
-    def __init__(self, path):
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        self._file   = open(path, 'w')
-        self._stdout = sys.stdout
-        sys.stdout   = self
-
-    def write(self, data):
-        self._stdout.write(data)
-        self._file.write(data)
-
-    def flush(self):
-        self._stdout.flush()
-        self._file.flush()
-
-    def close(self):
-        sys.stdout = self._stdout
-        self._file.close()
-
-
-
 def load_config():
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
@@ -77,18 +54,18 @@ def load_config():
 
 def print_run_config(input_video_path, model_path, output_video_path, start_seconds, end_seconds,
                       num_fish, calibration_secs, confirm_hits, max_distance, max_missing, show_trail):
-    print("=" * 50)
-    print(f"  Video:          {input_video_path}")
-    print(f"  Model:          {model_path}")
-    print(f"  Output:         {output_video_path}")
-    print(f"  Seconds:        {start_seconds} → {end_seconds}")
-    print(f"  Fish:           {num_fish}")
-    print(f"  Calibration:    {calibration_secs} seconds")
-    print(f"  confirm_hits:   {confirm_hits} frames")
-    print(f"  max_distance:   {max_distance} px")
-    print(f"  max_missing:    {max_missing} frames")
-    print(f"  show_trail:     {show_trail}")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info(f"  Video:          {input_video_path}")
+    logger.info(f"  Model:          {model_path}")
+    logger.info(f"  Output:         {output_video_path}")
+    logger.info(f"  Seconds:        {start_seconds} → {end_seconds}")
+    logger.info(f"  Fish:           {num_fish}")
+    logger.info(f"  Calibration:    {calibration_secs} seconds")
+    logger.info(f"  confirm_hits:   {confirm_hits} frames")
+    logger.info(f"  max_distance:   {max_distance} px")
+    logger.info(f"  max_missing:    {max_missing} frames")
+    logger.info(f"  show_trail:     {show_trail}")
+    logger.info("=" * 50)
     input("Press Enter to start...")
 
 
@@ -366,7 +343,7 @@ class ZebrafishTracker:
             for t in self.tentative:
                 if t.hits >= self.confirm_hits and self.next_id <= self.num_fish:
                     self.confirmed[self.next_id] = t
-                    print(f"  Fish {self.next_id} confirmed after {t.hits} frames")
+                    logger.info(f"  Fish {self.next_id} confirmed after {t.hits} frames")
                     self.next_id += 1
                 else:
                     still_tentative.append(t)
@@ -451,7 +428,7 @@ class ZebrafishTracker:
                     current_pairs.add(pair)
                     if iou > 0:
                         self.crossing_had_overlap[pair] = True
-                        print(f"  Overlap detected: Fish {tid_a} ↔ Fish {tid_b} [frame {self._frame_count}] IoU={iou:.2f}")
+                        logger.info(f"  Overlap detected: Fish {tid_a} ↔ Fish {tid_b} [frame {self._frame_count}] IoU={iou:.2f}")
                     if pair not in self.crossing_pairs:
                         for tid in (tid_a, tid_b):
                             if tid not in self.pre_cross_pos:
@@ -460,7 +437,7 @@ class ZebrafishTracker:
                                 if np.linalg.norm(vel) < 0.5:
                                     vel = self.confirmed[tid].state[2:4]  # fallback to Kalman
                                 self.pre_cross_vel[tid] = tuple(vel)
-                        print(f"  Crossing started: Fish {tid_a} ↔ Fish {tid_b} [frame {self._frame_count}]")
+                        logger.info(f"  Crossing started: Fish {tid_a} ↔ Fish {tid_b} [frame {self._frame_count}]")
 
         for pair in self.crossing_pairs - current_pairs:
             tid_a, tid_b = tuple(pair)
@@ -526,14 +503,16 @@ def main():
         yaml.dump(p, f)
 
     log_name = os.path.splitext(os.path.basename(output_video_path))[0] + '.log'     # log_name = "stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033.log"
-    tee = Tee(os.path.join(run_dir, log_name))     # writes to "output_video_zebratracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033.log"
+    log_path = os.path.join(run_dir, log_name)     # "output_video_zebratracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1033.log"
 
-    # logger.info() (the JSON crossing/occlusion_recovery events) goes to stderr by default via
-    # logging.basicConfig() and is NOT captured by Tee, which only redirects stdout — attach a
-    # FileHandler on the same log path so those events land in the file alongside the print() lines.
-    file_handler = logging.FileHandler(os.path.join(run_dir, log_name))
-    file_handler.setFormatter(logging.Formatter('%(message)s'))
+    # one logger, two handlers: file (for parse_tracker_log.py) and console (for live progress)
+    formatter       = logging.Formatter('%(message)s')
+    file_handler    = logging.FileHandler(log_path)
+    console_handler = logging.StreamHandler()
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
 
     print_run_config(input_video_path, model_path, output_video_path, start_seconds, end_seconds,
                       num_fish, calibration_secs, confirm_hits, max_distance, max_missing, show_trail)
@@ -617,7 +596,7 @@ def main():
         cv2.imshow('Fish Tracker', frame) # opens a window titled Fish tracker 
         key = cv2.waitKey(1) & 0xFF # refreshes what is on the screen (every millisecond) and 0xFF checks if any key was pressed like a q or ESC for escape 
         if key == ord('q') or key == 27: # 27 refers to ESC
-            print("quit requested - stopping early")            
+            logger.info("quit requested - stopping early")
             break
         
         # -------------------------------------------------------------
@@ -625,14 +604,14 @@ def main():
         if frame_count == calibration_frames and not tracker.pool_locked:
             tracker.pool_locked = True
             tracker.tentative   = []
-            print(f"  Calibration closed — {len(tracker.confirmed)} fish confirmed")
+            logger.info(f"  Calibration closed — {len(tracker.confirmed)} fish confirmed")
 
         # -------------------------------------------------------------
         # COMMIT TO MYSQL
         # -------------------------------------------------------------
         if frame_count % 30 == 0:
             current_second = start_seconds + frame_count // fps
-            print(f"  Frame {frame_count}/{max_frames} | second {current_second}")
+            logger.info(f"  Frame {frame_count}/{max_frames} | second {current_second}")
             conn.commit() # commits every 30 frames to mysql - to now slow down the process but also to not lose all if crash
 
         frame_count += 1
@@ -644,8 +623,8 @@ def main():
     cursor.close()
     conn.close()
 
-    print(f"\nDone. Saved to {output_video_path}")
-    tee.close()
+    logger.info(f"\nDone. Saved to {output_video_path}")
+    file_handler.close()
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────
 
