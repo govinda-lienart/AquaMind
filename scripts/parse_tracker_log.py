@@ -8,15 +8,29 @@ Output: CSV with columns frame_number | event_type | fish_ids | tracker_decision
 import sys # reading the log path off the command line
 import json #  for decoding the structured log lines
 import pandas as pd 
+import logging
+
+logging.basicConfig(level=logging.DEBUG, format="%(message)s")
+logger = logging.getLogger(__name__)
+
 
 EVENT_TYPES = {"crossing", "occlusion_recovery"} # set with unique values and quick reading
 
-def parse_log(log_path):
-    with open (log_path, "r") as f:
+def parse_log(log_path): # {"event": "occlusion_recovery", "fish_ids": "3", "decision": "recovered", "frame": 5432, "missing_frames": 5}
+
+    row = [] 
+    with open (log_path, "r") as f:    
         for line in f:
             try:
-                json.loads(line)
+                obj = json.loads(line)
+                if obj["event"] in EVENT_TYPES:
+                    row.append = "event"
+                    row.append = "frame"
+                    row.append = "fish_ids"
+                    row.append = "tracker_decisions"
+
             except json.JSONDecodeError: # belongs to the ValueErrors exception
+                logger.debug(f"skipped non-JSON: {line.strip()}")
                 continue # silently ignoring all the non json line as most of the lines are json -- otherwise would be very noisy
 
 def main(): 
