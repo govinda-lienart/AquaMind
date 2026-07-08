@@ -59,6 +59,8 @@ fish_tracker:
   trail_length:      300   # e.g. 150 = keep last 150 frames of trail per fish; null = keep the entire video's trail (in-memory only, never saved to disk)
   show_frame_number: true # # burn the frame number onto the video - I need to set to false to disable
 
+
+
 #_______________________________________________________
 # extract_crossing_frames_script - hard negative mining
 extract_crossing_frames:
