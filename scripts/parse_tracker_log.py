@@ -1,5 +1,5 @@
 """Reads fish_tracker.py's raw .log file for one run and extracts every crossing-resolution and occlusion-recovery decision line into a clean,
-structured table, to be compared against the human ground-truth table.
+structured csv file to be compared against the human ground-truth table.
 
 Input:  path to a tracker run's .log file
 Output: CSV with columns frame_number | event_type | fish_ids | tracker_decision
