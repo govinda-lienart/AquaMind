@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 def dry_run():
     """to test the cross join on synthetics data with a know expected result (oracle) before real data"""
 
+    # set up dataframes for fake data ground_truth and tracker_events
     ground_truth = pd.DataFrame([ 
         {"frame_start": 790, "frame_end": 860, "fish_ids": "1,3", "error_type": "crossing"}, 
     ])
@@ -26,13 +27,22 @@ def dry_run():
             {"frame_number": 900, "event_type": "crossing", "fish_ids": "1,3", "tracker_decision": "no_swap"},  # no match ->  right fish, frame outside
             {"frame_number": 850, "event_type": "crossing", "fish_ids": "2,4", "tracker_decision": "no_swap"},  # no match ->  frame inside, wrong fish
      ])
-
+     
     logger.info("--- ground_truth ___")
     logger.info(ground_truth.to_string()) # to_string - dataframe method to turn it into a nice table visually
     logger.info("--- tacker events ---") 
     logger.info(tracker_events.to_string())
 
-    crossmatch_tracker_events_to_ground_truth(tracker_events, ground_truth)
+    # use function to filter out raw of interest using a boolean mast
+    
+    matched  = crossmatch_tracker_events_to_ground_truth(tracker_events, ground_truth) # output matched data row
+
+    # make the script cry/crash if the result not as expected
+
+    matched_frame = set(matched["frame_number"]) # {800} # oracle - from fake event data - found with interval of ground truth data and fish-ids # A set ignores order and index, so i compare just the values cleanly.
+    expected_matched_frame = {800}
+    assert matched_frame == expected_matched_frame, f"JOIN BRAKE: expected {expected_matched_frame}, but got {matched_frame}" # if false - assert will stop the program
+    logger.info(f"---PASSED ASSERTION TEST - matched exactly {expected_matched_frame} --- ")
 
 # HELPER FUNCTION
 
@@ -58,11 +68,12 @@ def crossmatch_tracker_events_to_ground_truth(tracker_events, ground_truth):
     keep = same_fish & frame_inside
     logger.info("--- applying both filters: same fish AND frame_inside ---")
     logger.info(keep.to_string())
-
-
-    # use keep to now gram the row values that are true in the dataframe
     
-    return keep
+    # use keep to now gram the row values that are true in the dataframe
+    matched = pairs[keep] # boolean mask selecting true values
+    logger.info ("---  matched data after filter --- ")
+    logger.info (matched.to_string())
+    return matched
 
 # MAIN FUNCTION
 
