@@ -85,7 +85,7 @@ def crossmatch_tracker_events_to_ground_truth(tracker_events, ground_truth):
 
 # MAIN FUNCTION # RUNNING ON REAL DATA
 
-def main(events_path, ground_truth_path): # those args are provided by the user in the shel 
+def main(events_path, ground_truth_path): # those args are provided by the user in the shell command
     logger.info("REAL MODE")
 
     # ════════════════════════════════════════════════════════════════════════
@@ -93,37 +93,37 @@ def main(events_path, ground_truth_path): # those args are provided by the user 
     # ════════════════════════════════════════════════════════════════════════
     banner("SECTION 1 — LOAD INPUTS")
 
-    # 1a. tracker events — csv produced by parse_tracker_log.py (one row per risky decision the tracker logged)
-    tracker_events = pd.read_csv(events_path)
-    event_cols = ["frame_number", "event_type", "fish_ids", "tracker_decision"]
+    # 1a. tracker events = csv produced by parse_tracker_log.py (one row per risky decision the tracker logged)
+    tracker_events = pd.read_csv(events_path) 
+    event_cols = ["frame_number", "event_type", "fish_ids", "tracker_decision"] # selecting key relevant coluns for better visibility
     logger.info(f"\n[1a] tracker_events loaded: {len(tracker_events)} rows  (each row = one risky decision the tracker logged)\n")
     logger.info(tracker_events[event_cols].to_string())
 
-    # 1b. ground truth — human review csv (one row per observed error window)
+    # 1b. ground truth = human review csv (one row per observed error window)
     ground_truth = pd.read_csv(ground_truth_path, sep = ";") # excel exports european-format csv (; not ,), so declare the separator
     ground_truth["error_type"] = ground_truth["error_type"].str.strip()   # csv export left trailing spaces/tabs (e.g. "occlusion_recovery\t") that would split one category into two
-    ground_truth["gt_id"] = range(len(ground_truth))   # stable id per ground-truth row — lets us find which exceptions the tracker never matched
+    ground_truth["gt_id"] = range(len(ground_truth))   # stable id per ground-truth row , that way we can find which exceptions the tracker never matched
 
-    gt_cols = ["frame_start", "frame_end", "error_type", "gt_id"]
+    gt_cols = ["frame_start", "frame_end", "error_type", "gt_id"] # selecting relevant columns for better visbility
     logger.info(f"\n[1b] ground_truth loaded: {len(ground_truth)} rows  (each row = one error window I observed; gt_id is unique here)\n")
-    logger.info(ground_truth[gt_cols].to_string(index=False))
+    logger.info(ground_truth[gt_cols].to_string(index=False)) # the false removes the auto increment column
 
     # ════════════════════════════════════════════════════════════════════════
-    # SECTION 2 — CROSS-MATCH  (pair each tracker event with any window it falls inside)
-    #   shared building block: both views below read from `matched` / `switches`
+    # SECTION 2 — CROSS-MATCH  (pair each tracker event with any ground truthed window it falls inside)
     # ════════════════════════════════════════════════════════════════════════
     banner("SECTION 2 — CROSS-MATCH events to human windows")
 
-    matched = crossmatch_tracker_events_to_ground_truth(tracker_events, ground_truth)   # every event × any containing window, same fish
+    matched = crossmatch_tracker_events_to_ground_truth(tracker_events, ground_truth)   # every event × any containing window ground truth, same fish
     cols = ["frame_number", "event_type", "fish_ids_ev", "tracker_decision",
             "frame_start", "frame_end", "error_type", "gt_id"]
     logger.info(f"\n[2] matched: {len(matched)} rows kept out of {len(tracker_events)}×{len(ground_truth)} = {len(tracker_events)*len(ground_truth)} possible pairs")
-    logger.info("     (a row survives only if same fish AND event frame inside the window — gt_id repeats where one window caught several events)\n")
+    logger.info(" crossmatch function allows a row to survive only if same fish AND event frame inside the window -> gt_id repeats where one window caught several events)\n")
     logger.info(matched[cols].to_string(index=False)) # only the columns of interest + index=False to drop the row-index column
 
     # switches = matched pairs where the tracker's event_type agrees with the human's error_type (a confirmed ID switch)
     switches = matched[matched["event_type"] == matched["error_type"]]
-    logger.info(f"\n[2] switches: {len(switches)} of {len(matched)} matched rows survive the cause-agreement filter (tracker cause == human cause)")
+    logger.info(f"\n[2] switches: {len(switches)} of {len(matched)} matched rows survive the cause-agreement filter (tracker cause == human cause)\n")
+    logger.info(switches[cols].to_string(index=False)) # swiches refers to when identity error really happened here"
 
     # ════════════════════════════════════════════════════════════════════════
     # SECTION 3 — HUMAN-CENTRIC VIEW  ("of my 17 observations, which did the tracker corroborate?")
@@ -167,8 +167,7 @@ def main(events_path, ground_truth_path): # those args are provided by the user 
     # ════════════════════════════════════════════════════════════════════════
     banner("SECTION 4 — TRACKER-CENTRIC VIEW: ID-switch rate over events")
 
-    logger.info(f"\n[4] the {len(switches)} confirmed switches, per tracker event (gt_id repeats where one window caught several):\n")
-    logger.info(switches[cols].to_string(index=False))
+    logger.info(f"\n[4] re-using the {len(switches)} confirmed switches printed in Section 2, now counted as rates:")
 
     logger.info("\n[4] confirmed switches by cause (counting events):\n")
     logger.info(switches.groupby("error_type").size().to_string())
