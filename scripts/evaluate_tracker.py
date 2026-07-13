@@ -73,8 +73,8 @@ def crossmatch_tracker_events_to_ground_truth(tracker_events, ground_truth):
     
     # use keep to now gram the row values that are true in the dataframe
     matched = pairs[keep] # boolean mask selecting true values
-    logger.info ("---  matched data after filter --- ")
-    logger.info (matched.to_string())
+    logger.debug ("---  matched data after filter --- ")
+    logger.debug(matched.to_string())
     return matched
 
 # MAIN FUNCTION # RUNNING ON REAL DATA
@@ -85,14 +85,16 @@ def main(events_path, ground_truth_path): # those args are provided by the user 
     # reading csv file produced by parse_tracker_log.py which parsed the output of the fish tracker and converting it into dataframe tracker_events
     tracker_events = pd.read_csv(events_path)
     logger.info(" ---real tracker_events ---")
-    logger.info(tracker_events.head().to_string())
+    event_cols = ["frame_number", "event_type", "fish_ids", "tracker_decision"]
+    logger.info(tracker_events[event_cols].to_string())
     print()
 
     # reading csv human based csv ground truth and converting into the dataframe ground_truth
     ground_truth = pd.read_csv(ground_truth_path, sep = ";") # my excel generated csv as european format ; which is not the standard comma , thereore need to explitily mention 
     ground_truth["error_type"] = ground_truth["error_type"].str.strip()   # convertion to csv led to some extra spaces after some categories like "occlusion_recovery\t" and therefore creating a different categortu than "occlusion_recovery.
+    gt_cols = ["frame_start", "frame_end", "error_type"]
     logger.info (" --- real ground truth - first few rows ---")
-    logger.info(ground_truth.head().to_string())
+    logger.info(ground_truth[gt_cols].to_string())
 
 
     # cross merging both dataframes tracker_events and ground_truth
@@ -101,6 +103,27 @@ def main(events_path, ground_truth_path): # those args are provided by the user 
     cols = ["frame_number", "event_type", "fish_ids_ev", "tracker_decision",
             "frame_start", "frame_end", "error_type"]
     logger.info(matched[cols].to_string(index=False)) # here i selected just the columns of interest to make the df smaller and visually easier to look at + index to false removing the first index column                                            
+
+    # keep only matches where the tracker's event type agrees with the human's error type
+    switches = matched[matched["event_type"] == matched["error_type"]]
+    logger.info("\n --- cause-aligned ID-switches ---\n")
+    logger.info(switches[cols].to_string(index=False))
+
+    # quantify switches
+    logger.info("\n --- ID-switches by cause ---\n")
+    logger.info(switches.groupby("error_type").size().to_string())
+
+    logger.info("\n --- ID-switches by fish - which fish pairs trip the tracker most---\n")
+    logger.info(switches.groupby("fish_ids_ev").size().to_string())
+
+    rate = len(switches) / len(tracker_events) # e.g 11 switches (errors)....and 279 events (all of events logged by the tracker)
+    logger.info(f"\n overall ID-switch rate: {rate:.1%} -> the fraction of the tracker's risky decisions that were confirmed ID errors")
+
+    logger.info("\n --- ID-switch rate by cause ---\n")
+    switches_by_cause = switches.groupby("event_type").size()        # numerators: crossing=10, recovery=1
+    events_by_cause   = tracker_events.groupby("event_type").size()  # denominators: crossing=59, recovery=220 (totals)
+    rate_by_cause     = switches_by_cause / events_by_cause          # divide → per-cause rate 10/59 percentage flagged crossing errors among crossings....whic is 17 percent
+    logger.info((rate_by_cause * 100).round(1).to_string()) 
 
 # ENTRY POINT/GUARD + CREATING PARSER
 
