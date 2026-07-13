@@ -12,6 +12,12 @@ import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
+def banner(title):
+    """print a loud section header to the console so the flow is easy to follow"""
+    logger.info("\n" + "═" * 78)
+    logger.info(f"  {title}")
+    logger.info("═" * 78)
+
 # TESTING WITH FAKE DATA # when shell command --dry-run
 
 # TEST FUNCTION 
@@ -82,48 +88,102 @@ def crossmatch_tracker_events_to_ground_truth(tracker_events, ground_truth):
 def main(events_path, ground_truth_path): # those args are provided by the user in the shel 
     logger.info("REAL MODE")
 
-    # reading csv file produced by parse_tracker_log.py which parsed the output of the fish tracker and converting it into dataframe tracker_events
+    # ════════════════════════════════════════════════════════════════════════
+    # SECTION 1 — LOAD INPUTS  (tracker's log + human's review)
+    # ════════════════════════════════════════════════════════════════════════
+    banner("SECTION 1 — LOAD INPUTS")
+
+    # 1a. tracker events — csv produced by parse_tracker_log.py (one row per risky decision the tracker logged)
     tracker_events = pd.read_csv(events_path)
-    logger.info(" ---real tracker_events ---")
     event_cols = ["frame_number", "event_type", "fish_ids", "tracker_decision"]
+    logger.info(f"\n[1a] tracker_events loaded: {len(tracker_events)} rows  (each row = one risky decision the tracker logged)\n")
     logger.info(tracker_events[event_cols].to_string())
-    print()
 
-    # reading csv human based csv ground truth and converting into the dataframe ground_truth
-    ground_truth = pd.read_csv(ground_truth_path, sep = ";") # my excel generated csv as european format ; which is not the standard comma , thereore need to explitily mention 
-    ground_truth["error_type"] = ground_truth["error_type"].str.strip()   # convertion to csv led to some extra spaces after some categories like "occlusion_recovery\t" and therefore creating a different categortu than "occlusion_recovery.
-    gt_cols = ["frame_start", "frame_end", "error_type"]
-    logger.info (" --- real ground truth - first few rows ---")
-    logger.info(ground_truth[gt_cols].to_string())
+    # 1b. ground truth — human review csv (one row per observed error window)
+    ground_truth = pd.read_csv(ground_truth_path, sep = ";") # excel exports european-format csv (; not ,), so declare the separator
+    ground_truth["error_type"] = ground_truth["error_type"].str.strip()   # csv export left trailing spaces/tabs (e.g. "occlusion_recovery\t") that would split one category into two
+    ground_truth["gt_id"] = range(len(ground_truth))   # stable id per ground-truth row — lets us find which exceptions the tracker never matched
 
+    gt_cols = ["frame_start", "frame_end", "error_type", "gt_id"]
+    logger.info(f"\n[1b] ground_truth loaded: {len(ground_truth)} rows  (each row = one error window I observed; gt_id is unique here)\n")
+    logger.info(ground_truth[gt_cols].to_string(index=False))
 
-    # cross merging both dataframes tracker_events and ground_truth
-    matched = crossmatch_tracker_events_to_ground_truth(tracker_events, ground_truth)   # DataFrames
-    logger.info("\n --- cross match real data ---\n")
+    # ════════════════════════════════════════════════════════════════════════
+    # SECTION 2 — CROSS-MATCH  (pair each tracker event with any window it falls inside)
+    #   shared building block: both views below read from `matched` / `switches`
+    # ════════════════════════════════════════════════════════════════════════
+    banner("SECTION 2 — CROSS-MATCH events to human windows")
+
+    matched = crossmatch_tracker_events_to_ground_truth(tracker_events, ground_truth)   # every event × any containing window, same fish
     cols = ["frame_number", "event_type", "fish_ids_ev", "tracker_decision",
-            "frame_start", "frame_end", "error_type"]
-    logger.info(matched[cols].to_string(index=False)) # here i selected just the columns of interest to make the df smaller and visually easier to look at + index to false removing the first index column                                            
+            "frame_start", "frame_end", "error_type", "gt_id"]
+    logger.info(f"\n[2] matched: {len(matched)} rows kept out of {len(tracker_events)}×{len(ground_truth)} = {len(tracker_events)*len(ground_truth)} possible pairs")
+    logger.info("     (a row survives only if same fish AND event frame inside the window — gt_id repeats where one window caught several events)\n")
+    logger.info(matched[cols].to_string(index=False)) # only the columns of interest + index=False to drop the row-index column
 
-    # keep only matches where the tracker's event type agrees with the human's error type
+    # switches = matched pairs where the tracker's event_type agrees with the human's error_type (a confirmed ID switch)
     switches = matched[matched["event_type"] == matched["error_type"]]
-    logger.info("\n --- cause-aligned ID-switches ---\n")
+    logger.info(f"\n[2] switches: {len(switches)} of {len(matched)} matched rows survive the cause-agreement filter (tracker cause == human cause)")
+
+    # ════════════════════════════════════════════════════════════════════════
+    # SECTION 3 — HUMAN-CENTRIC VIEW  ("of my 17 observations, which did the tracker corroborate?")
+    #   counts human rows — each gets exactly one disposition, so nothing vanishes
+    # ════════════════════════════════════════════════════════════════════════
+    banner("SECTION 3 — HUMAN-CENTRIC VIEW: one disposition per observed row")
+
+    # in `matched` a gt_id can repeat — one window (e.g. 1178–1264) caught 4 events, so gt_id 1 appears 4×;
+    # a set collapses those repeats back to "which human rows were touched at all"
+    matched_ids = set(matched["gt_id"])   # human rows the tracker logged *something* for
+    aligned_ids = set(switches["gt_id"])  # subset: human rows that got at least one *cause-matching* event  (aligned_ids and matched_ids)
+    logger.info(f"\n[3] collapsing gt_id from the tables above into unique sets of human rows:")
+    logger.info(f"     matched_ids ({len(matched_ids)} rows touched)     : {sorted(matched_ids)}")
+    logger.info(f"     aligned_ids ({len(aligned_ids)} rows corroborated): {sorted(aligned_ids)}   (always a subset of matched_ids)")
+
+    def disposition(gt_id):
+        if gt_id in aligned_ids:      # touched AND cause matches
+            return "confirmed_switch"
+        if gt_id in matched_ids:      # touched, but cause doesn't match
+            return "matched_mismatch"
+        return "unmatched"            # never touched at all
+
+    ground_truth["disposition"] = ground_truth["gt_id"].apply(disposition)   # stamp one label on every human row
+
+    logger.info(f"\n[3] every one of the {len(ground_truth)} human rows now carries exactly one disposition (nothing dropped):\n")
+    logger.info(ground_truth[gt_cols + ["disposition"]].to_string(index=False))
+
+    # accounting: how many human rows fell into each bucket
+    disposition_counts = ground_truth.groupby("disposition").size()
+    logger.info("\n[3] human rows by disposition:\n")
+    logger.info(disposition_counts.to_string())
+
+    # self-check: every human row lands in exactly one bucket, so the counts must sum to the total (else a row was lost)
+    assert disposition_counts.sum() == len(ground_truth), \
+        f"ACCOUNTING BROKE: buckets sum to {disposition_counts.sum()}, but there are {len(ground_truth)} human rows"
+    logger.info(f"\n[3] ✓ accounting OK: {disposition_counts.sum()} rows across {len(disposition_counts)} buckets = {len(ground_truth)} total (invariant holds)")
+
+    # ════════════════════════════════════════════════════════════════════════
+    # SECTION 4 — TRACKER-CENTRIC VIEW  ("of the tracker's decisions, what fraction were confirmed wrong?")
+    #   counts events — one wide window can contribute several (per-decision rate, not per-observation)
+    # ════════════════════════════════════════════════════════════════════════
+    banner("SECTION 4 — TRACKER-CENTRIC VIEW: ID-switch rate over events")
+
+    logger.info(f"\n[4] the {len(switches)} confirmed switches, per tracker event (gt_id repeats where one window caught several):\n")
     logger.info(switches[cols].to_string(index=False))
 
-    # quantify switches
-    logger.info("\n --- ID-switches by cause ---\n")
+    logger.info("\n[4] confirmed switches by cause (counting events):\n")
     logger.info(switches.groupby("error_type").size().to_string())
 
-    logger.info("\n --- ID-switches by fish - which fish pairs trip the tracker most---\n")
+    logger.info("\n[4] confirmed switches by fish pair (which fish trip the tracker most):\n")
     logger.info(switches.groupby("fish_ids_ev").size().to_string())
 
-    rate = len(switches) / len(tracker_events) # e.g 11 switches (errors)....and 279 events (all of events logged by the tracker)
-    logger.info(f"\n overall ID-switch rate: {rate:.1%} -> the fraction of the tracker's risky decisions that were confirmed ID errors")
+    rate = len(switches) / len(tracker_events) # e.g. 11 confirmed switches / 279 logged events
+    logger.info(f"\n[4] overall ID-switch rate: {len(switches)}/{len(tracker_events)} = {rate:.1%}  (fraction of the tracker's risky decisions that were confirmed ID errors)")
 
-    logger.info("\n --- ID-switch rate by cause ---\n")
-    switches_by_cause = switches.groupby("event_type").size()        # numerators: crossing=10, recovery=1
-    events_by_cause   = tracker_events.groupby("event_type").size()  # denominators: crossing=59, recovery=220 (totals)
-    rate_by_cause     = switches_by_cause / events_by_cause          # divide → per-cause rate 10/59 percentage flagged crossing errors among crossings....whic is 17 percent
-    logger.info((rate_by_cause * 100).round(1).to_string()) 
+    logger.info("\n[4] ID-switch rate by cause (per-cause numerator / denominator, as %):\n")
+    switches_by_cause = switches.groupby("event_type").size()        # numerators   e.g. crossing=10, occlusion_recovery=1
+    events_by_cause   = tracker_events.groupby("event_type").size()  # denominators e.g. crossing=59, occlusion_recovery=220
+    rate_by_cause     = switches_by_cause / events_by_cause          # per-cause rate, e.g. 10/59 ≈ 17% of crossings were confirmed errors
+    logger.info((rate_by_cause * 100).round(1).to_string())
 
 # ENTRY POINT/GUARD + CREATING PARSER
 
