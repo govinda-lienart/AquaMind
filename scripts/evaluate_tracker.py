@@ -2,16 +2,17 @@
 
 
 # IMPORTS
-
-import pandas as pd
-
+import os
 import argparse
- 
-# logging object and config
+import pandas as pd
+import yaml
+
+# logging 
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
+# banner config
 def banner(title):
     """print a loud section header to the console so the flow is easy to follow"""
     logger.info("\n" + "═" * 78)
@@ -83,6 +84,31 @@ def crossmatch_tracker_events_to_ground_truth(tracker_events, ground_truth):
     logger.debug(matched.to_string())
     return matched
 
+# mlflow config
+
+def log_to_mlflow(config_path):
+    """log tracker config + metric + source files to MlFlow in one run"""
+    import mlflow
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) 
+            # __file__                     # "/Users/govinda/.../AquaMind/scripts/evaluate_tracker.py"
+            # os.path.abspath(__file__)    # ensure it remains as a full absolute path
+            # os.path.dirname(...)         # "/Users/govinda/.../AquaMind/scripts"   ← chop off the filename
+            # os.path.dirname(...)         # "/Users/govinda/.../AquaMind"           ← chop off "scripts"
+    mlflow.set_tracking_uri(os.path.join(repo_root, "mlruns")) # thell MLflow where to save everything in .../AquaMind/mlruns
+    mlflow.set_experiment("aquamind_tracker")
+
+    # read the side yaml into a dict
+    with open(config_path) as f:
+        config = yaml.safe_load(f) 
+
+    run_name = os.path.basename(config_path).replace("_config.yaml","") # in mlrun it will be instead of a hashtag it will take the name of the run so easier to recognize
+            # config_path                              # "output_fish_tracker/stage5_tracker_IMG_2349_.../stage5_tracker_IMG_2349_..._config.yaml"
+            # os.path.basename(config_path)            # "stage5_tracker_IMG_2349_..._config.yaml"   ← drop the folders, keep the filename
+            #     .replace("_config.yaml", "")         # "stage5_tracker_IMG_2349_..."               ← drop the suffix too
+
+    with mlflow.start_run(run_name=run_name): # open one run
+        mlflow.log_params(config) # load the config of the side car as param in mlFLOW
+        mlflow.log_param(metrics)
 # MAIN FUNCTION # RUNNING ON REAL DATA
 
 def main(events_path, ground_truth_path): # those args are provided by the user in the shell command
@@ -184,23 +210,36 @@ def main(events_path, ground_truth_path): # those args are provided by the user 
     rate_by_cause     = switches_by_cause / events_by_cause          # per-cause rate, e.g. 10/59 ≈ 17% of crossings were confirmed errors
     logger.info((rate_by_cause * 100).round(1).to_string())
 
+    # ════════════════════════════════════════════════════════════════════════
+    # SECTION 5 — LOG TO MLFLOW  - creating dictionary to store:
+    #   params (config sidecar) + metrics (computed above) + artifacts, in one run
+    # ════════════════════════════════════════════════════════════════════════
+    banner("SECTION 5 — LOG TO MLFLOW")
+
+    metrics = {
+        "id_switch_rate":          rate,
+        "n_tracker_events":        len(tracker_events),
+        "n_ground_truth_rows":     len(ground_truth),
+        "n_matched_pairs":         len(matched),
+        "n_confirmed_switches":    len(switches),                                   # tracker-centric, counts events (gt_id 1 counted 4×), e.g. 11
+        "n_confirmed_switch_rows": disposition_counts.get("confirmed_switch", 0),   # human-centric, unique rows, e.g. 7
+        "n_matched_mismatch_rows": disposition_counts.get("matched_mismatch", 0),
+        "n_unmatched_rows":        disposition_counts.get("unmatched", 0),
+    }
+    logger.info(f"\n[5] metrics gathered for MLflow: {metrics}")
+
 # ENTRY POINT/GUARD + CREATING PARSER
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Evaluate tracker events againt human ground truth") # builts the parser object 
+    parser = argparse.ArgumentParser(description="Evaluate tracker events againt human ground truth") # builts the parser object
     parser.add_argument("events", nargs="?", help="path to the tracker generated log csv")
     parser.add_argument("ground_truth", nargs="?", help="path to the human ground-truth csv")
     parser.add_argument("--dry-run", action="store_true", help="run the synthetic self - test instead of the real data") # store_true --? toggle...if flag (--dry__run) as argument then action store the value args.dry_run = True, if no argument - nothing args.dry_run = False
     args = parser.parse_args() # method from object - read the command line and catch result (arguments typed in by user)
-    
+
     if args.dry_run: # in the shell  --dry-run but converted automaticaly by python as dry_run
         dry_run()
     else:
-        main(args.events, args.ground_truth) 
-
-
-
-
-
+        main(args.events, args.ground_truth)
 
 
