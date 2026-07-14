@@ -1,6 +1,5 @@
 """ merges and filters ground_data and tracker_events"""
 
-
 # IMPORTS
 import os
 import argparse
@@ -86,7 +85,7 @@ def crossmatch_tracker_events_to_ground_truth(tracker_events, ground_truth):
 
 # mlflow config
 
-def log_to_mlflow(config_path):
+def log_to_mlflow(config_path, metrics):
     """log tracker config + metric + source files to MlFlow in one run"""
     import mlflow
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) 
@@ -108,7 +107,7 @@ def log_to_mlflow(config_path):
 
     with mlflow.start_run(run_name=run_name): # open one run
         mlflow.log_params(config) # load the config of the side car as param in mlFLOW
-        mlflow.log_param(metrics)
+        mlflow.log_metrics(metrics)
 # MAIN FUNCTION # RUNNING ON REAL DATA
 
 def main(events_path, ground_truth_path): # those args are provided by the user in the shell command
@@ -226,7 +225,19 @@ def main(events_path, ground_truth_path): # those args are provided by the user 
         "n_matched_mismatch_rows": disposition_counts.get("matched_mismatch", 0),
         "n_unmatched_rows":        disposition_counts.get("unmatched", 0),
     }
+
+    # flatten the per-cause Series into individual metrics (MLflow needs name→number, not a Series)
+    for cause, r in rate_by_cause.items(): # .items allows loop over a Series pair by pair.tuples # 1st loop: ("crossing", 0.169) 2nd loop: ("occlusion_recovery", 0.005)
+        if pd.notna(r): # checks if "is r a real number (not NaN)...e,g pd.notna(0.169)   # True   → gets logged but pd.notna(float("nan"))  # False → skipped, no crash
+            metrics[f"switch_rate_{cause}"] = float(r) # # e.g. metrics["switch_rate_crossing"] = 0.169
+
     logger.info(f"\n[5] metrics gathered for MLflow: {metrics}")
+
+    config_path = events_path.replace("_events.csv", "_config.yaml")   # sidecar sits next to the events csv
+    log_to_mlflow(config_path, metrics)                                # actually write the run
+
+
+
 
 # ENTRY POINT/GUARD + CREATING PARSER
 
