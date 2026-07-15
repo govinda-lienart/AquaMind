@@ -3,15 +3,34 @@
 import pandas as pd
 import argparse
 import numpy as np
+import yaml
 
 # LOGGER
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger=logging.getLogger(__name__)
 
+# CONFIG
+#calibration to cm using tank size in cm/pixels - to allow relative comparision between studies and fish tanks
+logger.info("\n--- loading configuration---\n")
+CONFIG_PATH = 'config.yaml'
+with open(CONFIG_PATH) as f:
+    cfg = yaml.safe_load(f)['analyse_behaviour']
+
+def grab_video_name(video_name):
+    "grabs arguments from user and pulls out the related parameters from config.yaml"
+    video_cfg = cfg['videos'][video_name]
+    parquet_path = video_cfg['parquet_path']
+    tank_width_px = video_cfg['tank_width_px']
+    tank_width_cm = video_cfg['tank_width_cm']
+    pixels_per_cm = tank_width_px / tank_width_cm
+    logger.info(f'loaded cfg: video_cfg = {video_cfg}, tank_width_px = {tank_width_px}, tank_width_cm = {tank_width_cm},  pixels_per_cm = { pixels_per_cm} ')
+    return parquet_path, pixels_per_cm
+  
+
 # MAIN FUNCTION
 
-def main(parquet_path):
+def main(parquet_path, pixels_per_cm):
     """calculate ruled based behaviour"""
 
     # pulls parquet data into dataframe
@@ -51,20 +70,16 @@ def main(parquet_path):
     logger.info(df.head().to_string())
 
 
-
-
-
-
-
 # ENTRY POINT/GUARD
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Imports Parquet snapshot") #  builts the parser object
-    parser.add_argument("--parquet-path", 
-                        default="output_fish_tracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1853/tracks.parquet",
-                        help="path to parquet file")
+    parser.add_argument("--video_name", 
+                        default="IMG_2349",
+                        help="path to video configuration in config.yaml")
     args = parser.parse_args() # method from object - read the command line and catch result (arguments typed in by user)
-    main(args.parquet_path)
+    parquet_path, pixels_per_cm = grab_video_name(args.video_name)
+    main(parquet_path, pixels_per_cm)
 
 
 

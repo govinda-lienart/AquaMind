@@ -60,6 +60,20 @@ fish_tracker:
   show_frame_number: true # # burn the frame number onto the video - I need to set to false to disable
 
 
+# analyse_behaviour_script
+analyse_behaviour:
+  video: IMG_2349
+  videos:
+    IMG_2349: 
+      parquet_path: output_fish_tracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1853/tracks.parquet
+      tank_width_px: 1811
+      tank_width_cm: 35
+  
+
+
+
+
+
 
 #_______________________________________________________
 # extract_crossing_frames_script - hard negative mining
