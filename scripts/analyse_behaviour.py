@@ -1,5 +1,8 @@
+# IMPORTS
+
 import pandas as pd
 import argparse
+import numpy as np
 
 # LOGGER
 import logging
@@ -13,7 +16,6 @@ def main(parquet_path):
 
     # pulls parquet data into dataframe
     df = pd.read_parquet(parquet_path)
-    
     logger.info("\n--- dataframe - read head ---\n") 
     logger.info(df.head().to_string())
     logger.info("\n--- dataframe - shape ---\n") 
@@ -22,7 +24,38 @@ def main(parquet_path):
     logger.info(df.describe().to_string())
     logger.info("\n--- dataframe - info ---\n") 
     logger.info(df.info())
-    
+
+    #-------------
+    # FISH SPEED
+    #-------------
+
+    # sort df on fish id and frames
+    df = df.sort_values(['fish_id', 'frame_number'])
+    logger.info("\n--- dataframe - sorted by fish_id and framenumber ---\n") 
+    logger.info(df.head().to_string())
+
+    # sort fish in groups by fish id - and calclate distance swom across x and y as
+    grouped_fish = df.groupby('fish_id') # grouped object containing different bags of fish by fish_id
+    df['dx'] = grouped_fish['x'].diff() # calculate difference in x value between present row and preivious one
+    df['dy'] = grouped_fish['y'].diff()
+    df['dt']= grouped_fish['timestamp'].diff()
+    logger.info("\n--- dataframe - difference in x, y and time by group fish_id\n")
+    logger.info(df.head().to_string())
+
+    # calculating distance - diagonal - pythogoras  √(dx² + dy²).
+    df['distance'] = np.hypot(df['dx'], df['dy']) # calculating pythagoras using numpy
+
+    # calculating speed 
+    df['speed'] = df['distance'] / df['dt']
+    logger.info("\n--- dataframe - with new columns distance and speed\n")
+    logger.info(df.head().to_string())
+
+
+
+
+
+
+
 # ENTRY POINT/GUARD
 
 if __name__ == "__main__":
