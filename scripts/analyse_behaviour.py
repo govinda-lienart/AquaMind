@@ -8,15 +8,20 @@ import numpy as np
 import yaml
 import os
 
+# MATPLOTLIB
+
 import matplotlib
 matplotlib.use('Agg') # means no pop up window
 import matplotlib.pyplot as plt
+
 # LOGGER
+
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger=logging.getLogger(__name__)
 
 # CONFIG
+
 #calibration to cm using tank size in cm/pixels - to allow relative comparision between studies and fish tanks
 logger.info("\n--- loading configuration---\n")
 CONFIG_PATH = 'config.yaml'
@@ -39,6 +44,10 @@ def grab_video_name(video_name):
 def main(parquet_path, pixels_per_cm, calibration_secs):
     """calculate ruled based behaviour"""
 
+    #---------
+    # PARQUET
+    #---------
+
     # pulls parquet data into dataframe
     df = pd.read_parquet(parquet_path)
     
@@ -55,9 +64,7 @@ def main(parquet_path, pixels_per_cm, calibration_secs):
     logger.info("\n--- dataframe - info ---\n") 
     logger.info(df.info())
 
-
-    # ── output folder for all behaviour figures (build once) ──
-
+    # output folder for all behaviour figures (build once)
     output_folder = os.path.dirname(parquet_path) # will find output folder based on the prvoided parquet file
     figure_dir = os.path.join(output_folder, "output_analyse_behaviour")    # will create in the output folder a subfolder called output_analysys_behavour       
     os.makedirs(figure_dir, exist_ok=True)   # standalone funciton 
@@ -88,27 +95,51 @@ def main(parquet_path, pixels_per_cm, calibration_secs):
     logger.info("\n--- dataframe - with new columns distance and speed\n")
     logger.info(df.head().to_string())
 
-    # fish speed matplot lib
+    # calculating - Individual fish mean swimming speed (per second) - mean fish speed cm/sec 
     df['second'] = np.floor(df['timestamp'])
     group_sec_fish = df.groupby(['fish_id','second']) # different bag for different fish...and each bag subbags per secondd
     mean_fish_speed_sec = group_sec_fish['speed'].mean().reset_index() # series -> dataframe thx to reset_index - helps to create dataframe and also flattens index 
-    logger.info("\n--- dataframe - mean_fish_speed_sec\n")
+    logger.info("\n--- dataframe - mean_fish_speed_sec ----\n")
     logger.info(mean_fish_speed_sec.to_string())
     logger.info(type(mean_fish_speed_sec))
 
-    #creating the plot    
+    #creating the plot  -  Individual fish mean swimming speed (per second)
     plt.figure(figsize=(14, 6))
     for fish_id, fish_rows in mean_fish_speed_sec.groupby('fish_id'): # fish_id is the key: a clean scalar(single value)  → 1  # #
         plt.plot(fish_rows['second'], fish_rows['speed'], linestyle='--', label=f'fish {fish_id}')     # The loop runs once per fish (per fish_id), and each time it plots that fish's entire line in one go —> not row by row - 5 iterations in total
     plt.xlabel("time(s)")
     plt.ylabel("mean speed (cm/s)")
-    plt.title("Individual fish mean swimming speed")
+    plt.title("Individual fish mean swimming speed per sec")
     plt.legend()
-    speed_plot_path = os.path.join(figure_dir, "fish_speed.png")
-    plt.savefig(speed_plot_path, dpi=150, bbox_inches='tight')
+    path_plot = os.path.join(figure_dir, "fish_speed_mean_per_sec.png")
+    plt.savefig(path_plot)
+
+    logger.info("\n---speed plot saved ----\n")
     plt.close()
 
-    # ENTRY POINT/GUARD
+    # calculating  -  Mean Individual fish mean swimming speed over the entire timeframe
+    group_fish = df.groupby(['fish_id'])
+    mean_fish_speed = group_fish['speed'].mean() # we can, but no real need here for reset_index() df,  time-series is fine here because bar chart
+    logger.info("\n---time-series mean_fish_speed_sec ---\n")
+    logger.info(mean_fish_speed.to_string())
+    logger.info(type(mean_fish_speed))
+
+    # histogram - Mean Individual fish mean swimming speed over the entire timeframe
+    plt.figure(figsize=(14, 6))
+    plt.bar(mean_fish_speed.index, mean_fish_speed.values)
+    plt.xticks(mean_fish_speed.index)
+    plt.xlabel("fish_id")
+    plt.ylabel("mean speed (cm/s)")
+    plt.title("Individual fish mean swimming over the entire timeframe ")
+    path_plot = os.path.join(figure_dir, "fish_speed_mean.png")
+    plt.savefig(path_plot, dpi=150, bbox_inches='tight')
+    logger.info("\n---speed histograme saved ----\n")
+    plt.close()
+
+
+#-------------------
+# ENTRY POINT/GUARD
+#-------------------
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Imports Parquet snapshot") #  builts the parser object
