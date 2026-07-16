@@ -68,6 +68,7 @@ analyse_behaviour:
       parquet_path: output_fish_tracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1853/tracks.parquet
       tank_width_px: 1811
       tank_width_cm: 35
+           # skip tracker warm-up window (matches fish_tracker confi
   
 
 
