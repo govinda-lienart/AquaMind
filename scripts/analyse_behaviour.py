@@ -1,10 +1,12 @@
 # IMPORTS
 
 from click import group
+from matplotlib import legend
 import pandas as pd
 import argparse
 import numpy as np
 import yaml
+import os
 
 import matplotlib
 matplotlib.use('Agg') # means no pop up window
@@ -52,6 +54,14 @@ def main(parquet_path, pixels_per_cm, calibration_secs):
     logger.info(df.describe().to_string())
     logger.info("\n--- dataframe - info ---\n") 
     logger.info(df.info())
+
+
+    # ── output folder for all behaviour figures (build once) ──
+
+    output_folder = os.path.dirname(parquet_path) # will find output folder based on the prvoided parquet file
+    figure_dir = os.path.join(output_folder, "output_analyse_behaviour")    # will create in the output folder a subfolder called output_analysys_behavour       
+    os.makedirs(figure_dir, exist_ok=True)   # standalone funciton 
+
     #-------------
     # FISH SPEED
     #-------------
@@ -90,10 +100,16 @@ def main(parquet_path, pixels_per_cm, calibration_secs):
     plt.figure(figsize=(14, 6))
     for fish_id, fish_rows in mean_fish_speed_sec.groupby('fish_id'): # fish_id is the key: a clean scalar(single value)  → 1  # #
         plt.plot(fish_rows['second'], fish_rows['speed'], linestyle='--', label=f'fish {fish_id}')     # The loop runs once per fish (per fish_id), and each time it plots that fish's entire line in one go —> not row by row - 5 iterations in total
-
+    plt.xlabel("time(s)")
+    plt.ylabel("mean speed (cm/s)")
+    plt.title("Individual fish mean swimming speed")
+    plt.legend()
+    speed_plot_path = os.path.join(figure_dir, "fish_speed.png")
+    plt.savefig(speed_plot_path, dpi=150, bbox_inches='tight')
+    plt.close()
 
     # ENTRY POINT/GUARD
-    
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Imports Parquet snapshot") #  builts the parser object
     parser.add_argument("--video_name", 
