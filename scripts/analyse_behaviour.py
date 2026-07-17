@@ -1,5 +1,6 @@
 # IMPORTS
 
+from turtle import distance
 from click import group
 from matplotlib import legend
 import pandas as pd
@@ -20,13 +21,26 @@ import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger=logging.getLogger(__name__)
 
+# BANNER
+
+def banner(title):
+    """print a loud section header to the console so the flow is easy to follow"""
+    logger.info("\n" + "═" * 78)
+    logger.info(f"  {title}")
+    logger.info("═" * 78 + "\n") 
+
+def banner_sub(title):
+    """prints description of subdivistion"""
+    logger.info(f"\n--- {title} ---\n")
+
 # CONFIG
 
 #calibration to cm using tank size in cm/pixels - to allow relative comparision between studies and fish tanks
-logger.info("\n--- loading configuration---\n")
 CONFIG_PATH = 'config.yaml'
 with open(CONFIG_PATH) as f:
     cfg = yaml.safe_load(f)['analyse_behaviour']
+
+# HELPER FUNCTION
 
 def grab_video_name(video_name):
     "grabs arguments from user and pulls out the related parameters from config.yaml"
@@ -36,9 +50,10 @@ def grab_video_name(video_name):
     tank_width_cm = video_cfg['tank_width_cm']
     calibration_secs = video_cfg['calibration_secs']
     pixels_per_cm = tank_width_px / tank_width_cm
+    banner('LOADING CONFIGURATION')
     logger.info(f'loaded cfg: video_cfg = {video_cfg}, tank_width_px = {tank_width_px}, tank_width_cm = {tank_width_cm},  pixels_per_cm = {pixels_per_cm}, calibration_secs = {calibration_secs}')
     return parquet_path, pixels_per_cm, calibration_secs
-  
+
 # MAIN FUNCTION
 
 def main(parquet_path, pixels_per_cm, calibration_secs):
@@ -48,20 +63,27 @@ def main(parquet_path, pixels_per_cm, calibration_secs):
     # PARQUET
     #---------
 
+    banner('VISUALING PARQUET CONTENT')
+
+     
     # pulls parquet data into dataframe
     df = pd.read_parquet(parquet_path)
     
     # remove the calibration time - 10 seconds from the dataframe
-    df = df[df['timestamp'] >= calibration_secs] # used here boolean mask to select only those that are true df[true/false]
+    df = df[df['timestamp'] >= calibration_secs] # calibration trim - sed here boolean mask to select only those that are true df[true/false]
+
+    # calbirate depth to cm (sqauare pixels)
+    df['y_cm'] = df['y'] / pixels_per_cm  # to calculate depth profiles in cm
 
     # logger parquet
-    logger.info("\n--- dataframe - read head ---\n") 
+
+    banner_sub('DATAFRAME - HEAD')
     logger.info(df.head().to_string())
-    logger.info("\n--- dataframe - shape ---\n") 
+    banner_sub('DATAFRAME - SHAPE')
     logger.info(df.shape)
-    logger.info("\n--- dataframe - describe ---\n") 
+    banner_sub('DATAFRAME - DESCRIBE')
     logger.info(df.describe().to_string())
-    logger.info("\n--- dataframe - info ---\n") 
+    banner_sub('DATAFRAME - INFO')
     logger.info(df.info())
 
     # output folder for all behaviour figures (build once)
@@ -73,9 +95,11 @@ def main(parquet_path, pixels_per_cm, calibration_secs):
     # FISH SPEED
     #-------------
 
+    banner('FISH SPEED')
+
     # sort df on fish id and frames
     df = df.sort_values(['fish_id', 'frame_number'])
-    logger.info("\n--- dataframe - sorted by fish_id and framenumber ---\n") 
+    banner('DATAFRAME - SORTED BY FISH_ID AND FRAMENUMBER') 
     logger.info(df.head().to_string())
 
     # sort fish in groups by fish id - and calclate distance swom across x and y as
@@ -83,7 +107,7 @@ def main(parquet_path, pixels_per_cm, calibration_secs):
     df['dx'] = grouped_fish['x'].diff() # calculate difference in x value between present row and preivious one
     df['dy'] = grouped_fish['y'].diff()
     df['dt']= grouped_fish['timestamp'].diff()
-    logger.info("\n--- dataframe - difference in x, y and time by group fish_id\n")
+    banner_sub("DATAFRAME - DIFFERENCE IN X, Y and TIME BY GROUP FISH_ID")
     logger.info(df.head().to_string())
 
     # calculating distance - diagonal - pythogoras  √(dx² + dy²).
@@ -92,15 +116,15 @@ def main(parquet_path, pixels_per_cm, calibration_secs):
 
     # calculating speed 
     df['speed'] = df['distance'] / df['dt']
-    logger.info("\n--- dataframe - with new columns distance and speed\n")
+    banner_sub("DATAFRAME- WITH NEW COLUMN DISTANCE AND SPEED")
     logger.info(df.head().to_string())
 
     # calculating - Individual fish mean swimming speed (per second) - mean fish speed cm/sec 
     df['second'] = np.floor(df['timestamp'])
     group_sec_fish = df.groupby(['fish_id','second']) # different bag for different fish...and each bag subbags per secondd
     mean_fish_speed_sec = group_sec_fish['speed'].mean().reset_index() # series -> dataframe thx to reset_index - helps to create dataframe and also flattens index 
-    logger.info("\n--- dataframe - mean_fish_speed_sec ----\n")
-    logger.info(mean_fish_speed_sec.to_string())
+    banner_sub("DATAFRAME - MEAN_FISH_SPEED_SEC")
+    logger.info(mean_fish_speed_sec.head().to_string())
     logger.info(type(mean_fish_speed_sec))
 
     #creating the plot  -  Individual fish mean swimming speed (per second)
@@ -114,13 +138,13 @@ def main(parquet_path, pixels_per_cm, calibration_secs):
     path_plot = os.path.join(figure_dir, "fish_speed_mean_per_sec.png")
     plt.savefig(path_plot)
 
-    logger.info("\n---speed plot saved ----\n")
+    logger.info(f"\n**speed plot saved in {figure_dir}\n**")
     plt.close()
 
     # calculating  -  Mean Individual fish mean swimming speed over the entire timeframe
     group_fish = df.groupby(['fish_id'])
     mean_fish_speed = group_fish['speed'].mean() # we can, but no real need here for reset_index() df,  time-series is fine here because bar chart
-    logger.info("\n---time-series mean_fish_speed_sec ---\n")
+    banner_sub("TIME-SERIES - MEAN_FISH_SPEED_SEC")
     logger.info(mean_fish_speed.to_string())
     logger.info(type(mean_fish_speed))
 
@@ -133,8 +157,51 @@ def main(parquet_path, pixels_per_cm, calibration_secs):
     plt.title("Individual fish mean swimming over the entire timeframe ")
     path_plot = os.path.join(figure_dir, "fish_speed_mean.png")
     plt.savefig(path_plot, dpi=150, bbox_inches='tight')
-    logger.info("\n---speed histograme saved ----\n")
+    logger.info(f"\n**histogram saved in {figure_dir}**\n")
     plt.close()
+
+   #------------------------
+   # CUMULATIVE DISTANCE SWUM
+   #------------------------
+
+    banner('CUMMULATIVE DISTANCE')
+
+    # calculation of cummulative distance
+
+    df['cum_distance']= df.groupby('fish_id')['distance'].cumsum() # distance was already calculated when caclulating speed
+
+    banner_sub("DATAFRAME - COLUMN WITH CUM_DISTANCE")
+    logger.info(df.head().to_string())
+    logger.info(df.tail().to_string())
+    banner_sub("FISH_ID, TIMESTAM, CUM_DISTANCE")
+    logger.info(df[['fish_id', 'timestamp', 'cum_distance']].tail().to_string())
+    total_distance_per_fish = df.groupby('fish_id')['cum_distance'].max()
+    banner_sub("TOTAL DISTANCE SWUM PER FISH (CM)")
+    logger.info(total_distance_per_fish.to_string())
+
+    # plot cummulative distance
+
+    plt.figure(figsize=(14,6))
+    plt.bar(total_distance_per_fish.index, total_distance_per_fish.values)
+    plt.xticks(total_distance_per_fish.index)
+    plt.xlabel("fish_id")
+    plt.ylabel("total distance swum(cm)")
+    plt.title("Total distance swum by individual fish during the 120 seconds video lenght")
+    path_plot = os.path.join(figure_dir, "fish_total_distance.png")
+    plt.savefig(path_plot, dpi=150, bbox_inches='tight')
+    logger.info(f"\n**histogram saved in {figure_dir}**\n")
+    plt.close()
+
+    #------------------------
+    # BOTTOM DWELLING AND DEPTH PROFILE
+    #----------------------
+    banner('DEPTH PROFILE ACROSS THE TANK')
+
+    # bin x into pixel 
+
+    
+
+
 
 
 #-------------------
