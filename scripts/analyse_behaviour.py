@@ -49,14 +49,16 @@ def grab_video_name(video_name):
     tank_width_px = video_cfg['tank_width_px']
     tank_width_cm = video_cfg['tank_width_cm']
     calibration_secs = video_cfg['calibration_secs']
+    surface_y_px = video_cfg['surface_y_px']
+    bottom_y_px = video_cfg['bottom_y_px']
     pixels_per_cm = tank_width_px / tank_width_cm
     banner('LOADING CONFIGURATION')
-    logger.info(f'loaded cfg: video_cfg = {video_cfg}, tank_width_px = {tank_width_px}, tank_width_cm = {tank_width_cm},  pixels_per_cm = {pixels_per_cm}, calibration_secs = {calibration_secs}')
-    return parquet_path, pixels_per_cm, calibration_secs
+    logger.info(f'loaded cfg: video_cfg = {video_cfg}, tank_width_px = {tank_width_px}, tank_width_cm = {tank_width_cm},  pixels_per_cm = {pixels_per_cm}, calibration_secs = {calibration_secs}, surface_y_px = {surface_y_px}, bottom_y_px = {bottom_y_px}')
+    return parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_px
 
 # MAIN FUNCTION
 
-def main(parquet_path, pixels_per_cm, calibration_secs):
+def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_px):
     """calculate ruled based behaviour"""
 
     #---------
@@ -74,7 +76,7 @@ def main(parquet_path, pixels_per_cm, calibration_secs):
 
     # calbirate depth to cm (sqauare pixels)
     df['y_cm'] = df['y'] / pixels_per_cm  # to calculate depth profiles in cm
-
+    df['depth_pct'] = (df['y'] - surface_y_px) / (bottom_y_px - surface_y_px) * 100 # percentage depth of the fish ->  how far the fish is below the surface, divided by how far the bottom is below the surface, times 100."
     # logger parquet
 
     banner_sub('DATAFRAME - HEAD')
@@ -197,12 +199,35 @@ def main(parquet_path, pixels_per_cm, calibration_secs):
     #----------------------
     banner('DEPTH PROFILE ACROSS THE TANK')
 
-    # bin x into pixel 
+    # bin x pixels in full numbers 
 
-    
+    bin_width = 100
+    df['x_bin'] = np.floor(df['x'])
+    depth_profile_all = df.groupby('x_bin')['depth_pct'].mean()
+    overall_mean_depth = df['depth_pct'].mean()
+
+    banner_sub("DEPTH PROFILE (mean percentage depth per x_colum, all fish, in cm")    
+    logger.info(depth_profile_all.head().to_string())
+    logger.info(f"overall mean depth is {overall_mean_depth}")
+
+    # plot
+
+    plt.figure(figsize=(14, 6))
+    plt.plot(depth_profile_all.index, depth_profile_all.values, label='mean depth across all fish')
+    plt.axhline(overall_mean_depth, color='red', linestyle='--',
+                label=f'overall mean ({overall_mean_depth:.1f} %)')
+    plt.gca().invert_yaxis()
+    plt.xlabel("horizontal position (x, pixels)")
+    plt.ylabel("mean depth (% of water colunm, 0 = surface, 100 = substrate)")
+    plt.title("Tank depth profile (all fish, % of water column)")
+    plt.legend()
+    path_plot = os.path.join(figure_dir, "depth_profile_all_fish.png")
 
 
 
+    plt.savefig(path_plot, dpi=150, bbox_inches='tight')
+    logger.info(f"\n**% depth profile saved in {figure_dir}**\n")
+    plt.close()
 
 #-------------------
 # ENTRY POINT/GUARD
@@ -214,8 +239,8 @@ if __name__ == "__main__":
                         default="IMG_2349",
                         help="path to video configuration in config.yaml")
     args = parser.parse_args() # method from object - read the command line and catch result (arguments typed in by user)
-    parquet_path, pixels_per_cm, calibration_secs = grab_video_name(args.video_name)
-    main(parquet_path, pixels_per_cm, calibration_secs)
+    parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_px = grab_video_name(args.video_name)
+    main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_px)
 
  
 
