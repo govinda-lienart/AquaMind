@@ -194,40 +194,6 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     logger.info(f"\n**histogram saved in {figure_dir}**\n")
     plt.close()
 
-    #------------------------
-    # BOTTOM DWELLING AND DEPTH PROFILE
-    #----------------------
-    banner('DEPTH PROFILE ACROSS THE TANK')
-
-    # bin x pixels in full numbers 
-
-    bin_width = 100
-    df['x_bin'] = np.floor(df['x'])
-    depth_profile_all = df.groupby('x_bin')['depth_pct'].mean()
-    overall_mean_depth = df['depth_pct'].mean()
-
-    banner_sub("DEPTH PROFILE (mean percentage depth per x_colum, all fish, in cm")    
-    logger.info(depth_profile_all.head().to_string())
-    logger.info(f"overall mean depth is {overall_mean_depth}")
-
-    # plot
-
-    plt.figure(figsize=(14, 6))
-    plt.plot(depth_profile_all.index, depth_profile_all.values, label='mean depth across all fish')
-    plt.axhline(overall_mean_depth, color='red', linestyle='--',
-                label=f'overall mean ({overall_mean_depth:.1f} %)')
-    plt.gca().invert_yaxis()
-    plt.xlabel("horizontal position (x, pixels)")
-    plt.ylabel("mean depth (% of water colunm, 0 = surface, 100 = substrate)")
-    plt.title("Tank depth profile (all fish, % of water column)")
-    plt.legend()
-    path_plot = os.path.join(figure_dir, "depth_profile_all_fish.png")
-
-
-
-    plt.savefig(path_plot, dpi=150, bbox_inches='tight')
-    logger.info(f"\n**% depth profile saved in {figure_dir}**\n")
-    plt.close()
 
 #-------------------
 # ENTRY POINT/GUARD
