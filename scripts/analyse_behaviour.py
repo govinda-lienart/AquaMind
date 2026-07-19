@@ -198,7 +198,16 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     #-------------------
     # Zone Occupancy
     #-------------------
+    banner("ZONE OCCUPANCY")
+    df['zone'] = pd.cut(df['depth_pct'], # cut accepts array
+                bins = np.linspace(0,100, 4), # cut in 4 pieces and returns a numpy array  [0, 33.3, 66.7, 100] # bins tells pandas a list of edges/intervalss...cut will cut a range at those points
+                labels=['top', 'middle', 'bottom'], # the order is important here ....first inner band 0->33.3 is top, 33.3 -> 66.7 is middle, and 66.7 to 100 is bottom
+                include_lowest=True) # include 0 to be able to deal with Nan of first value
 
+    banner_sub("return of np.linspace(0,100, 4)")
+    logger.info(np.linspace(0,100,4))
+    banner_sub("df zone")
+    logger.info(df.head().to_string())             
 
 #-------------------
 # ENTRY POINT/GUARD
