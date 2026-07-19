@@ -101,7 +101,7 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
 
     # sort df on fish id and frames
     df = df.sort_values(['fish_id', 'frame_number'])
-    banner('DATAFRAME - SORTED BY FISH_ID AND FRAMENUMBER') 
+    banner_sub('DATAFRAME - SORTED BY FISH_ID AND FRAMENUMBER') 
     logger.info(df.head().to_string())
 
     # sort fish in groups by fish id - and calclate distance swom across x and y as
@@ -198,7 +198,10 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     #-------------------
     # Zone Occupancy
     #-------------------
-    banner("ZONE OCCUPANCY")
+    banner("ZONE OCCUPANCY") 
+    
+    # splittig the data in 3 depth zones in the tank
+
     df['zone'] = pd.cut(df['depth_pct'], # cut accepts array
                 bins = np.linspace(0,100, 4), # cut in 4 pieces and returns a numpy array  [0, 33.3, 66.7, 100] # bins tells pandas a list of edges/intervalss...cut will cut a range at those points
                 labels=['top', 'middle', 'bottom'], # the order is important here ....first inner band 0->33.3 is top, 33.3 -> 66.7 is middle, and 66.7 to 100 is bottom
@@ -208,6 +211,20 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     logger.info(np.linspace(0,100,4))
     banner_sub("df zone")
     logger.info(df.head().to_string())             
+
+    # frequncy counts per zone across all fish
+
+    frequency_table = df['zone'].value_counts().sort_index() # sort index presents the data with top, middle , bottom instrad of by values bottom, middle, top
+    frequency_pct_table = df['zone'].value_counts(normalize=True).sort_index() # that will give a percentage...like for 15622 bottom/28800 total = 54 percent
+    banner_sub("frequency_values")
+    logger.info(frequency_table.to_string())   
+    banner_sub("frequency_values_percentage")
+    logger.info(frequency_pct_table.to_string())          
+
+    # frequncy counts per zone per fish_id
+    zone_by_fish = df.groupby('fish_id')['zone'].value_counts(normalize=True)
+    banner_sub("ZoONE FRACTIONS - PER FISH (raw)")
+    logger.info(zone_by_fish)
 
 #-------------------
 # ENTRY POINT/GUARD
