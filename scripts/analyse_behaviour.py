@@ -195,6 +195,11 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     plt.close()
 
 
+    #-------------------
+    # Zone Occupancy
+    #-------------------
+
+
 #-------------------
 # ENTRY POINT/GUARD
 #-------------------
