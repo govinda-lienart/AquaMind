@@ -224,7 +224,18 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     # frequncy counts per zone per fish_id
     zone_by_fish = df.groupby('fish_id')['zone'].value_counts(normalize=True)
     banner_sub("ZoONE FRACTIONS - PER FISH (raw)")
-    logger.info(zone_by_fish)
+    logger.info(zone_by_fish.to_string())
+
+
+    # plotting occupancy
+    unstack_frequency_table = zone_by_fish.unstack() # i need to unstack the rows and create a table
+    
+    banner_sub("unstack frequency table")
+    logger.info(unstack_frequency_table.to_string())   
+
+    unstack_frequency_table.loc['all'] = frequency_pct_table # append pooled row --> 5 rows #  When you assign a Series into a row with .loc, pandas matches the Series' index against the table's column names and drops each value into the right slot.
+    banner_sub("unstack frequency table for each fish_id and accross all fish (loc)")
+    logger.info(unstack_frequency_table.to_string())   
 
 #-------------------
 # ENTRY POINT/GUARD
