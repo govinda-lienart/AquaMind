@@ -13,6 +13,7 @@ import os
 import datetime
 from typing import Any
 import yaml
+from mysql.connector.connection import MySQLConnection
 
 from scripts.db import get_connection, get_frame_id, get_video_id
 

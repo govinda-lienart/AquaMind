@@ -11,7 +11,6 @@ config:
 backup-db:
 	docker exec cont-aquamind-sql mysqldump -u root -paquamind aquamind > mysql_backup/aquamind_$$(date +%Y%m%d_%H%M).sql
 
-
 # ══════════════════════════════════════════════════════════════════════════════
 # STAGE 1 — DATA INGESTION
 # Register videos in MySQL, then extract frames at 1fps
@@ -24,7 +23,6 @@ sync-videos:
 # Extract 1 frame per second from video → save JPGs → store paths in MySQL frames table
 extract-frames:
 	python -m scripts.extract_frames
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STAGE 2 — ANNOTATION (LabelStudio)
@@ -70,7 +68,6 @@ push-dataset:
 	git add dataset.yaml dataset.dvc
 	git commit -m "update dataset: $$(date +%Y-%m-%d)" || true
 	git push
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STAGE 4 — TRAINING (Kaggle)
@@ -132,7 +129,6 @@ ml-backend:
 
 test:
 	pytest -v
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # BACK UP ALL

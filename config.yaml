@@ -9,13 +9,13 @@ extract_frames:
 
 # download_labelstudio_script
 download_labelstudio:
-  project_name: AquaMind_hard_mining_IMG_0350    # Label Studio project name
+  project_name: crossing_IMG_2349_hard_mining    # Label Studio project name
   min_task_id:                           # leave empty for no lower limit
   max_task_id:                            # leave empty for no upper limit
   mode: export                           # export or search
   search_term: frame_2220                # used only when mode = search
   export_labels: true                    # download YOLO .txt label files into labels/ folder
-  export_images: true                    # download source images into images/ folder
+  export_images: frames_folder                    # download source images into images/ folder
 
 # upload_labelstudio_script - hard negative mining - upload crossing frames to LabelStudio
 upload_labelstudio:
@@ -24,19 +24,21 @@ upload_labelstudio:
 
 # store_annotations_script
 store_annotations:
-  labels_path: labelstudio_download/labelstudio_IMG_0764_25062026_14h00/labels
-  frames_folder: frames/frames_IMG_0764_20260624_1635
-  video_name: IMG_0764
-  notes:
+  labels_path: labelstudio_download/labelstudio_IMG_2349_hard_mining_20072026_10h51/labels
+  frames_folder: frames/crossing_frames_IMG_2349_20260720_09h50
+  video_name: IMG_2349
+  frame_source: crossing_event   # regular | crossing_event (the frames folder's sidecar overrides this)
+  notes: hard negative mining — 73 crossing frames, YOLO pre-labeled + manually corrected
 
 # prepare_dataset_script
 prepare_dataset:
-  dataset_name: dataset_ann_3r_4r_5r_8c_2026_06_30_2111
+  dataset_name: dataset_ann_5r_8c_9r_10r_11c_2026_06_20_1107
   annotation_set_ids:   # integer IDs from annotation_sets table — run store_annotations.py first
-    - 3
-    - 4
     - 5
     - 8
+    - 9
+    - 10
+    - 11
 
 # log_artifact_mlflow_script
 log_artifact_mlflow:
