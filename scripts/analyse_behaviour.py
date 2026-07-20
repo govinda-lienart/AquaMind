@@ -194,6 +194,59 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     logger.info(f"\n**histogram saved in {figure_dir}**\n")
     plt.close()
 
+     
+    #------------------------
+    # BOTTOM DWELLING AND DEPTH PROFILE
+    #----------------------
+    banner('DEPTH PROFILE ACROSS THE TANK')
+
+    # binning
+
+    bin_width = 100
+    df['x_bin'] = np.floor(df['x'] / bin_width) * bin_width  # (e.g Position 1010: I divide by 100, so it's at position 10.10. I floor it, so now it's 10. Then I multiply, and it belongs to the 1000 bin.)
+    depth_profile_all = df.groupby('x_bin')['depth_pct'].mean()
+    overall_mean_depth = df['depth_pct'].mean()
+    bin_counts = df.groupby('x_bin').size()
+    banner_sub("DEPTH PROFILE (mean percentage depth per x_colum, all fish, in cm")    
+    logger.info(depth_profile_all.head().to_string())
+    logger.info(f"overall mean depth is {overall_mean_depth}")
+    banner_sub("bin counts")    
+    logger.info(bin_counts.to_string())
+
+    # 2 subplots (percentage depth + frequency for each bin)
+
+     # plot
+    fig, (ax_top, ax_bottom) = plt.subplots(
+        2, 1, sharex=True, figsize=(14, 8),
+        gridspec_kw={'height_ratios': [3, 1]}   # depth panel 3x taller than counts
+    )
+
+    # top panel - depth profile
+    
+    counts, xedges, yedges, mesh = ax_top.hist2d(
+        df['x'], df['depth_pct'], bins=[17, 20], cmap='viridis')
+    ax_top.plot(depth_profile_all.index, depth_profile_all.values,
+                color='white', linewidth=2,
+                label='mean depth per bin (all fish pooled)')
+    ax_top.axhline(overall_mean_depth, color='red', linestyle='--',
+                   label=f'overall mean ({overall_mean_depth:.1f} %)')
+    ax_top.invert_yaxis()   # 0 (surface) at top, 100 (gravel) at bottom - matches the real tank
+    ax_top.set_ylabel("depth (% of water column,\n0 = surface, 100 = substrate)")
+    ax_top.set_title("Tank depth profile and occupancy (all fish, % of water column)")
+    ax_top.legend()
+    fig.colorbar(mesh, ax=[ax_top, ax_bottom], label='frames per cell')
+
+    # bottom panel - how many frames sit behind each bin to have understanding of frequency across the width of the tank
+    ax_bottom.bar(bin_counts.index, bin_counts.values,
+                  width=bin_width * 0.9, color='grey')
+    ax_bottom.set_ylabel("frames")
+    ax_bottom.set_xlabel("horizontal position (x, pixels)")
+
+    path_plot = os.path.join(figure_dir, "depth_profile_all_fish.png")
+    fig.savefig(path_plot, dpi=150, bbox_inches='tight')
+    logger.info(f"\n**depth profile saved in {figure_dir}**\n")
+    plt.close(fig)
+
 
     #-------------------
     # Zone Occupancy
@@ -226,9 +279,8 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     banner_sub("ZoONE FRACTIONS - PER FISH (raw)")
     logger.info(zone_by_fish.to_string())
 
-
-    # plotting occupancy
-    unstack_frequency_table = zone_by_fish.unstack() # i need to unstack the rows and create a table
+    # stacking to ease the plotting
+    unstack_frequency_table = zone_by_fish.unstack() # i need to unstack the rows and create a table # take a level of the index and pivot it into columns - series to frame # data gets wider, index shorter good for plotting but stack() data gets taller, index longer, food for storing and grouping
     
     banner_sub("unstack frequency table")
     logger.info(unstack_frequency_table.to_string())   
@@ -236,6 +288,132 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     unstack_frequency_table.loc['all'] = frequency_pct_table # append pooled row --> 5 rows #  When you assign a Series into a row with .loc, pandas matches the Series' index against the table's column names and drops each value into the right slot.
     banner_sub("unstack frequency table for each fish_id and accross all fish (loc)")
     logger.info(unstack_frequency_table.to_string())   
+
+    # plotting 
+
+    unstack_frequency_table[['bottom', 'middle', 'top']].plot(
+        kind='bar', stacked=True, figsize=(8, 5),
+        color=['#1f4e79', '#4d94c4', '#7fc7ff'])
+    plt.ylabel("fraction of time('frame)")
+    plt.xlabel("fish id")
+    plt.title('Vertical zone occupancy per fish')
+    plt.xticks(rotation=0)
+    plt.legend(title='zone', loc='upper left', bbox_to_anchor=(1.02, 1)) # 1.02 is just past the right-hand edge, and 1 is level with the top / loc = park the legend's top-left corner just outside the plot's right edge
+    path_plot = os.path.join(figure_dir, "zone_occupancy_per_fish.png")
+    plt.savefig(path_plot, dpi=150, bbox_inches='tight') # tight crop the whitespace around the figure to fit the actual content. 
+    logger.info(f"\n**zone occupancy saved in {figure_dir}**\n")
+    plt.close()
+
+    #-------------------
+    # DEPTH OVER TIME
+    #-------------------
+    banner("DEPTH OVER TIME")
+
+    seconds = df['timestamp'].astype(int)  # round down to whole seconds
+
+    # one column per fish, one row per second
+    depth_per_sec = (df.groupby(['fish_id', seconds])['depth_pct']
+                       .mean()
+                       .unstack(level=0))
+
+    # group summary that survives averaging: share of fish in the bottom third
+    # each second (0 = none, 1 = all). a mean of depths would invent a
+    # mid-water position no fish actually occupies
+    frac_bottom = df.groupby(seconds)['depth_pct'].apply(lambda s: (s > 66.7).mean())
+
+    # how much of each second is Kalman prediction rather than real detection
+    occluded_share = df.groupby(seconds)['occluded'].mean()
+
+    banner_sub("DEPTH PER SECOND PER FISH")
+    logger.info(depth_per_sec.head().to_string())
+
+    fig, (ax_top, ax_bottom) = plt.subplots(
+        2, 1, sharex=True, figsize=(14, 8),
+        gridspec_kw={'height_ratios': [3, 1]})
+
+    # top - each fish's own depth trace
+    depth_per_sec.plot(ax=ax_top, linewidth=1.2)
+    ax_top.axhline(66.7, color='grey', linestyle='--', label='bottom-third boundary')
+    ax_top.axhline(33.3, color='grey', linestyle=':', label='top-third boundary')
+    ax_top.set_ylim(100, 0)
+    ax_top.set_ylabel("depth (% of water column,\n0 = surface, 100 = substrate)")
+    ax_top.set_title("Depth over time per fish")
+    ax_top.legend(title='fish id', loc='upper left', bbox_to_anchor=(1.02, 1))
+
+    # bottom - group summary + how much of it rests on predicted positions
+    ax_bottom.fill_between(frac_bottom.index, frac_bottom.values,
+                           color='#1f4e79', alpha=0.6, label='share in bottom third')
+    ax_bottom.plot(occluded_share.index, occluded_share.values,
+                   color='orange', linewidth=1, label='share occluded')
+    ax_bottom.set_ylim(0, 1)
+    ax_bottom.set_ylabel("share of fish")
+    ax_bottom.set_xlabel("time (seconds)")
+    ax_bottom.legend(loc='upper left', bbox_to_anchor=(1.02, 1))
+
+    path_plot = os.path.join(figure_dir, "depth_over_time_per_fish.png")
+    fig.savefig(path_plot, dpi=150, bbox_inches='tight')
+    logger.info(f"\n**depth over time saved in {figure_dir}**\n")
+    plt.close(fig)
+
+    #-------------------
+    # ACTIVITY - GRID LINE CROSSINGS
+    #-------------------
+    banner("ACTIVITY - LINE CROSSINGS")
+
+    grid_cm = 4                              # ~1 adult zebrafish body length - the standard heuristic
+    grid_px = grid_cm * pixels_per_cm        # 4 cm -> ~150 px at this calibration
+    logger.info(f"grid: {grid_cm} cm = {grid_px:.0f} px per cell")
+
+    # which grid cell is each fish in, this frame (same floor-divide trick as x_bin)
+    df['cell_x'] = np.floor(df['x'] / grid_px)
+    df['cell_y'] = np.floor(df['y'] / grid_px)
+
+    # how many grid LINES were crossed between this frame and the last, per fish.
+    # abs() of the cell change counts each boundary: a diagonal move that changes
+    # both cell_x and cell_y crosses 2 lines, and a fast move spanning 3 cells counts 3
+    grouped_fish = df.groupby('fish_id')
+    df['lines_crossed'] = (grouped_fish['cell_x'].diff().abs().fillna(0)
+                         + grouped_fish['cell_y'].diff().abs().fillna(0))
+
+    # total per fish = the activity score
+    crossings_per_fish = df.groupby('fish_id')['lines_crossed'].sum()
+
+    # rate, so sessions of different length stay comparable
+    session_secs = df['timestamp'].max() - df['timestamp'].min()
+    crossings_per_min = crossings_per_fish / session_secs * 60
+
+    banner_sub("LINE CROSSINGS PER FISH")
+    logger.info(crossings_per_fish.to_string())
+    banner_sub("LINE CROSSINGS PER MINUTE")
+    logger.info(crossings_per_min.to_string())
+
+    # per second, for the time course
+    crossings_per_sec = (df.groupby(['fish_id', 'second'])['lines_crossed']
+                           .sum()
+                           .unstack(level=0))
+
+    fig, (ax_top, ax_bottom) = plt.subplots(
+        2, 1, figsize=(14, 8), gridspec_kw={'height_ratios': [1, 2]})
+
+    # total activity score per fish
+    crossings_per_min.plot(kind='bar', ax=ax_top, color='#4d94c4')
+    ax_top.set_ylabel("lines crossed\nper minute")
+    ax_top.set_xlabel("fish id")
+    ax_top.set_title(f"Activity - grid line crossings ({grid_cm} cm grid)")
+    ax_top.tick_params(axis='x', rotation=0)
+
+    # time course - this is where a pre/post stimulus drop would show up
+    crossings_per_sec.plot(ax=ax_bottom, linewidth=1.2)
+    ax_bottom.set_ylabel("lines crossed per second")
+    ax_bottom.set_xlabel("time (seconds)")
+    ax_bottom.legend(title='fish id', loc='upper left', bbox_to_anchor=(1.02, 1))
+
+    path_plot = os.path.join(figure_dir, "activity_line_crossings.png")
+    fig.savefig(path_plot, dpi=150, bbox_inches='tight')
+    logger.info(f"\n**line crossings saved in {figure_dir}**\n")
+    plt.close(fig)
+
+
 
 #-------------------
 # ENTRY POINT/GUARD

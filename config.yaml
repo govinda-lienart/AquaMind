@@ -17,10 +17,10 @@ download_labelstudio:
   export_labels: true                    # download YOLO .txt label files into labels/ folder
   export_images: true                    # download source images into images/ folder
 
-# import_labelstudio_script - hard negative mining - import files into labestudio
+# upload_labelstudio_script - hard negative mining - upload crossing frames to LabelStudio
 upload_labelstudio:
-  project_name: test_project_IMG_0350
-  frames_dir: frames/frames_IMG_0350_20260624_1641  # leave empty to auto-detect latest crossing_frames folder
+  project_name: crossing_IMG_2349
+  frames_dir: frames/crossing_frames_IMG_2349_20260720_09h50   
 
 # store_annotations_script
 store_annotations:
@@ -71,24 +71,12 @@ analyse_behaviour:
       surface_y_px: 273    # front-waterline y in video pixels (depth 0%); measured with throwaway/pixel_measure.py
       bottom_y_px: 971     # tank-bottom y in video pixels (depth 100%); measured with throwaway/pixel_measure.py
       calibration_secs: 10 # skip tracker warm-up window (matches fish_tracker confi
-  
-
-
-
-
-
-
-
-
-
-
-
 
 #_______________________________________________________
 # extract_crossing_frames_script - hard negative mining
 extract_crossing_frames:
-  log_path:       logs/tracker_2026_06_17_1252_IMG_0350_0764_0909_0350HM_track_14_03.log
-  video_path:     videos/IMG_0350.MOV
+  video_path: videos/IMG_2349.MOV
+  log_path:       output_fish_tracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1853/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1853.log
   output_dir:     frames/crossing_frames
   iou_threshold:  0.4   # minimum IoU to count as a crossing event (0=any overlap, 1=full overlap)
   dedup_window:   5     # minimum frames between two crossing events to treat them as separate

@@ -31,6 +31,11 @@ extract-frames:
 # Import frames, label in LabelStudio, export annotations
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Start the LabelStudio container and open the web app
+labelstudio:
+	docker start stoic_blackwell
+	open http://localhost:8080
+
 # Back up all LabelStudio projects as JSON to a dated folder in labelstudio_backup/
 backup-labelstudio:
 	python -m scripts.backup_labelstudio
@@ -94,8 +99,6 @@ log-mlflow:
 run-mlflow:
 	mlflow ui --backend-store-uri mlruns/ --port 5002
 
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # STAGE 5 — TRACKING
 # Run the custom Kalman tracker on video using the trained YOLO model
@@ -105,7 +108,6 @@ run-mlflow:
 # Logs Overlap detected / Crossing started events to logs/ automatically
 track:
 	python -m scripts.fish_tracker
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STAGE 6 — HARD NEGATIVE MINING (Active Learning)
@@ -123,7 +125,6 @@ extract-crossings:
 # Connect via: LabelStudio → Settings → Machine Learning → http://host.docker.internal:9090
 ml-backend:
 	python -m scripts.ml_backend
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TESTS
@@ -164,6 +165,7 @@ help:
 	@echo "  make extract-frames       Extract 1fps frames → MySQL"
 	@echo ""
 	@echo "  STAGE 2 — Annotation"
+	@echo "  make labelstudio          Start LabelStudio + open in browser"
 	@echo "  make backup-labelstudio   Back up all LS projects as JSON"
 	@echo "  make upload-labelstudio   Create LS project + upload frames"
 	@echo "  make download-labelstudio Download annotations from LabelStudio"
@@ -191,4 +193,6 @@ help:
 	@echo "  make test                 Run all tests"
 	@echo "  make config               Open config.yaml"
 	@echo "  make backup-db            Dump MySQL to mysql_backup/"
+	@echo "  make backup_rclone        Sync whole project to rclone remote"
+	@echo "  make help                 Show this list"
 	@echo ""

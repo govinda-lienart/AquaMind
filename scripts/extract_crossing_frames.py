@@ -1,3 +1,11 @@
+"""Extract fish-crossing frames (the tracker's hard cases) for re-labeling.
+
+In:  tracker log + video (config: `extract_crossing_frames:` in config.yaml)
+Out: one .jpg per high-IoU overlap event + extraction_params.yaml sidecar,
+     frames registered in MySQL, ready to import into LabelStudio.
+     
+"""
+
 import os
 import re
 from datetime import datetime

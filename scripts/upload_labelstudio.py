@@ -18,6 +18,8 @@ from dotenv import load_dotenv
 
 CONFIG_PATH = 'config.yaml' #  project_name · frames_dir
 
+PROGRESS_EVERY = 10  # print upload progress every N images
+
 LABEL_CONFIG = """
 <View>
   <Image name="image" value="$image" zoom="true"/>
@@ -45,11 +47,11 @@ if not LS_TOKEN:
 def load_config():
     with open(CONFIG_PATH) as f:
         cfg = yaml.safe_load(f)
-    c  = cfg['import_labelstudio']
+    c  = cfg['upload_labelstudio']
     ts = datetime.now().strftime('%Y%m%d_%Hh%M')
     frames_dir = c.get('frames_dir')
     if not frames_dir:
-        raise ValueError("frames_dir must be set in config.yaml under import_labelstudio")
+        raise ValueError("frames_dir must be set in config.yaml under upload_labelstudio")
     return {
         'project_name': f"{c['project_name']}_{ts}",
         'frames_dir':   frames_dir,
