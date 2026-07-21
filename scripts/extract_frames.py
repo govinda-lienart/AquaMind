@@ -3,7 +3,7 @@ Extracts/stores one frame per second from a video and stores the frame paths in 
 
 Input  : video file registered in the videos table (run sync_videos.py first)
 Output : PNG files on disk + rows inserted into the frames table
-Guards : unique constraint (no duplicates), video must be registered, skips if already extracted
+Guards : unique constrain5t (no duplicates), video must be registered, skips if already extracted
 """
 
 # ── IMPORTS ───────────────────────────────────────────────────────────────────

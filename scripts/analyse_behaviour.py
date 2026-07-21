@@ -1,7 +1,5 @@
 # IMPORTS
 
-from turtle import distance
-from click import group
 from matplotlib import legend
 import pandas as pd
 import argparse
@@ -21,17 +19,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger=logging.getLogger(__name__)
 
-# BANNER
-
-def banner(title):
-    """print a loud section header to the console so the flow is easy to follow"""
-    logger.info("\n" + "═" * 78)
-    logger.info(f"  {title}")
-    logger.info("═" * 78 + "\n") 
-
-def banner_sub(title):
-    """prints description of subdivistion"""
-    logger.info(f"\n--- {title} ---\n")
+from scripts.console import banner, banner_sub # improves layout when printing in the console
 
 # CONFIG
 

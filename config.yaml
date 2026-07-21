@@ -32,7 +32,7 @@ store_annotations:
 
 # prepare_dataset_script
 prepare_dataset:
-  dataset_name: dataset_ann_5r_8c_9r_10r_11c_2026_06_20_1107
+  dataset_name: dataset_ann_5r_8c_9r_10r_11c_2026_07_20_1107
   annotation_set_ids:   # integer IDs from annotation_sets table — run store_annotations.py first
     - 5
     - 8
@@ -42,16 +42,16 @@ prepare_dataset:
 
 # log_artifact_mlflow_script
 log_artifact_mlflow:
-  run_path: runs/aquamind_yolov8_run_an_3r_4r_5r_8c_2026_06_20_2121_20260630_1434
+  run_path: runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440
   # dataset: it reads the dataset listed in prepare dataset to pull the sidecar metadata from this dataset 
 
 # fish_tracker_script
 fish_tracker:
   input_video_path:  videos/IMG_2349.MOV
-  model_path:        runs/aquamind_yolov8_run_an_3r_4r_5r_8c_2026_06_20_2121_20260630_1434/weights/best.pt
-  output_video_path: output_fish_tracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1853.mp4
+  model_path:        runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440/weights/best.pt
+  output_video_path: output_fish_tracker/stage5_tracker_IMG_2349__ann_5r_8c_9r_10r_11c_2026_07_20_1107.mp4
   start_seconds:     0    # start video
-  end_seconds:       130 # end video choose'null' for the whole video
+  end_seconds:       null # end video choose'null' for the whole video
   num_fish:          4
   calibration_secs:  10    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match
@@ -61,8 +61,7 @@ fish_tracker:
   trail_length:      300   # e.g. 150 = keep last 150 frames of trail per fish; null = keep the entire video's trail (in-memory only, never saved to disk)
   show_frame_number: true # # burn the frame number onto the video - I need to set to false to disable
 
-
-# analyse_behaviour_script
+# analyse_behaviour_script and analyse_chasing_script
 analyse_behaviour:
   video: IMG_2349
   videos:
@@ -73,6 +72,14 @@ analyse_behaviour:
       surface_y_px: 273    # front-waterline y in video pixels (depth 0%); measured with throwaway/pixel_measure.py
       bottom_y_px: 971     # tank-bottom y in video pixels (depth 100%); measured with throwaway/pixel_measure.py
       calibration_secs: 10 # skip tracker warm-up window (matches fish_tracker confi
+    IMG_2349_7min: 
+        parquet_path: output_fish_tracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1853/tracks.parquet
+        tank_width_px: 1815
+        tank_width_cm: 48.5  # inner wall to inner wall, remeasured 2026-07-19 (was wrongly 35)
+        surface_y_px: 273    # front-waterline y in video pixels (depth 0%); measured with throwaway/pixel_measure.py
+        bottom_y_px: 971     # tank-bottom y in video pixels (depth 100%); measured with throwaway/pixel_measure.py
+        calibration_secs: 10 # skip tracker warm-up window (matches fish_tracker config
+    
 
 #_______________________________________________________
 # extract_crossing_frames_script - hard negative mining
