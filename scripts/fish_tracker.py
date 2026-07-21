@@ -213,6 +213,7 @@ class ZebrafishTracker:
         self.max_distance    = max_distance
         self.confirm_hits    = confirm_hits
         self.max_missing     = max_missing
+        self.reacquire_tau   = 15   # re-acquire radius grows by one max_distance every 15 missing frames
         self.show_trail      = show_trail
         self.trail_length    = trail_length
         self.confirmed            = {}    # tid → KalmanTrack
@@ -301,6 +302,40 @@ class ZebrafishTracker:
                 matched_conf.add(tid)
                 matched_dets.add(ci)
 
+            # ── step 2.5: re-acquire drifted ghosts with leftover detections ──
+            # A confirmed track step 2 couldn't match is a ghost: its Kalman centre
+            # has drifted, so the tight max_distance gate can't re-grab the fish once
+            # it moved. Reunite unmatched confirmed tracks with unmatched detections
+            # using a radius that WIDENS with missing_frames — a fish lost for a while
+            # is reclaimed wherever it reappears, so it never swims untagged. Detections
+            # are class-0 fish only, so a leftover detection is almost certainly a real,
+            # currently-untagged fish.
+            ghosts   = [tid for tid in conf_ids if tid not in matched_conf]
+            leftover = [i for i in range(len(detections)) if i not in matched_dets]
+            if ghosts and leftover:
+                g_anchor = np.array([self.confirmed[tid].predicted_centre for tid in ghosts])
+                l_pos    = det_positions[leftover]
+                cost     = np.linalg.norm(g_anchor[:, np.newaxis] - l_pos[np.newaxis, :], axis=2)
+                gr, gc   = linear_sum_assignment(cost)
+                for ri, ci in zip(gr, gc):
+                    tid     = ghosts[ri]
+                    missing = self.confirmed[tid].missing_frames
+                    gate    = min(self.max_distance * (1 + missing / self.reacquire_tau),
+                                  self.max_distance * 10)
+                    if cost[ri, ci] > gate:
+                        continue
+                    di = leftover[ci]
+                    x, y, bbox, conf = detections[di]
+                    self.confirmed[tid].update(x, y, bbox, conf)
+                    self._update_history(tid, bbox)
+                    self._update_trail(tid, bbox)
+                    logger.info(json.dumps({"event": "occlusion_recovery", "fish_ids": str(tid),
+                                            "decision": "reacquired", "frame": self._frame_count,
+                                            "missing_frames": missing}))
+                    matched_conf.add(tid)
+                    matched_dets.add(di)
+
+            # any confirmed track still unmatched after re-acquisition → mark missing
             for tid in conf_ids:
                 if tid not in matched_conf:
                     self.confirmed[tid].mark_missing()
@@ -601,10 +636,16 @@ def main():
         
         # -------------------------------------------------------------
 
-        if frame_count == calibration_frames and not tracker.pool_locked:
+        # The calibration window is now just a HINT — keep acquiring until all
+        # num_fish are confirmed (the tracker self-locks in step 6 when it has them).
+        # Fallback: if a fish stays unconfirmable, force the lock after an extended
+        # window so crossing-correction can still engage rather than acquiring forever.
+        if frame_count == calibration_frames:
+            logger.info(f"  Calibration window ended — {len(tracker.confirmed)}/{num_fish} confirmed; still acquiring")
+        if not tracker.pool_locked and frame_count >= calibration_frames * 3:
             tracker.pool_locked = True
             tracker.tentative   = []
-            logger.info(f"  Calibration closed — {len(tracker.confirmed)} fish confirmed")
+            logger.info(f"  Forced pool lock at {len(tracker.confirmed)}/{num_fish} after extended calibration")
 
         # -------------------------------------------------------------
         # COMMIT TO MYSQL
