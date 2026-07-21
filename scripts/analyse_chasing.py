@@ -36,15 +36,20 @@ def grab_video_name(video_name):
     calibration_secs = video_cfg['calibration_secs']
     pixels_per_cm = tank_width_px / tank_width_cm
     banner('LOADING CONFIGURATION')
-    logger.info(f'loaded cfg: video_cfg = {video_cfg}, tank_width_px = {tank_width_px}, tank_width_cm = {tank_width_cm},  pixels_per_cm = {pixels_per_cm}, calibration_secs = {calibration_secs}, surface_y_px = {surface_y_px}, bottom_y_px = {bottom_y_px}')
-    return parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_px
+    logger.info(f'loaded cfg: video_cfg = {video_cfg}, tank_width_px = {tank_width_px}, tank_width_cm = {tank_width_cm},  pixels_per_cm = {pixels_per_cm}, calibration_secs = {calibration_secs}')
+    return parquet_path, pixels_per_cm, calibration_secs
 
 #-------------------
 # MAIN
 #-------------------
 
-def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_px):
+def main(parquet_path, pixels_per_cm, calibration_secs):
     """assessing chasing behaviour"""
+
+    #-------------------
+    # LOADING PARQUET
+    #-------------------
+    banner('LOADING PARQUET DATA')
 
     #pulls parquet data into dataframe
     df = pd.read_parquet(parquet_path)
@@ -62,6 +67,31 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     figure_dir = os.path.join(output_folder, "output_chasing_figures")
     os.makedirs(figure_dir, exist_ok=True)
 
+
+    # ------------------------------------------------------------
+    # PAIRWISE DISTANCE 
+    # — build one row per fish-pair per frame,then measure the gap between the two fish (cm).
+    # - Chasing lives in the gap between two fish, not in one fish.
+    # ------------------------------------------------------------
+
+    banner('PAIRWISE DISTANCE CALCULATION BETWEEN DIFFERENT FISH_ID')
+
+    #  self-merge on frame_number: every fish beside every fish (incl. itself)
+    pairs = df.merge(df, on='frame_number', suffixes=('_a', '_b'))
+    banner_sub('AFTER SELF-MERGE')
+    logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b']].head(16).to_string())
+
+        # "which right rows have frame_number 600?" ->  all four of them
+        # left fish 1 → matches right fish 1, 2, 3, 4
+        # left fish 2 → matches right fish 1, 2, 3, 4
+        # etcetera
+
+
+
+
+
+
+
 #-------------------
 # ENTRY POINT/GUARD
 #-------------------
@@ -71,5 +101,5 @@ if __name__ == '__main__':
     parser.add_argument("--video_name",
                         help="path to video configuration in config.yaml")
     args = parser.parse_args()
-    parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_px = grab_video_name(args.video_name)
+    parquet_path, pixels_per_cm, calibration_secs = grab_video_name(args.video_name)
     main(parquet_path, pixels_per_cm, calibration_secs)
