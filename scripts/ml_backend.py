@@ -45,7 +45,10 @@ def get_model():
     global model
     if model is None:
         with open(CONFIG_PATH) as f:
-            path = yaml.safe_load(f)['fish_tracker']['model_path']
+            cfg = yaml.safe_load(f)
+        # model for self-labeling lives in its own ml_backend block; fall back to
+        # the tracker's model if ml_backend.model_path isn't set, so this never crashes.
+        path = cfg.get('ml_backend', {}).get('model_path') or cfg['fish_tracker']['model_path']
         model = YOLO(path)
         print(f"  Model loaded: {path}")
     return model

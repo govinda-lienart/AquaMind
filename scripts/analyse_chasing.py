@@ -93,7 +93,6 @@ def main(parquet_path, pixels_per_cm, calibration_secs):
     logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b']].head(6).to_string())
 
     # calculating distance between pairs of fish
-    banner_sub('DISTANCE BETWEEN PAIRS OF FISH')
     pairs['distance_cm'] = np.hypot(pairs['x_a'] - pairs['x_b'],
                                 pairs['y_a'] - pairs['y_b']) / pixels_per_cm
 
@@ -101,16 +100,22 @@ def main(parquet_path, pixels_per_cm, calibration_secs):
     banner_sub('CLOSING SPEED')
     pairs['closing_speed'] = pairs.groupby(["fish_id_a", "fish_id_b"])['distance_cm'].diff() # 
     logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm', 'closing_speed']].head(20).to_string())
-    #        frame_number  fish_id_a  fish_id_b  distance_cm  closing_speed
-    # 17           601          1          2     8.648289      -0.029632
-    # 33           602          1          2     8.724420       0.076131       --> it grouped bucket fishpair (1,2) and calcualted between frame difference in distance whic is 8.73 - 8.64 = 0.076 coorect
+        #        frame_number  fish_id_a  fish_id_b  distance_cm  closing_speed
+        # 17           601          1          2     8.648289      -0.029632
+        # 33           602          1          2     8.724420       0.076131       --> it grouped bucket fishpair (1,2) and calcualted between frame difference in distance whic is 8.73 - 8.64 = 0.076 coorect
 
-
-
-
-   
-
-
+    # plotting distance of time 
+        # selecting as test - first with one pair
+    banner_sub('TESTING WITH ONE PAIR')
+    one_pair = pairs[(pairs["fish_id_a"] == 1) & (pairs["fish_id_b"] == 2)]
+    logger.info(one_pair.head())
+        #plotting one pair of fis 1 and 2
+    plt.figure(figsize=(14,4))
+    plt.plot(one_pair['frame_number'], one_pair['distance_cm'])
+    plt.xlabel("frame_number - time")
+    plt.ylabel("pair 1-2 distance over time")
+    plt.savefig(os.path.join(figure_dir, "pair_1_2_distance.png"))
+    plt.close
 
 #-------------------
 # ENTRY POINT/GUARD

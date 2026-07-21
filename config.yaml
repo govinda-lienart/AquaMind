@@ -1,7 +1,7 @@
 
 # extract_frames_script
 extract_frames:
-  video_path:     videos/IMG_0909.MOV # videos/test.MOV
+  video_path:     output_fish_tracker/tracker_IMG_1231__2026_07_21_2055/tracker_IMG_1231__2026_07_21_2055.mp4# videos/test.MOV
   frames_dir:     frames
   sample_rate:    1     # frames per second to extract (1=1fps, 2=2fps, 60=every frame)
   start_seconds:  0     # leave 0 for beginning of video
@@ -9,53 +9,59 @@ extract_frames:
 
 # download_labelstudio_script
 download_labelstudio:
-  project_name: crossing_IMG_2349_hard_mining    # Label Studio project name
+  project_name: crossing_IMG_2349_second_part_hard_mining    # Label Studio project name
   min_task_id:                           # leave empty for no lower limit
   max_task_id:                            # leave empty for no upper limit
   mode: export                           # export or search
   search_term: frame_2220                # used only when mode = search
-  export_labels: true                    # download YOLO .txt label files into labels/ folder
-  export_images: frames_folder                    # download source images into images/ folder
+  export_labels: false                    # download YOLO .txt label files into labels/ folder
+  export_images: true                    # download source images into images/ folder
 
 # upload_labelstudio_script - hard negative mining - upload crossing frames to LabelStudio
 upload_labelstudio:
-  project_name: crossing_IMG_2349
-  frames_dir: frames/crossing_frames_IMG_2349_20260720_09h50   
+  project_name: crossing_IMG_2349_second_part
+  frames_dir: frames/crossing_frames_IMG_2349_20260721_16h30
 
 # store_annotations_script
 store_annotations:
-  labels_path: labelstudio_download/labelstudio_IMG_2349_hard_mining_20072026_10h51/labels
-  frames_folder: frames/crossing_frames_IMG_2349_20260720_09h50
+  labels_path: labelstudio_download/labelstudio_IMG_2349_second_part_hard_mining_21072026_20h39/labels
+  frames_folder: frames/crossing_frames_IMG_2349_20260721_16h30
   video_name: IMG_2349
   frame_source: crossing_event   # regular | crossing_event (the frames folder's sidecar overrides this)
-  notes: hard negative mining — 73 crossing frames, YOLO pre-labeled + manually corrected
+  notes: hard negative mining — 109 crossing frames, YOLO pre-labeled + manually corrected
 
 # prepare_dataset_script
 prepare_dataset:
-  dataset_name: dataset_ann_5r_8c_9r_10r_11c_2026_07_20_1107
+  dataset_name: dataset_ann_5r_8c_9r_10r_11c_14c_2026_07_21_2107
   annotation_set_ids:   # integer IDs from annotation_sets table — run store_annotations.py first
     - 5
     - 8
     - 9
     - 10
     - 11
+    - 14
 
 # log_artifact_mlflow_script
 log_artifact_mlflow:
   run_path: runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440
   # dataset: it reads the dataset listed in prepare dataset to pull the sidecar metadata from this dataset 
 
+# ml_backend_script — YOLO model used by LabelStudio for self-labeling (pre-labeling).
+# Decoupled from fish_tracker on purpose: set whichever model you want to pre-label with here.
+ml_backend:
+  model_path: runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440/weights/best.pt
+
 # fish_tracker_script
 fish_tracker:
-  input_video_path:  videos/IMG_2349.MOV
+  input_video_path:  videos/IMG_1231.MOV
   model_path:        runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440/weights/best.pt
-  output_video_path: output_fish_tracker/stage5_tracker_IMG_2349__ann_5r_8c_9r_10r_11c_2026_07_20_1107.mp4
+  output_video_path: output_fish_tracker/tracker_IMG_1231__2026_07_21_2055.mp4
   start_seconds:     0    # start video
   end_seconds:       null # end video choose'null' for the whole video
-  num_fish:          4
+  num_fish:          7
   calibration_secs:  10    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match
-  confirm_hits:      200   # frames a detection must persist to get a permanent fish ID (~3 sec at 60fps, outlasts reflections)
+  confirm_hits:      90    # frames a detection must persist to get a permanent fish ID (~1.5s at 60fps). Lowered from 200: reflections are class-1 and filtered out before the tracker, so long persistence isn't needed to outlast them; 90 still rejects transient blobs while letting dark-zone fish confirm in time.
   max_missing:       300   # frames a tentative track can disappear before being dropped
   show_trail:        true  # draw each fish's recent path as a colored trail
   trail_length:      300   # e.g. 150 = keep last 150 frames of trail per fish; null = keep the entire video's trail (in-memory only, never saved to disk)
@@ -84,8 +90,9 @@ analyse_behaviour:
 # extract_crossing_frames_script - hard negative mining
 extract_crossing_frames:
   video_path: videos/IMG_2349.MOV
-  log_path:       output_fish_tracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1853/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1853.log
+  log_path:       output_fish_tracker/stage5_tracker_IMG_2349__ann_5r_8c_9r_10r_11c_2026_07_20_1107/stage5_tracker_IMG_2349__ann_5r_8c_9r_10r_11c_2026_07_20_1107.log
   output_dir:     frames/crossing_frames
   iou_threshold:  0.4   # minimum IoU to count as a crossing event (0=any overlap, 1=full overlap)
   dedup_window:   5     # minimum frames between two crossing events to treat them as separate
+  start_frame:    7791  # skip crossings at/below this frame (first ~2 min already labeled from the 2026_07_06 run); set 0 to extract from the start
 

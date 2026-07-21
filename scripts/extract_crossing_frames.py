@@ -32,6 +32,7 @@ def load_config() -> dict[str, Any]:
         'output_dir':    f"{c['output_dir']}_{video_name}_{timestamp}",
         'iou_threshold': c.get('iou_threshold', 0.4),
         'dedup_window':  c.get('dedup_window', 5),
+        'start_frame':   c.get('start_frame', 0),
     }
 
 
@@ -103,6 +104,7 @@ def main() -> None:
     print("=" * 50)
 
     crossing_frames = parse_crossing_frames(p['log_path'], p['iou_threshold'], p['dedup_window'])
+    crossing_frames = [f for f in crossing_frames if f > p['start_frame']]  # skip already-labeled region
     if not crossing_frames:
         print("  No crossings found in log. Run the tracker first.")
         return
