@@ -1,4 +1,4 @@
-path: dataset/dataset_ann_5r_8c_9r_10r_11c_2026_07_20_1107
+path: dataset/dataset_ann_5r_8c_9r_10r_11c_14c_2026_07_21_2107
 train: images/train
 val: images/val
 nc: 2
