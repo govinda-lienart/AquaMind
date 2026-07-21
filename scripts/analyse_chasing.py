@@ -56,7 +56,6 @@ def main(parquet_path, pixels_per_cm, calibration_secs):
 
     # removing the calibration time - 10 secs from the dataframe
     df = df[df['timestamp'] >= calibration_secs]
-
     banner_sub('DATAFRAME - HEAD')
     logger.info(df.head().to_string())
     banner_sub('DATAFRAME - INFO')
@@ -76,19 +75,40 @@ def main(parquet_path, pixels_per_cm, calibration_secs):
 
     banner('PAIRWISE DISTANCE CALCULATION BETWEEN DIFFERENT FISH_ID')
 
-    #  self-merge on frame_number: every fish beside every fish (incl. itself)
+    #  self-merge on frame_number: every fish beside every fish (incl. itself) --> because e,g has 4 fish - 16 rows per frame
     pairs = df.merge(df, on='frame_number', suffixes=('_a', '_b'))
     banner_sub('AFTER SELF-MERGE')
-    logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b']].head(16).to_string())
-
+    logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b']].head(16).to_string()) 
         # "which right rows have frame_number 600?" ->  all four of them
         # left fish 1 → matches right fish 1, 2, 3, 4
         # left fish 2 → matches right fish 1, 2, 3, 4
         # etcetera
 
+    # removing the junk from self merge such as 1) comparing fish 1 with fish 1 (paired with itself) or 2)  fish 1 and 2 appears as 2 and 1 row
+    pairs = pairs[pairs["fish_id_a"] < pairs["fish_id_b"]]   # keep one copy of each real pair
+        # self-pair 1-1: 1 < 1 => False -> dropped 
+        # pair 1-2: 1 < 2 -> True → kept 
+        # mirror 2-1: 2 < 1 -> False → dropped 
+    banner_sub('FILTERING OUT THE JUNK LIKE SELF PAIRED AND DUPLICATES (1,2)/(2,1)')
+    logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b']].head(6).to_string())
+
+    # calculating distance between pairs of fish
+    banner_sub('DISTANCE BETWEEN PAIRS OF FISH')
+    pairs['distance_cm'] = np.hypot(pairs['x_a'] - pairs['x_b'],
+                                pairs['y_a'] - pairs['y_b']) / pixels_per_cm
+
+    # closing speed = how fast the gap between the two fish changes - frame to frame
+    banner_sub('CLOSING SPEED')
+    pairs['closing_speed'] = pairs.groupby(["fish_id_a", "fish_id_b"])['distance_cm'].diff() # 
+    logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm', 'closing_speed']].head(20).to_string())
+    #        frame_number  fish_id_a  fish_id_b  distance_cm  closing_speed
+    # 17           601          1          2     8.648289      -0.029632
+    # 33           602          1          2     8.724420       0.076131       --> it grouped bucket fishpair (1,2) and calcualted between frame difference in distance whic is 8.73 - 8.64 = 0.076 coorect
 
 
 
+
+   
 
 
 
