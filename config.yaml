@@ -73,14 +73,13 @@ analyse_behaviour:
       bottom_y_px: 971     # tank-bottom y in video pixels (depth 100%); measured with throwaway/pixel_measure.py
       calibration_secs: 10 # skip tracker warm-up window (matches fish_tracker confi
     IMG_2349_7min: 
-        parquet_path: output_fish_tracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1853/tracks.parquet
+        parquet_path: output_fish_tracker/stage5_tracker_IMG_2349__ann_5r_8c_9r_10r_11c_2026_07_20_1107/tracks.parquet
         tank_width_px: 1815
         tank_width_cm: 48.5  # inner wall to inner wall, remeasured 2026-07-19 (was wrongly 35)
         surface_y_px: 273    # front-waterline y in video pixels (depth 0%); measured with throwaway/pixel_measure.py
         bottom_y_px: 971     # tank-bottom y in video pixels (depth 100%); measured with throwaway/pixel_measure.py
         calibration_secs: 10 # skip tracker warm-up window (matches fish_tracker config
     
-
 #_______________________________________________________
 # extract_crossing_frames_script - hard negative mining
 extract_crossing_frames:
