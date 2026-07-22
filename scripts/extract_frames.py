@@ -52,7 +52,7 @@ def frames_already_extracted(cursor: Any, video_id: int) -> bool:
     logger.debug(f"frames already extracted: {result}")
     return result
 
-def write_sidecar(frame_folder_path: str, video_path: str, sample_rate: int, start_seconds: float, end_seconds: float | None, frames_stored: int) -> None:
+def write_sidecar(frame_folder_path: str, video_path: str, sample_rate: int | None, start_seconds: float | None, end_seconds: float | None, frames_stored: int, frame_ranges: list | None = None) -> None:
     """Write extraction metadata alongside the frames so store_annotations.py can read it."""
     sidecar = {
         'frame_source':     'regular',
@@ -60,6 +60,7 @@ def write_sidecar(frame_folder_path: str, video_path: str, sample_rate: int, sta
         'sample_rate':      sample_rate,
         'start_seconds':    start_seconds,
         'end_seconds':      end_seconds,
+        'frame_ranges':     frame_ranges,
         'frames_extracted': frames_stored,
         'extracted_at':     datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
     }
@@ -67,8 +68,20 @@ def write_sidecar(frame_folder_path: str, video_path: str, sample_rate: int, sta
     with open(path, 'w') as f:
         yaml.dump(sidecar, f, default_flow_style=False, sort_keys=False)
 
+def _save_frame(cap: Any, frame_count: int, video_path: str, frame_folder_path: str) -> bool:
+    """Read the current frame and write it as JPG. Returns True if saved."""
+    ret, frame = cap.read()
+    if not ret:
+        return False
+    frame_name = f"frame_{frame_count}_{os.path.splitext(os.path.basename(video_path))[0]}"
+    filename   = f"{frame_folder_path}/{frame_name}.jpg"
+    cv2.imwrite(filename, frame)
+    logger.debug(f"saved frame {frame_count} → {filename}")
+    return True
+
+
 def extract_and_save_frames(video_path: str, frame_folder_path: str, sample_rate: int, start_seconds: float, end_seconds: float | None) -> int:
-    """Opens video, extracts frames at sample_rate, saves as JPG. Returns number of frames saved."""
+    """Opens video, extracts frames at sample_rate over a single window, saves as JPG. Returns number of frames saved."""
     cap = cv2.VideoCapture(video_path)
     fps         = round(cap.get(cv2.CAP_PROP_FPS))
     step        = max(1, round(fps / sample_rate))
@@ -83,18 +96,36 @@ def extract_and_save_frames(video_path: str, frame_folder_path: str, sample_rate
     frames_stored = 0
 
     while frame_count < end_frame:
-        ret, frame = cap.read()
-        if not ret:
-            break
-
         if (frame_count - start_frame) % step == 0:
-            frame_name = f"frame_{frame_count}_{os.path.splitext(os.path.basename(video_path))[0]}"
-            filename   = f"{frame_folder_path}/{frame_name}.jpg"
-            cv2.imwrite(filename, frame)
+            if not _save_frame(cap, frame_count, video_path, frame_folder_path):
+                break
             frames_stored += 1
-            logger.debug(f"saved frame {frame_count} → {filename}")
-
+        else:
+            if not cap.grab():   # advance without decoding when this frame is skipped
+                break
         frame_count += 1
+
+    cap.release()
+    return frames_stored
+
+
+def extract_frame_ranges(video_path: str, frame_folder_path: str, frame_ranges: list) -> int:
+    """Save EVERY frame in each [start, end] range (inclusive, frame numbers). Returns number saved."""
+    cap = cv2.VideoCapture(video_path)
+    os.makedirs(frame_folder_path, exist_ok=True)
+    logger.info(f"multi-range mode: {len(frame_ranges)} range(s) → {frame_ranges}")
+
+    frames_stored = 0
+    for start_frame, end_frame in frame_ranges:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)   # re-seek at the top of every range
+        logger.info(f"extracting range {start_frame}→{end_frame} (inclusive)")
+        frame_count = start_frame
+        while frame_count <= end_frame:                 # <= : ranges are inclusive, [n, n] saves frame n
+            if not _save_frame(cap, frame_count, video_path, frame_folder_path):
+                logger.warning(f"could not read frame {frame_count} — ending range early")
+                break
+            frames_stored += 1
+            frame_count += 1
 
     cap.release()
     return frames_stored
@@ -110,6 +141,7 @@ def main(conn: Any) -> None:
     sample_rate   = cfg.get('sample_rate', 1)
     start_seconds = cfg.get('start_seconds', 0) or 0
     end_seconds   = cfg.get('end_seconds')
+    frame_ranges  = cfg.get('frame_ranges')   # list of [start, end] frame numbers, or None for window mode
 
     frame_folder_path = build_path_storage_frames(video_path, frames_dir)
 
@@ -125,9 +157,16 @@ def main(conn: Any) -> None:
         logger.info(f"frames already exist for {video_path} — skipping extraction")
         return
 
-    frames_stored = extract_and_save_frames(video_path, frame_folder_path, sample_rate, start_seconds, end_seconds)
+    if frame_ranges:
+        frames_stored = extract_frame_ranges(video_path, frame_folder_path, frame_ranges)
+    else:
+        frames_stored = extract_and_save_frames(video_path, frame_folder_path, sample_rate, start_seconds, end_seconds)
     frames_registered = register_frames(conn, frame_folder_path, video_path)
-    write_sidecar(frame_folder_path, video_path, sample_rate, start_seconds, end_seconds, frames_stored)
+    write_sidecar(frame_folder_path, video_path,
+                  None if frame_ranges else sample_rate,
+                  None if frame_ranges else start_seconds,
+                  None if frame_ranges else end_seconds,
+                  frames_stored, frame_ranges=frame_ranges)
     logger.info(f"done — {frames_stored} frames saved to disk, {frames_registered} registered in MySQL")
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────

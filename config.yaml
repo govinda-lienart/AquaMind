@@ -3,9 +3,17 @@
 extract_frames:
   video_path:     output_fish_tracker/tracker_IMG_1231__2026_07_21_2055/tracker_IMG_1231__2026_07_21_2055.mp4# videos/test.MOV
   frames_dir:     frames
-  sample_rate:    1     # frames per second to extract (1=1fps, 2=2fps, 60=every frame)
-  start_seconds:  0     # leave 0 for beginning of video
-  end_seconds:    null  # leave null for full video
+  sample_rate:    1     # frames per second to extract (1=1fps, 2=2fps, 60=every frame) — used only in window mode
+  start_seconds:  0     # leave 0 for beginning of video — window mode
+  end_seconds:    null  # leave null for full video — window mode
+  # frame_ranges: multi-range mode. When set (non-empty), overrides the seconds/sample_rate window above.
+  # Each [start, end] is INCLUSIVE and in FRAME NUMBERS; every frame in the range is saved (no sampling).
+  # A single frame = [n, n]. Leave null/empty to use window mode instead.
+  frame_ranges:   null
+  # frame_ranges:
+  #   - [100, 200]
+  #   - [240, 240]
+  #   - [300, 400]
 
 # download_labelstudio_script
 download_labelstudio:
@@ -53,12 +61,12 @@ ml_backend:
 
 # fish_tracker_script
 fish_tracker:
-  input_video_path:  videos/IMG_2349.MOV
+  input_video_path:  videos/IMG_1839.MOV
   model_path:        runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440/weights/best.pt
-  output_video_path: output_fish_tracker/tracker_IMG_2349__2026_07_21_2345/,,,,
+  output_video_path: output_fish_tracker/tracker_IMG_1839__2026_07_22_0948
   start_seconds:     0    # start video
-  end_seconds:       30 # end video choose'null' for the whole video
-  num_fish:          4
+  end_seconds:       null # end video choose'null' for the whole video
+  num_fish:          5
   calibration_secs:  10    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match
   confirm_hits:      90    # frames a detection must persist to get a permanent fish ID (~1.5s at 60fps). Lowered from 200: reflections are class-1 and filtered out before the tracker, so long persistence isn't needed to outlast them; 90 still rejects transient blobs while letting dark-zone fish confirm in time.
