@@ -63,9 +63,9 @@ ml_backend:
 fish_tracker:
   input_video_path:  videos/IMG_1839.MOV
   model_path:        runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440/weights/best.pt
-  output_video_path: output_fish_tracker/tracker_IMG_1839__2026_07_22_0948
+  output_video_path: output_fish_tracker/tracker_IMG_1839__2026_07_22_1352
   start_seconds:     0    # start video
-  end_seconds:       null # end video choose'null' for the whole video
+  end_seconds:       30 # end video choose'null' for the whole video
   num_fish:          5
   calibration_secs:  10    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match

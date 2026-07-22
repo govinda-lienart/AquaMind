@@ -18,20 +18,36 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 CONFIG_PATH   = 'config.yaml'
-REACQUIRE_TAU = 15   # ghost search radius grows by one max_distance every 15 missing frames
+REACQUIRE_TAU = 15    # ghost search radius grows by one max_distance every 15 missing frames
+VEL_SMOOTH    = 0.5   # EMA weight for the velocity estimate (0=frozen, 1=raw last step)
 
 
-# ── a bare-bones track: just where the fish was last seen ──────────────────────
+# ── a track that remembers where the fish was AND where it's heading ────────────
 class Track:
     def __init__(self, tid, x, y, bbox):
         self.id      = tid          # None while tentative (during calibration)
         self.x       = x
         self.y       = y
+        self.vx      = 0.0          # per-frame velocity — the constant-velocity motion model
+        self.vy      = 0.0
         self.bbox    = bbox
         self.hits    = 1            # how many frames it has been matched
         self.missing = 0            # consecutive frames with no detection (ghost)
 
+    @property
+    def pred(self):
+        """Predicted next-frame position under constant velocity — the anchor we match on.
+        Using this instead of the last position is what stops two crossing fish swapping IDs:
+        the fish overshoot past each other, so 'nearest last position' picks the WRONG detection,
+        but 'nearest predicted position' picks the right one."""
+        return (self.x + self.vx, self.y + self.vy)
+
     def update(self, x, y, bbox):
+        frames  = self.missing + 1                    # frames elapsed since the last real detection
+        inst_vx = (x - self.x) / frames               # per-frame velocity across that gap
+        inst_vy = (y - self.y) / frames
+        self.vx = VEL_SMOOTH * inst_vx + (1 - VEL_SMOOTH) * self.vx   # EMA — smooth out detection jitter
+        self.vy = VEL_SMOOTH * inst_vy + (1 - VEL_SMOOTH) * self.vy
         self.x, self.y, self.bbox = x, y, bbox
         self.hits   += 1
         self.missing = 0
@@ -67,7 +83,7 @@ def associate(tracks, dets, det_pos, max_distance):
         avail = [c for c in range(len(dets)) if c not in matched_dets]
         if not track_idx or not avail:
             return
-        anchors = np.array([[tracks[i].x, tracks[i].y] for i in track_idx])
+        anchors = np.array([tracks[i].pred for i in track_idx])   # predicted position, not last seen
         pos     = det_pos[avail]
         cost    = np.linalg.norm(anchors[:, None] - pos[None, :], axis=2)
         for r, c in zip(*linear_sum_assignment(cost)):
