@@ -14,6 +14,8 @@ import numpy as np
 from ultralytics import YOLO
 from scipy.optimize import linear_sum_assignment
 
+from scripts.db import get_connection, get_video_id, register_track
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -24,15 +26,16 @@ VEL_SMOOTH    = 0.5   # EMA weight for the velocity estimate (0=frozen, 1=raw la
 
 # ── a track that remembers where the fish was AND where it's heading ────────────
 class Track:
-    def __init__(self, tid, x, y, bbox):
-        self.id      = tid          # None while tentative (during calibration)
-        self.x       = x
-        self.y       = y
-        self.vx      = 0.0          # per-frame velocity — the constant-velocity motion model
-        self.vy      = 0.0
-        self.bbox    = bbox
-        self.hits    = 1            # how many frames it has been matched
-        self.missing = 0            # consecutive frames with no detection (ghost)
+    def __init__(self, tid, x, y, bbox, confidence):
+        self.id         = tid       # None while tentative (during calibration)
+        self.x          = x
+        self.y          = y
+        self.vx         = 0.0       # per-frame velocity — the constant-velocity motion model
+        self.vy         = 0.0
+        self.bbox       = bbox
+        self.confidence = confidence  # YOLO detection confidence (stored in tracks, like fish_tracker)
+        self.hits       = 1         # how many frames it has been matched
+        self.missing    = 0         # consecutive frames with no detection (ghost)
 
     @property
     def pred(self):
@@ -42,13 +45,14 @@ class Track:
         but 'nearest predicted position' picks the right one."""
         return (self.x + self.vx, self.y + self.vy)
 
-    def update(self, x, y, bbox):
+    def update(self, x, y, bbox, confidence):
         frames  = self.missing + 1                    # frames elapsed since the last real detection
         inst_vx = (x - self.x) / frames               # per-frame velocity across that gap
         inst_vy = (y - self.y) / frames
         self.vx = VEL_SMOOTH * inst_vx + (1 - VEL_SMOOTH) * self.vx   # EMA — smooth out detection jitter
         self.vy = VEL_SMOOTH * inst_vy + (1 - VEL_SMOOTH) * self.vy
         self.x, self.y, self.bbox = x, y, bbox
+        self.confidence = confidence
         self.hits   += 1
         self.missing = 0
 
@@ -90,8 +94,8 @@ def associate(tracks, dets, det_pos, max_distance):
             ti = track_idx[r]
             if cost[r, c] > gate_fn(tracks[ti]):
                 continue
-            x, y, bbox = dets[avail[c]]
-            tracks[ti].update(x, y, bbox)
+            x, y, bbox, conf = dets[avail[c]]
+            tracks[ti].update(x, y, bbox, conf)
             matched_dets.add(avail[c])
             matched_tracks.add(ti)
 
@@ -226,6 +230,13 @@ def main():
 
     out = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (W, H))
 
+    # ── MySQL: clear this video's old tracks, then write fresh (identical to fish_tracker) ──
+    conn     = get_connection()
+    cursor   = conn.cursor()
+    video_id = get_video_id(cursor, input_video_path)
+    cursor.execute("DELETE FROM tracks WHERE video_id = %s", (video_id,))  # working storage: wipe prior run
+    conn.commit()
+
     tracks, next_id, locked, frame_count = [], 1, False, 0
 
     while True:
@@ -240,16 +251,17 @@ def main():
             if int(cls) != 0:
                 continue
             x1, y1, x2, y2 = res.boxes.xyxy[i].cpu().numpy().tolist()
-            dets.append(((x1 + x2) / 2, (y1 + y2) / 2, [x1, y1, x2, y2]))
+            conf = float(res.boxes.conf[i].cpu().numpy())     # YOLO confidence for this detection
+            dets.append(((x1 + x2) / 2, (y1 + y2) / 2, [x1, y1, x2, y2], conf))
             det_pos.append(((x1 + x2) / 2, (y1 + y2) / 2))
         det_pos = np.array(det_pos) if det_pos else np.empty((0, 2))
 
         if not locked:
             # CALIBRATION: match, then spawn a new track for any leftover detection
             matched = associate(tracks, dets, det_pos, max_distance)
-            for i, (cx, cy, bbox) in enumerate(dets):
+            for i, (cx, cy, bbox, conf) in enumerate(dets):
                 if i not in matched:
-                    tracks.append(Track(None, cx, cy, bbox))
+                    tracks.append(Track(None, cx, cy, bbox, conf))
 
             # Lock only once we actually have all num_fish tracks — never commit to
             # fewer, so every ID is real and can be followed for the whole video.
@@ -281,6 +293,14 @@ def main():
                                             "decision": "recovered", "frame": frame_count,
                                             "missing_frames": was}))
 
+        # write this frame's identified tracks to MySQL (only tracks that already have an id;
+        # x/y are the centroid, occluded = ghost, confidence from the last matched detection)
+        timestamp = start + frame_count / fps
+        for t in tracks:
+            if t.id is None:                         # tentative tracks (pre-lock) aren't persisted
+                continue
+            register_track(cursor, video_id, t.id, frame_count, timestamp, t.x, t.y, t.confidence, t.missing > 0)
+
         draw_frame(frame, tracks, locked, frame_count)
         out.write(frame)
 
@@ -290,6 +310,8 @@ def main():
             logger.info("quit requested - stopping early")
             break
 
+        if frame_count % 30 == 0:                    # commit periodically — same cadence as fish_tracker
+            conn.commit()
         if frame_count % 60 == 0:
             logger.info(f"  frame {frame_count}/{total_frames} | tracks={len(tracks)} | locked={locked}")
         frame_count += 1
@@ -297,6 +319,9 @@ def main():
     cap.release()
     out.release()
     cv2.destroyAllWindows()                          # close preview window
+    conn.commit()                                    # final flush
+    cursor.close()
+    conn.close()
     logger.info(f"\nDone. Saved to {out_path}")
 
 
