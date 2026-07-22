@@ -5,11 +5,17 @@ Output: <output_video_path with '_basic' before .mp4>
 """
 
 import os
+import json
+import logging
+
 import cv2
 import yaml
 import numpy as np
 from ultralytics import YOLO
 from scipy.optimize import linear_sum_assignment
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 CONFIG_PATH   = 'config.yaml'
 REACQUIRE_TAU = 15   # ghost search radius grows by one max_distance every 15 missing frames
@@ -103,6 +109,19 @@ def draw_dashed(frame, p1, p2, color, dash=6):
         cv2.line(frame, (x2, y), (x2, min(y + dash, y2)), color, 1)
 
 
+def draw_calibration_badge(frame, frame_count):
+    """Semi-transparent amber 'CALIBRATING' badge, top-left, with an animated ellipsis."""
+    dots = "." * (1 + (frame_count // 15) % 3)          # ".", "..", "..." — shows it's live
+    text = f"CALIBRATING{dots}"
+    font, scale, thick = cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2
+    (tw, th), _ = cv2.getTextSize("CALIBRATING...", font, scale, thick)  # size on longest form so box doesn't jitter
+    x, y, pad = 15, 15, 10
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (x, y), (x + tw + 2 * pad, y + th + 2 * pad), (0, 0, 0), -1)
+    cv2.addWeighted(overlay, 0.5, frame, 0.5, 0, frame)  # translucent dark backing
+    cv2.putText(frame, text, (x + pad, y + th + pad - 2), font, scale, (0, 215, 255), thick, cv2.LINE_AA)
+
+
 def draw_frame(frame, tracks, locked, frame_count):
     for t in tracks:
         x1, y1, x2, y2 = [int(v) for v in t.bbox]
@@ -118,35 +137,77 @@ def draw_frame(frame, tracks, locked, frame_count):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
     cv2.putText(frame, f"Frame: {frame_count}", (10, frame.shape[0] - 12),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    if not locked:
+        draw_calibration_badge(frame, frame_count)
+
+
+# ── logging + run summary (same style as fish_tracker.py) ──────────────────────
+def setup_run_logging(log_path):
+    """One logger, two handlers: file (in the run folder) + console — bare messages, like fish_tracker."""
+    formatter       = logging.Formatter('%(message)s')
+    file_handler    = logging.FileHandler(log_path)
+    console_handler = logging.StreamHandler()
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+
+def print_run_config(input_video_path, model_path, output_video_path, start_seconds, end_seconds,
+                     num_fish, calibration_secs, max_distance):
+    logger.info("=" * 50)
+    logger.info(f"  Video:          {input_video_path}")
+    logger.info(f"  Model:          {model_path}")
+    logger.info(f"  Output:         {output_video_path}")
+    logger.info(f"  Seconds:        {start_seconds} → {end_seconds}")
+    logger.info(f"  Fish:           {num_fish}")
+    logger.info(f"  Calibration:    {calibration_secs} seconds")
+    logger.info(f"  max_distance:   {max_distance} px")
+    logger.info(f"  reacquire_tau:  {REACQUIRE_TAU} frames")
+    logger.info("=" * 50)
+    input("Press Enter to start...")
 
 
 # ── main ───────────────────────────────────────────────────────────────────────
 def main():
     c = yaml.safe_load(open(CONFIG_PATH))['fish_tracker']
-    model        = YOLO(c['model_path'])
-    num_fish     = c['num_fish']
-    max_distance = c['max_distance']
-
-    cap = cv2.VideoCapture(c['input_video_path'])
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    W   = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    H   = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
+    input_video_path  = c['input_video_path']
+    model_path        = c['model_path']
+    num_fish          = c['num_fish']
+    max_distance      = c['max_distance']
+    calibration_secs  = c['calibration_secs']
     start = c.get('start_seconds') or 0
     end   = c.get('end_seconds')
-    if start:
-        cap.set(cv2.CAP_PROP_POS_FRAMES, int(start * fps))
-    max_frames  = int((end - start) * fps) if end else None
-    calib_frames = int(c['calibration_secs'] * fps)
 
-    # build a per-run output FOLDER (holds the video now; a log/config can join it later)
+    # build a per-run output FOLDER (holds the video, config-summary log)
     clean    = c['output_video_path'].rstrip('/,. ')          # tolerate trailing junk
     run_name = os.path.splitext(os.path.basename(clean))[0]
     base_dir = os.path.dirname(clean) or 'output_fish_tracker'
     run_dir  = os.path.join(base_dir, f'{run_name}_basic')
     os.makedirs(run_dir, exist_ok=True)                       # create it if missing
     out_path = os.path.join(run_dir, f'{run_name}_basic.mp4')
-    print(f"  run folder: {run_dir}")
+    log_path = os.path.join(run_dir, f'{run_name}_basic.log')
+
+    # logging + parameter summary FIRST, then block on Enter before any heavy work
+    setup_run_logging(log_path)
+    logger.info(f"  run folder: {run_dir}")
+    print_run_config(input_video_path, model_path, out_path, start, end,
+                     num_fish, calibration_secs, max_distance)
+
+    model = YOLO(model_path)
+
+    cap = cv2.VideoCapture(input_video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    W   = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    H   = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    if start:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, int(start * fps))
+    max_frames  = int((end - start) * fps) if end else None
+    # total frames we'll actually process — the progress denominator (whole video if no end_seconds)
+    total_frames = max_frames if max_frames else int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) - int(start * fps)
+    calib_frames = int(calibration_secs * fps)
+
     out = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (W, H))
 
     tracks, next_id, locked, frame_count = [], 1, False, 0
@@ -186,24 +247,41 @@ def main():
                     t.id, t.missing = next_id, 0
                     next_id += 1
                 locked = True
-                print(f"  locked — {len(tracks)}/{num_fish} fish at frame {frame_count}")
+                logger.info(f"  locked — {len(tracks)}/{num_fish} fish at frame {frame_count}")
         else:
             # LOCKED: exactly num_fish tracks, never added or removed. Healthy fish
             # keep their tags (first claim); a genuinely occluded fish's tag waits
             # as a ghost near its last position and only re-acquires a NEARBY
             # detection — never teleports across the tank onto another fish.
+            prev_missing = {t.id: t.missing for t in tracks}   # snapshot before matching
             associate(tracks, dets, det_pos, max_distance)
+            for t in tracks:                                   # log lost/recovered transitions
+                was, now = prev_missing[t.id], t.missing
+                if was == 0 and now > 0:                       # first frame a fish drops out
+                    logger.info(json.dumps({"event": "occlusion_lost", "fish_ids": str(t.id),
+                                            "frame": frame_count}))
+                elif was > 0 and now == 0:                     # fish reappears — was = frames it was missing
+                    logger.info(json.dumps({"event": "occlusion_recovery", "fish_ids": str(t.id),
+                                            "decision": "recovered", "frame": frame_count,
+                                            "missing_frames": was}))
 
         draw_frame(frame, tracks, locked, frame_count)
         out.write(frame)
 
+        cv2.imshow('Fish Tracker (basic)', frame)   # live preview
+        key = cv2.waitKey(1) & 0xFF                  # refresh window; read any key press
+        if key == ord('q') or key == 27:            # q or ESC (27) quits early
+            logger.info("quit requested - stopping early")
+            break
+
         if frame_count % 60 == 0:
-            print(f"  frame {frame_count} | tracks={len(tracks)} | locked={locked}")
+            logger.info(f"  frame {frame_count}/{total_frames} | tracks={len(tracks)} | locked={locked}")
         frame_count += 1
 
     cap.release()
     out.release()
-    print(f"\nDone. Saved to {out_path}")
+    cv2.destroyAllWindows()                          # close preview window
+    logger.info(f"\nDone. Saved to {out_path}")
 
 
 if __name__ == '__main__':
