@@ -20,6 +20,8 @@ logger.setLevel(logging.INFO)
 CONFIG_PATH   = 'config.yaml'
 REACQUIRE_TAU = 15    # ghost search radius grows by one max_distance every 15 missing frames
 VEL_SMOOTH    = 0.5   # EMA weight for the velocity estimate (0=frozen, 1=raw last step)
+DIR_WEIGHT    = 50    # px penalty added for a full heading reversal (OC-SORT direction consistency)
+MIN_SPEED     = 2.0   # px/frame — below this a track has no reliable heading, so skip the direction term
 
 
 # ── a track that remembers where the fish was AND where it's heading ────────────
@@ -83,12 +85,27 @@ def associate(tracks, dets, det_pos, max_distance):
         avail = [c for c in range(len(dets)) if c not in matched_dets]
         if not track_idx or not avail:
             return
-        anchors = np.array([tracks[i].pred for i in track_idx])   # predicted position, not last seen
-        pos     = det_pos[avail]
-        cost    = np.linalg.norm(anchors[:, None] - pos[None, :], axis=2)
+        anchors  = np.array([tracks[i].pred for i in track_idx])   # predicted position, not last seen
+        pos      = det_pos[avail]
+        pos_cost = np.linalg.norm(anchors[:, None] - pos[None, :], axis=2)   # physical distance (n, m)
+
+        # OC-SORT direction consistency: penalise an assignment that would make a fish reverse its
+        # heading. For each track we compare its velocity direction against the direction it would
+        # have to move to reach each detection; opposite directions cost DIR_WEIGHT, aligned cost 0.
+        # Near-stationary tracks have no reliable heading, so their penalty is zeroed out.
+        track_xy  = np.array([[tracks[i].x, tracks[i].y] for i in track_idx])
+        track_vel = np.array([[tracks[i].vx, tracks[i].vy] for i in track_idx])
+        speed     = np.linalg.norm(track_vel, axis=1)                     # (n,)
+        move      = pos[None, :, :] - track_xy[:, None, :]                # (n, m, 2)
+        move_len  = np.linalg.norm(move, axis=2)                          # (n, m)
+        cos       = np.sum(track_vel[:, None, :] * move, axis=2) / (speed[:, None] * move_len + 1e-6)
+        dir_cost  = DIR_WEIGHT * (1 - cos) / 2                            # 0 aligned … DIR_WEIGHT reversed
+        dir_cost[speed <= MIN_SPEED, :] = 0                              # no heading → no penalty
+
+        cost = pos_cost + dir_cost                                       # Hungarian minimises the sum
         for r, c in zip(*linear_sum_assignment(cost)):
             ti = track_idx[r]
-            if cost[r, c] > gate_fn(tracks[ti]):
+            if pos_cost[r, c] > gate_fn(tracks[ti]):   # gate on PHYSICAL distance, not the augmented cost
                 continue
             x, y, bbox = dets[avail[c]]
             tracks[ti].update(x, y, bbox)
