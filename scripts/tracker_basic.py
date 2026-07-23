@@ -7,6 +7,8 @@ Output: <output_video_path with '_basic' before .mp4>
 import os
 import json
 import logging
+import subprocess
+from datetime import datetime
 
 import cv2
 import yaml
@@ -204,14 +206,22 @@ def main():
     start = c.get('start_seconds') or 0
     end   = c.get('end_seconds')
 
-    # build a per-run output FOLDER (holds the video, config-summary log)
+    # build a per-run output FOLDER (holds the video, log, and config sidecar)
     clean    = c['output_video_path'].rstrip('/,. ')          # tolerate trailing junk
-    run_name = os.path.splitext(os.path.basename(clean))[0]
+    base     = os.path.splitext(os.path.basename(clean))[0]
+    stamp    = datetime.now().strftime('%Y_%m_%d_%H%M')       # auto timestamp → a fresh folder every run
+    run_name = f'{base}_basic_{stamp}'                        # e.g. 'tracker_IMG_1839_basic_2026_07_23_1642'
     base_dir = os.path.dirname(clean) or 'output_fish_tracker'
-    run_dir  = os.path.join(base_dir, f'{run_name}_basic')
+    run_dir  = os.path.join(base_dir, run_name)
     os.makedirs(run_dir, exist_ok=True)                       # create it if missing
-    out_path = os.path.join(run_dir, f'{run_name}_basic.mp4')
-    log_path = os.path.join(run_dir, f'{run_name}_basic.log')
+    out_path = os.path.join(run_dir, f'{run_name}.mp4')
+    log_path = os.path.join(run_dir, f'{run_name}.log')
+
+    # freeze this run's exact config (+ the git commit it ran at) next to the outputs,
+    # so a later ground-truth/crop review knows which model & params produced this folder
+    c['git_commit'] = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()
+    with open(os.path.join(run_dir, f'{run_name}_config.yaml'), 'w') as f:
+        yaml.dump(c, f)
 
     # logging + parameter summary FIRST, then block on Enter before any heavy work
     setup_run_logging(log_path)
