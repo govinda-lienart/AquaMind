@@ -37,6 +37,11 @@ class Track:
         self.hits       = 1         # how many frames it has been matched
         self.missing    = 0         # consecutive frames with no detection (ghost)
 
+
+    
+
+
+
     @property
     def pred(self):
         """Predicted next-frame position under constant velocity — the anchor we match on.
@@ -293,6 +298,7 @@ def main():
                                             "decision": "recovered", "frame": frame_count,
                                             "missing_frames": was}))
 
+        
         # write this frame's identified tracks to MySQL (only tracks that already have an id;
         # x/y are the centroid, occluded = ghost, confidence from the last matched detection)
         timestamp = start + frame_count / fps
@@ -301,6 +307,22 @@ def main():
                 continue
             register_track(cursor, video_id, t.id, frame_count, timestamp, t.x, t.y, t.confidence, t.missing > 0)
 
+            # cropping out the fish bbox to save it on disk and use later for fish RE-ID Machine learning
+            if t.missing > 0: 
+                continue # here if for example the frame is a ghost...skip no need to grab it for RE_ID as we dont want to crop a ghost
+            x1, y1, x2, y2 = t.bbox # here we unpack the bbox attribnute of track objects...which gives the format xyxy (different fdormat than xywh) but great cause this gives us the edges of the image to crop
+            crop = frame[int(y1):int(y2), int(x1):int(x2)] # so here we crop in the frame array pixels - numpy - so we select the row first (vertical) range y1 to y2 for height of the box, and then we select horizantal x1 to x2 
+            
+            # creating folders storing the crops
+            crop_folder_path = os.path.join(run_dir, 'crops', f'fish_{t.id}') # outputs e.g. 'output_fish_tracker/run_01/crops/fish_5'
+            os.makedirs(crop_folder_path, exist_ok=True) # this one outputs nothing but creates the folder 'output_fish_tracker/run_01/crops/fish_5' on disk (does nothing if it already exists)
+            
+            # creating the actual crop file
+            crop_name = f"frame_{frame_count}_fish_{t.id}"  # outputs e.g. 'frame_1001_fish_5'
+            filename = f"{crop_folder_path}/{crop_name}.jpg"  # outputs e.g. 'output_fish_tracker/run_01/crops/fish_5/frame_1001_fish_5.jpg'
+            cv2.imwrite(filename, crop) # outputs True/False; writes the .jpg image to that path on disk
+
+        # drawing the frame    
         draw_frame(frame, tracks, locked, frame_count)
         out.write(frame)
 
