@@ -21,4 +21,9 @@ crop_pattern = f"{run_dir}/crops/fish_*/*.jpg" # the * matches all files fish_1,
 crop_paths = glob.glob(crop_pattern) # read crop-pattern string and converts it into a list of paths - glob.gob (fist glob is module, seocnd glob is fucntion - from gob toolbox use glob tool) # it takes path...and creates a list
 logger.info(f"total number of crops detected is {len(crop_paths)}")
 
-# extract the frame number frome one filename (test)
+# testing: extract the frame number frome one filename (test) - used regex
+
+first_frame = crop_paths[0] # selecting the very first frame from the list of tthe path crops
+m = re.search(r"frame_(\d+)_fish",first_frame ) # re.search(PATTERN, TEXT) here r [raw string so \ is not special or next line] pattern -> anchor 1 frame [text], (\d_) [capture one or more digits, the () allows me to capture what is inside] , anchor 2 fish [text]
+frame_num = int(m.group(1)) # note that m.group(0) would give me frame_298_fish while m.group(1) what is inside the () e.g 298 
+logger.info(f"for path {first_frame} the extracted frame number is {frame_num}")
