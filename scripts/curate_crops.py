@@ -6,6 +6,7 @@ import glob # search file names/paths
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger=logging.getLogger(__name__)
 import re   
+import os
 
 # LOAD
 
@@ -25,5 +26,18 @@ logger.info(f"total number of crops detected is {len(crop_paths)}")
 
 first_frame = crop_paths[0] # selecting the very first frame from the list of tthe path crops
 m = re.search(r"frame_(\d+)_fish",first_frame ) # re.search(PATTERN, TEXT) here r [raw string so \ is not special or next line] pattern -> anchor 1 frame [text], (\d_) [capture one or more digits, the () allows me to capture what is inside] , anchor 2 fish [text]
-frame_num = int(m.group(1)) # note that m.group(0) would give me frame_298_fish while m.group(1) what is inside the () e.g 298 
+frame_num = int(m.group(1)) # note that m.group(0) would give me frame_298_fish_1 while m.group(1) what is inside the () e.g 298 
 logger.info(f"for path {first_frame} the extracted frame number is {frame_num}")
+
+# extract frame + fish_id from all crops - make table
+rows = [] # list of dicsiotnaries
+for path in crop_paths:
+    m = re.search(r"frame_(\d+)_fish_(\d+)",path)
+    frame_num = int(m.group(1)) # the first capture - 298 # frame 298
+    fish_id = int(m.group(2)) # second capture - 4 # fish 4
+    rows.append({"path":path, "frame_number":frame_num, "fish_id": fish_id}) # dictionary
+
+# converting with pandas rows into in df -? each dict is one row....each key is a column name
+crops = pd.DataFrame(rows)
+logger.info(crops.head().to_string())
+logger.info(crops.shape)
