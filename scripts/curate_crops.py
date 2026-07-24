@@ -5,10 +5,12 @@ import logging
 import glob # search file names/paths
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger=logging.getLogger(__name__)
-import re   
+import re
 import os
+from scripts.console import banner, banner_sub
 
 # LOAD
+banner("LOAD VERIFIED WINDOWS")
 
 # load with all curated frames no swapping"
 windows_csv_path = "output_fish_tracker/curation_windows.csv"
@@ -17,6 +19,7 @@ logger.info(windows.head().to_string())
 logger.info(windows.shape)
 
 # GATHER CROPS (the exctracted bboxes from the tracker)
+banner("GATHER CROPS")
 run_dir = "output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202"
 crop_pattern = f"{run_dir}/crops/fish_*/*.jpg" # the * matches all files fish_1, fish_2,.... and same for file jpg...* matches all the images....frame001_fish1.jpg - inert string - nothing happens yet
 crop_paths = glob.glob(crop_pattern) # read crop-pattern string and converts it into a list of paths - glob.gob (fist glob is module, seocnd glob is fucntion - from gob toolbox use glob tool) # it takes path...and creates a list
@@ -30,7 +33,8 @@ frame_num = int(m.group(1)) # note that m.group(0) would give me frame_298_fish_
 logger.info(f"for path {first_frame} the extracted frame number is {frame_num}")
 
 # extract frame + fish_id from all crops - make table
-rows = [] # list of dicsiotnaries
+banner("BUILD CROPS TABLE")
+rows = [] # list of dictionaries
 for path in crop_paths:
     m = re.search(r"frame_(\d+)_fish_(\d+)",path)
     frame_num = int(m.group(1)) # the first capture - 298 # frame 298
@@ -41,3 +45,23 @@ for path in crop_paths:
 crops = pd.DataFrame(rows)
 logger.info(crops.head().to_string())
 logger.info(crops.shape)
+
+# making sure that video_name from my csv file with curated windows matches the directory of its related  crops
+folder_tracked_video = os.path.basename(run_dir) # run_dir = "output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202" - >tracker_IMG_1839_basic_2026_07_23_1202
+my_windows = windows[windows.video_name == folder_tracked_video]  # boolean mask - seleting only output video of interest from the df ----> my_windows = windows[windows["video_name"] == folder_tracked_video]  
+logger.info(crops.head().to_string())
+logger.info(crops.shape)
+
+# tagging the crops to which curated window they belong
+banner("TAG CROPS TO THEIR WINDOW")
+crops["stretch"] = -1 # just adding a column where all values -1 - guitly until proven innocent....-1 not in any window
+for i, w in my_windows.iterrows(): # hands in  one window row at a time so the first iteration has i = 0 with and w = the window row content, so path, fish_id, frame numeber and stored as series ---so e.g  w.frame_start=300
+    crop_inside_window = (crops.frame_number >= w.frame_start) & (crops.frame_number <= w.frame_end) # checking if crop frame is inside the curated window
+    crops.loc[crop_inside_window, "stretch"] = i #  df.loc[ WHICH_ROWS , WHICH_COLUMNS # here each crop gets assigned to which window in the video it belongs with the value i from the loop
+kept = crops[crops.stretch != -1] # filtering out the crops outside the window
+banner_sub(f"kept {len(kept)} of {len(crops)} crops inside verified windows")
+logger.info(kept.groupby("stretch").size().to_string())
+
+
+
+
