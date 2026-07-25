@@ -8,6 +8,7 @@ logger=logging.getLogger(__name__)
 import re
 import os
 from scripts.console import banner, banner_sub
+import shutil # to copy files
 
 # LOAD
 
@@ -78,5 +79,13 @@ logger.info(curated.groupby(["stretch", "fish_id"]).size().to_string())   # per-
 # saving on disk the selected crops
 banner("COPY CURATED CROPS OUT")
 
-curated
+curated_root = os.path.join(run_dir, "curated_crops") # # output_fish_tracker/<run>/curated_crops
+logger.info(f"copying into {curated_root}")
+copied = 0
+for i, row in curated.iterrows():
+    dest_folder = os.path.join(curated_root, f"stretch{row.stretch:02d}_fish{row.fish_id}") #stretch00_fish1/ with 02d d fromat decimal integer, 2...at least two charcaters...0 pad empty space leading zeros...05..
+    os.makedirs(dest_folder, exist_ok=True) # ensuring folder exist...if not then create.
+    shutil.copy(row.path, dest_folder) # copy using the path all the files in the destination folder
+    copied += 1
+banner_sub(f"copied {copied} of {len(curated)} crops into {curated_root}")
 
