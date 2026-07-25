@@ -10,15 +10,16 @@ import os
 from scripts.console import banner, banner_sub
 
 # LOAD
-banner("LOAD VERIFIED WINDOWS")
 
+banner("LOAD VERIFIED WINDOWS")
 # load with all curated frames no swapping"
 windows_csv_path = "output_fish_tracker/curation_windows.csv"
 windows = pd.read_csv(windows_csv_path,sep=";")
 logger.info(windows.head().to_string())
 logger.info(windows.shape)
 
-# GATHER CROPS (the exctracted bboxes from the tracker)
+# extracting the crops
+
 banner("GATHER CROPS")
 run_dir = "output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202"
 crop_pattern = f"{run_dir}/crops/fish_*/*.jpg" # the * matches all files fish_1, fish_2,.... and same for file jpg...* matches all the images....frame001_fish1.jpg - inert string - nothing happens yet
@@ -26,7 +27,6 @@ crop_paths = glob.glob(crop_pattern) # read crop-pattern string and converts it 
 logger.info(f"total number of crops detected is {len(crop_paths)}")
 
 # testing: extract the frame number frome one filename (test) - used regex
-
 first_frame = crop_paths[0] # selecting the very first frame from the list of tthe path crops
 m = re.search(r"frame_(\d+)_fish",first_frame ) # re.search(PATTERN, TEXT) here r [raw string so \ is not special or next line] pattern -> anchor 1 frame [text], (\d_) [capture one or more digits, the () allows me to capture what is inside] , anchor 2 fish [text]
 frame_num = int(m.group(1)) # note that m.group(0) would give me frame_298_fish_1 while m.group(1) what is inside the () e.g 298 
@@ -61,7 +61,22 @@ for i, w in my_windows.iterrows(): # hands in  one window row at a time so the f
 kept = crops[crops.stretch != -1] # filtering out the crops outside the window
 banner_sub(f"kept {len(kept)} of {len(crops)} crops inside verified windows")
 logger.info(kept.groupby("stretch").size().to_string())
+banner_sub(f"dataframe update")
+logger.info(kept.head().to_string())
 
 
+# selecting the crops from each stretch
+banner(f"SUBSAMPLE across all stretches FOR DIVERSITY")
+STEP = 15 # keep every 15th crop
+curated = (kept.sort_values("frame_number") # Sort the whole table so frames go in order: 298, 299, 3
+                .groupby(["stretch", "fish_id"], group_keys=False) # 10 streches x 5 fish (ids 1 to 5) - 50 combnination
+                .apply(lambda g: g.iloc[::STEP])) # apply loops of the 50 grouped buckets - glues every function run together.... # [start : stop : step] # step is 15 so take evey 15 crop from each window
+banner_sub(f"subsampled to {len(curated)} of {len(kept)} crops")
+logger.info(curated.drop(columns='path').head(4).to_string())                                   # first few rows
+logger.info(curated.groupby(["stretch", "fish_id"]).size().to_string())   # per-bucket counts
 
+# saving on disk the selected crops
+banner("COPY CURATED CROPS OUT")
+
+curated
 
