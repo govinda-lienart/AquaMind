@@ -47,12 +47,22 @@ def embed(crop_path):
     return embedding  # the 384-number fingerprint - the image embedded in a 384-dimensional space
 
 def gather_embeddings(stretch_glob):
+    """Embed every crop matching the glob, return a list of (fish_id, embedding)."""
+    banner("GATHER EMBEDDINGS")
     records = []
     for path in sorted(glob.glob(stretch_glob)): #glob finds files whose names match a pattern, and hands back a list of their paths.
         fish_id = int(re.search(r"fish_(\d+)", path).group(1))  # /d+ takes one or more digit # r is raw string # group 1 captures what is between parenthisis # int() converts string to int
-        emb = embed(path)
-        records.embed((fish_id, emb)) # embedding the tuple
-        return records
+        emb = embed(path) # runs DINOv2 forward pass
+        records.append((fish_id, emb)) # embedding the tuple
+    logger.info(f"gathered {len(records)} embeddings")
+    return records
+
+
+def compare_pairs(records):
+    "compares every pair of embedding and return a dataframe of (fish i, fish j) is same cosine"
+    rows = []
+    for i in range(len(record)):
+
 # MAIN
 
 def main():
@@ -77,11 +87,9 @@ def main():
     logger.info(f"cosine(a, c) DIFFERENT fish: {sim_diff.item():.4f}") # cosine(a, c) DIFFERENT fish: 0.7490
     # almost no difference
 
-    # LOOPING OVER ALL THE CROPS AND COMPARE STATS 
-
-    # gather_embeddings
-    records = gather_embeddings("output_fish_tracker/.../curated_crops/stretch02_fish*/*.jpg")   
-
+    # LOOPING OVER ALL THE CROPS AND COMPARE STATS
+    records = gather_embeddings("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish*/*.jpg")
+    results = compare_pairs(records)
 
 
 # ENTRY POINT
