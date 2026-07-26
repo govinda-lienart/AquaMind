@@ -1,9 +1,12 @@
 # IMPORTS
 import logging
 import torch
+import torch.nn.functional as F  # cosine_similarity lives here
 from PIL import Image
 from torchvision import transforms
 from scripts.console import banner, banner_sub
+import glob
+import re
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -43,22 +46,41 @@ def embed(crop_path):
         embedding = model(batch) # calling the model with the batch - forward pass - flows through 21M parameters
     return embedding  # the 384-number fingerprint - the image embedded in a 384-dimensional space
 
+def gather_embeddings(stretch_glob):
+    records = []
+    for path in sorted(glob.glob(stretch_glob)): #glob finds files whose names match a pattern, and hands back a list of their paths.
+        fish_id = int(re.search(r"fish_(\d+)", path).group(1))  # /d+ takes one or more digit # r is raw string # group 1 captures what is between parenthisis # int() converts string to int
+        emb = embed(path)
+        records.embed((fish_id, emb)) # embedding the tuple
+        return records
 # MAIN
 
 def main():
 
     banner("SPOT-CHECK: DO SAME-FISH FINGERPRINTS LAND CLOSER?")
-    load_model()
 
-    banner("EMBEDDING")
-    embed(crop_path):
-        # 3 test crops path confifs
-        emb_a = embed("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish2/frame_1851_fish_2.jpg")  # anchor - fish 2, early frame
-        emb_b = embed("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish2/frame_2660_fish_2.jpg")  # same fish 2, late frame - should be CLOSE to a
-        emb_c = embed("ooutput_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish5/frame_1943_fish_5.jpg")  # different fish
-        logger.info(f"emb_a shape: {emb_a.shape}")
-        logger.info(f"emb_b shape: {emb_b.shape}")
-        logger.info(f"emb_c shape: {emb_c.shape}")
+    # TESTING WITH A FEW CROPS
+
+    # 3 test crops - a & b are the SAME fish (fish 2, stretch02), c is a DIFFERENT fish (fish 5, stretch02)
+    emb_a = embed("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish2/frame_1851_fish_2.jpg")  # anchor - fish 2, early frame
+    emb_b = embed("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish2/frame_2660_fish_2.jpg")  # same fish 2, late frame - should be CLOSE to a
+    emb_c = embed("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish5/frame_1943_fish_5.jpg")  # different fish - should be FAR from a
+
+    # compare fingerprints by cosine similarity (1.0 = identical direction, higher = more similar) - Cosine similarity measures the ANGLE between two arrows: 
+        # small angle → cosine ≈ 1.0 → SAME direction → similar fish
+        # big angle → cosine ≈ 0 → different directions → different fish
+    sim_same = F.cosine_similarity(emb_a, emb_b)   # comparing the same fish from same stretch but frames far apart
+    sim_diff = F.cosine_similarity(emb_a, emb_c)   # different fish - same stretch
+
+    banner_sub("RESULT")
+    logger.info(f"cosine(a, b) SAME fish:      {sim_same.item():.4f}") # cosine(a, b) SAME fish:      0.7849
+    logger.info(f"cosine(a, c) DIFFERENT fish: {sim_diff.item():.4f}") # cosine(a, c) DIFFERENT fish: 0.7490
+    # almost no difference
+
+    # LOOPING OVER ALL THE CROPS AND COMPARE STATS 
+
+    # gather_embeddings
+    records = gather_embeddings("output_fish_tracker/.../curated_crops/stretch02_fish*/*.jpg")   
 
 
 
