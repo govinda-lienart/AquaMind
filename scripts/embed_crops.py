@@ -7,6 +7,7 @@ from torchvision import transforms
 from scripts.console import banner, banner_sub
 import glob
 import re
+import pandas as pd
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -53,15 +54,31 @@ def gather_embeddings(stretch_glob):
     for path in sorted(glob.glob(stretch_glob)): #glob finds files whose names match a pattern, and hands back a list of their paths.
         fish_id = int(re.search(r"fish_(\d+)", path).group(1))  # /d+ takes one or more digit # r is raw string # group 1 captures what is between parenthisis # int() converts string to int
         emb = embed(path) # runs DINOv2 forward pass
-        records.append((fish_id, emb)) # embedding the tuple
+        records.append((fish_id, emb)) 
     logger.info(f"gathered {len(records)} embeddings")
     return records
+    # e.g
+    # records = [
+    # (2, tensor([[ 0.124, -0.873,  1.402,  0.031, -0.556,  ... ]])),   # fish 2, 384 numbers
+    # (2, tensor([[ 0.201, -0.790,  1.388,  0.045, -0.601,  ... ]])),   # fish 2
+    # (2, tensor([[ 0.118, -0.902,  1.455, -0.012, -0.588,  ... ]])), 
 
 
 def compare_pairs(records):
-    "compares every pair of embedding and return a dataframe of (fish i, fish j) is same cosine"
+    """Compare every pair of embeddings, return a DataFrame of (fish_i, fish_j, is_same, cosine)."""
+    banner("COMPARE ALL PAIRS")
     rows = []
-    for i in range(len(record)):
+    for i in range(len(records)): # records is a list of tuples - loop over its indexes
+        for j in range(i+1, len(records)): # j starts AFTER i - each pair once, no self-pairs
+            fish_i, emb_i = records[i]
+            fish_j, emb_j = records[j]
+            cos = F.cosine_similarity(emb_i, emb_j).item()      # item pulls the single python number out of the 1-element tensor([0.7849]) -> 0.7849
+            rows.append({"fish_i": fish_i, "fish_j": fish_j,
+                         "is_same": fish_i == fish_j, "cosine": cos})
+    results = pd.DataFrame(rows)   # built ONCE, after both loops finish
+    logger.info(results.head().to_string())
+    logger.info(f"compared {len(results)} pairs")
+    return results
 
 # MAIN
 
@@ -88,10 +105,18 @@ def main():
     # almost no difference
 
     # LOOPING OVER ALL THE CROPS AND COMPARE STATS
-    records = gather_embeddings("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish*/*.jpg")
+    records = gather_embeddings("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish*/*.jpg") # selecting stretch 2
     results = compare_pairs(records)
 
+    # THE VERDICT: average cosine when SAME fish vs DIFFERENT fish (over all 38k pairs)
+    banner_sub("AVERAGE COSINE BY SAME/DIFFERENT FISH")
+    logger.info(results.groupby("is_same")["cosine"].mean().to_string())
 
-# ENTRY POINT
+    # is_same
+    # False    0.625372
+    # True     0.683704
+    # conclusion: weak signal
+
+# # ENTRY POINT
 if __name__ == '__main__':
     main()
