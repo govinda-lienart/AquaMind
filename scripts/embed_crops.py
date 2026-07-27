@@ -49,7 +49,7 @@ def embed(crop_path):
 
 def gather_embeddings(stretch_glob):
     """Embed every crop matching the glob, return a list of tuples: (fish_id, frame,  emb)."""
-    banner("GATHER EMBEDDINGS")
+    banner_sub("GATHER EMBEDDINGS")
     records = []
     for path in sorted(glob.glob(stretch_glob)): #glob finds files whose names match a pattern, and hands back a list of their paths.
         fish_id = int(re.search(r"fish_(\d+)", path).group(1))  # frame_6457_fish_5.jpg -->  /d+ takes one or more digit # r is raw string # group 1 captures what is between parenthisis # int() converts string to int
@@ -65,7 +65,7 @@ def gather_embeddings(stretch_glob):
 
 def compare_pairs(records):
     """Compare every pair of embeddings, return a DataFrame of (fish_i, fish_j, is_same, cosine)."""
-    banner("COMPARE ALL PAIRS")
+    banner_sub("COMPARE ALL PAIRS")
     rows = []
     for i in range(len(records)): # records is a list of tuples - loop over its indexes
         for j in range(i+1, len(records)): # j starts AFTER i - each pair once, no self-pairs
@@ -82,7 +82,15 @@ def compare_pairs(records):
 
 def rank1_accuracy(records):
     """Split records into early-gallery / late-query, then score rank-1 identification accuracy."""
-    records_sorted = sorted(records, key=lambda r: r[1])
+    logger.info(f"before sort (fish_id, frame): {[(r[0], r[1]) for r in records[:3]]}")
+    records_sorted = sorted(records, key=lambda r: r[1]) # without key it would standard sort on first element fish_id
+    logger.info(f"after sort  (fish_id, frame): {[(r[0], r[1]) for r in records_sorted[:3]]}")
+        # before:
+        # [(5, 1943, emb), (2, 1851, emb), (2, 2660, emb)]
+        # after  (earliest frame -> latest):
+        # [(2, 1851, emb), (5, 1943, emb), (2, 2660, emb)]
+    
+
 
 
 
@@ -92,16 +100,16 @@ def rank1_accuracy(records):
 
 def main():
 
-    banner("STAGE 6.2 — DINOv2 ZERO-TRAINING RE-ID BASELINE")
+    banner("DINOv2 ZERO-TRAINING RE-ID BASELINE")
 
     # EXPERIMENT 1 — spot-check on 3 hand-picked crops
     #   a & b = SAME fish (fish 2, stretch02); c = DIFFERENT fish (fish 5, stretch02)
     #   cosine similarity = angle between two fingerprint vectors:
     #    small angle -> cosine near 1.0 -> similar   -   big angle -> cosine near 0 -> different
-    banner_sub("EXPERIMENT 1: 3-CROP SPOT-CHECK")
-    emb_a = embed(".../stretch02_fish2/frame_1851_fish_2.jpg")   # anchor  - fish 2, early frame
-    emb_b = embed(".../stretch02_fish2/frame_2660_fish_2.jpg")   # SAME    - fish 2, late frame  -> should be CLOSE to a
-    emb_c = embed(".../stretch02_fish5/frame_1943_fish_5.jpg")   # DIFF    - fish 5             -> should be FAR from a
+    banner("EXPERIMENT 1: 3-CROP SPOT-CHECK")
+    emb_a = embed("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish2/frame_1851_fish_2.jpg")   # anchor  - fish 2, early frame
+    emb_b = embed("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish2/frame_2660_fish_2.jpg")   # SAME    - fish 2, late frame  -> should be CLOSE to a
+    emb_c = embed("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish5/frame_1943_fish_5.jpg")   # DIFF    - fish 5             -> should be FAR from a
     sim_same = F.cosine_similarity(emb_a, emb_b)
     sim_diff = F.cosine_similarity(emb_a, emb_c)
     logger.info(f"cosine(a, b) SAME fish:      {sim_same.item():.4f}")
@@ -109,16 +117,18 @@ def main():
     # -> barely any gap: weak signal even before we scale up
 
     # EXPERIMENT 2 — same/different averaged over EVERY pair in the stretch
-    banner_sub("EXPERIMENT 2: MEAN COSINE, SAME vs DIFFERENT FISH")
-    records = gather_embeddings(".../curated_crops/stretch02_fish*/*.jpg")
+    banner("EXPERIMENT 2: MEAN COSINE, SAME vs DIFFERENT FISH")
+    records = gather_embeddings("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish*/*.jpg")
     results = compare_pairs(records)
     logger.info(results.groupby("is_same")["cosine"].mean().to_string())
     # -> False 0.625 / True 0.684 : confirms the weak signal at scale
 
     # EXPERIMENT 3 — rank-1 identification (enroll early crops = gallery, test late crops = query)
-    banner_sub("EXPERIMENT 3: RANK-1 IDENTIFICATION ACCURACY")
+    banner("EXPERIMENT 3: RANK-1 IDENTIFICATION ACCURACY")
     acc = rank1_accuracy(records)
 
 # # ENTRY POINT
 if __name__ == '__main__':
     main()
+
+
