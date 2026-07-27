@@ -82,18 +82,38 @@ def compare_pairs(records):
 
 def rank1_accuracy(records):
     """Split records into early-gallery / late-query, then score rank-1 identification accuracy."""
-    logger.info(f"before sort (fish_id, frame): {[(r[0], r[1]) for r in records[:3]]}")
+    
+    banner_sub("SORTING TUPLES RECORDS BY FRAME")
+    logger.info(f"before sort (fish_id, frame, emb.shape): {[(r[0], r[1], tuple(r[2].shape)) for r in records[:3]]}")
     records_sorted = sorted(records, key=lambda r: r[1]) # without key it would standard sort on first element fish_id
-    logger.info(f"after sort  (fish_id, frame): {[(r[0], r[1]) for r in records_sorted[:3]]}")
+    logger.info(f"after sort  (fish_id, frame, emb.shape): {[(r[0], r[1], tuple(r[2].shape)) for r in records_sorted[:3]]}")
         # before:
         # [(5, 1943, emb), (2, 1851, emb), (2, 2660, emb)]
         # after  (earliest frame -> latest):
         # [(2, 1851, emb), (5, 1943, emb), (2, 2660, emb)]
+    # splitting frames in early frames (gallery) and late frames(query)
     
+    banner_sub("SPLITTING FRAMES IN GALLERY AND QUERY")
+    mid = len(records_sorted)//2
+    gallery = records_sorted[:mid] # gallery
+    query = records_sorted[mid:] # query
+    logger.info(f"the total frames in gallery is {len(gallery)}")
+    logger.info(f"the total frames in query is {len(query)}")
 
+    banner_sub("ORGANIZING CROPS FOR GALLERY (emb vector stored by bucket fish_id into a dictionary")
+    # not that the tuple (fish_id, frame, emb) ->  emb lives on the MPS GPU as a torch tensor. I can't use groupby here cause not a df but a tensor
+    # note that in compare_pairs I  first crushed each tensor pair down to a single cosine number (.item())
+    # here i need to keep need the actual fingerprints alive so I can average/vectormath them into templates and then do the nearest-neighbour matching.
+    gallery_by_fish = {}          # {fish_id: [emb, emb, emb, ...]}
+    for fish_id, frame, emb in gallery:
+        gallery_by_fish.setdefault(fish_id, []).append(emb)
+    # {1: [emb, emb, emb, ...],   # every gallery fingerprint of fish 1
+    # 2: [emb, emb, ...],
+    # 3: [emb, emb, ...]}
 
+    banner_sub("AVERAGING THE EMBs for each fish_id")
 
-
+    
 
 
 # MAIN
