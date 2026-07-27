@@ -48,20 +48,19 @@ def embed(crop_path):
     return embedding  # the 384-number fingerprint - the image embedded in a 384-dimensional space
 
 def gather_embeddings(stretch_glob):
-    """Embed every crop matching the glob, return a list of (fish_id, embedding)."""
+    """Embed every crop matching the glob, return a list of tuples: (fish_id, frame,  emb)."""
     banner("GATHER EMBEDDINGS")
     records = []
     for path in sorted(glob.glob(stretch_glob)): #glob finds files whose names match a pattern, and hands back a list of their paths.
-        fish_id = int(re.search(r"fish_(\d+)", path).group(1))  # /d+ takes one or more digit # r is raw string # group 1 captures what is between parenthisis # int() converts string to int
+        fish_id = int(re.search(r"fish_(\d+)", path).group(1))  # frame_6457_fish_5.jpg -->  /d+ takes one or more digit # r is raw string # group 1 captures what is between parenthisis # int() converts string to int
+        frame = int(re.search(r"frame_(\d+)", path).group(1))
         emb = embed(path) # runs DINOv2 forward pass
-        records.append((fish_id, emb)) 
+        records.append((fish_id, frame,  emb))  # 3 value tuple
     logger.info(f"gathered {len(records)} embeddings")
     return records
-    # e.g
-    # records = [
+    # e.g records = [
     # (2, tensor([[ 0.124, -0.873,  1.402,  0.031, -0.556,  ... ]])),   # fish 2, 384 numbers
     # (2, tensor([[ 0.201, -0.790,  1.388,  0.045, -0.601,  ... ]])),   # fish 2
-    # (2, tensor([[ 0.118, -0.902,  1.455, -0.012, -0.588,  ... ]])), 
 
 
 def compare_pairs(records):
@@ -70,8 +69,8 @@ def compare_pairs(records):
     rows = []
     for i in range(len(records)): # records is a list of tuples - loop over its indexes
         for j in range(i+1, len(records)): # j starts AFTER i - each pair once, no self-pairs
-            fish_i, emb_i = records[i]
-            fish_j, emb_j = records[j]
+            fish_i, frame, emb_i,  = records[i]
+            fish_j, frame,  emb_j = records[j]
             cos = F.cosine_similarity(emb_i, emb_j).item()      # item pulls the single python number out of the 1-element tensor([0.7849]) -> 0.7849
             rows.append({"fish_i": fish_i, "fish_j": fish_j,
                          "is_same": fish_i == fish_j, "cosine": cos})
@@ -80,42 +79,45 @@ def compare_pairs(records):
     logger.info(f"compared {len(results)} pairs")
     return results
 
+
+def rank1_accuracy(records):
+    """Split records into early-gallery / late-query, then score rank-1 identification accuracy."""
+    records_sorted = sorted(records, key=lambda r: r[1])
+
+
+
+
+
 # MAIN
 
 def main():
 
-    banner("SPOT-CHECK: DO SAME-FISH FINGERPRINTS LAND CLOSER?")
+    banner("STAGE 6.2 — DINOv2 ZERO-TRAINING RE-ID BASELINE")
 
-    # TESTING WITH A FEW CROPS
+    # EXPERIMENT 1 — spot-check on 3 hand-picked crops
+    #   a & b = SAME fish (fish 2, stretch02); c = DIFFERENT fish (fish 5, stretch02)
+    #   cosine similarity = angle between two fingerprint vectors:
+    #    small angle -> cosine near 1.0 -> similar   -   big angle -> cosine near 0 -> different
+    banner_sub("EXPERIMENT 1: 3-CROP SPOT-CHECK")
+    emb_a = embed(".../stretch02_fish2/frame_1851_fish_2.jpg")   # anchor  - fish 2, early frame
+    emb_b = embed(".../stretch02_fish2/frame_2660_fish_2.jpg")   # SAME    - fish 2, late frame  -> should be CLOSE to a
+    emb_c = embed(".../stretch02_fish5/frame_1943_fish_5.jpg")   # DIFF    - fish 5             -> should be FAR from a
+    sim_same = F.cosine_similarity(emb_a, emb_b)
+    sim_diff = F.cosine_similarity(emb_a, emb_c)
+    logger.info(f"cosine(a, b) SAME fish:      {sim_same.item():.4f}")
+    logger.info(f"cosine(a, c) DIFFERENT fish: {sim_diff.item():.4f}")
+    # -> barely any gap: weak signal even before we scale up
 
-    # 3 test crops - a & b are the SAME fish (fish 2, stretch02), c is a DIFFERENT fish (fish 5, stretch02)
-    emb_a = embed("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish2/frame_1851_fish_2.jpg")  # anchor - fish 2, early frame
-    emb_b = embed("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish2/frame_2660_fish_2.jpg")  # same fish 2, late frame - should be CLOSE to a
-    emb_c = embed("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish5/frame_1943_fish_5.jpg")  # different fish - should be FAR from a
-
-    # compare fingerprints by cosine similarity (1.0 = identical direction, higher = more similar) - Cosine similarity measures the ANGLE between two arrows: 
-        # small angle → cosine ≈ 1.0 → SAME direction → similar fish
-        # big angle → cosine ≈ 0 → different directions → different fish
-    sim_same = F.cosine_similarity(emb_a, emb_b)   # comparing the same fish from same stretch but frames far apart
-    sim_diff = F.cosine_similarity(emb_a, emb_c)   # different fish - same stretch
-
-    banner_sub("RESULT")
-    logger.info(f"cosine(a, b) SAME fish:      {sim_same.item():.4f}") # cosine(a, b) SAME fish:      0.7849
-    logger.info(f"cosine(a, c) DIFFERENT fish: {sim_diff.item():.4f}") # cosine(a, c) DIFFERENT fish: 0.7490
-    # almost no difference
-
-    # LOOPING OVER ALL THE CROPS AND COMPARE STATS
-    records = gather_embeddings("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch02_fish*/*.jpg") # selecting stretch 2
+    # EXPERIMENT 2 — same/different averaged over EVERY pair in the stretch
+    banner_sub("EXPERIMENT 2: MEAN COSINE, SAME vs DIFFERENT FISH")
+    records = gather_embeddings(".../curated_crops/stretch02_fish*/*.jpg")
     results = compare_pairs(records)
-
-    # THE VERDICT: average cosine when SAME fish vs DIFFERENT fish (over all 38k pairs)
-    banner_sub("AVERAGE COSINE BY SAME/DIFFERENT FISH")
     logger.info(results.groupby("is_same")["cosine"].mean().to_string())
+    # -> False 0.625 / True 0.684 : confirms the weak signal at scale
 
-    # is_same
-    # False    0.625372
-    # True     0.683704
-    # conclusion: weak signal
+    # EXPERIMENT 3 — rank-1 identification (enroll early crops = gallery, test late crops = query)
+    banner_sub("EXPERIMENT 3: RANK-1 IDENTIFICATION ACCURACY")
+    acc = rank1_accuracy(records)
 
 # # ENTRY POINT
 if __name__ == '__main__':
