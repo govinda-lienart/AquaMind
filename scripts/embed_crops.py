@@ -1,3 +1,13 @@
+"""Zero-shot (retrained model with no task-specific training) re-identification baseline for individual zebrafish.
+
+Embeds tracker-labelled crops with DINOv2 model and matches them by cosine
+similarity, using a temporal gallery/query split and averaged per-fish reference embedding. Output
+rank-1 accuracy as the no-training baseline and will be compared with fine-tuned embedder
+
+Usage:
+    python -m scripts.embed_crops
+"""
+
 # IMPORTS
 import logging
 import torch
@@ -82,7 +92,13 @@ def compare_pairs(records):
 
 def rank1_accuracy(records):
     """Split records into early-gallery / late-query, then score rank-1 identification accuracy."""
-    
+    # 1. SORT   records by frame
+    # 2. SPLIT  -> gallery (early crops) / query (late crops)
+    # 3. BUCKET + AVERAGE the gallery -> one template per fish (the "mugshots")
+    # 4. MATCH  each query crop -> nearest template = the guess
+    # 5. TALLY  hits/asked -> accuracy (overall + per fish)
+    # ──────────────────────────────────────────────────────────────────────────
+
     banner_sub("SORTING TUPLES RECORDS BY FRAME")
     logger.info(f"before sort (fish_id, frame, emb.shape): {[(r[0], r[1], tuple(r[2].shape)) for r in records[:3]]}")
     records_sorted = sorted(records, key=lambda r: r[1]) # without key it would standard sort on first element fish_id
@@ -110,11 +126,69 @@ def rank1_accuracy(records):
     # {1: [emb, emb, emb, ...],   # every gallery fingerprint of fish 1
     # 2: [emb, emb, ...],
     # 3: [emb, emb, ...]}
-
-    banner_sub("AVERAGING THE EMBs for each fish_id")
-
+    bucket_counts = {fid: len(embs) for fid, embs in gallery_by_fish.items()}
+    logger.info(f"gallery buckets (fish_id -> crop count): {bucket_counts}")
     
+    banner_sub("AVERAGING THE EMBs for each fish_id")
+    # .items() loops a dict giving BOTH key and value -> (1, [emb,...]), (2, [emb,...])
+    # torch.stack glues N (1,384) tensors into one (N,1,384) block; .mean(dim=0) averages
+    # across the N crops -> one (1,384) template. Averaging cancels per-crop noise.
+    gallery_templates = {}                                  # {fish_id: one averaged (1,384) template}
+    for fish_id, emb_list in gallery_by_fish.items():       # walk each fish's bucket of fingerprints
+        template = torch.stack(emb_list).mean(dim=0)        # average this fish's crops -> (1,384)
+        gallery_templates[fish_id] = template               # store this fish's template
+    # .stack the fingerprints into one block
+        # emb_list = [ tensor(1,384),   # crop A
+        #          tensor(1,384),   # crop B
+        #          tensor(1,384) ]  # crop C
+    # torch.stack(emb_list) # glue those 3 loose tensors into one tensor by adding a new front axis that counts them
+        # 3 × (1, 384)   -->   (3, 1, 384)
+        #                 
+        #              "which crop" axis (0, 1, 2)
+    # .mean(dim=0)
+        #  average along axis 0 — the "which crop" axis. This squashes the 3 crops into 1 by averaging them position-by-position:
+        # (crop A's #7 + crop B's #7 + crop C's #7) / 3. Every one of the 384 numbers is averaged across the 3 crops independently. 
+        # (3, 1, 384)   --> average tensor  (1, 384) 
+        # average crop to remove noise 
+    # After the averaging loop finishes, gallery_templates holds one template tensor per fish that appears in the gallery:
+        # gallery_templates = {1: tensor(1,384),   # fish 1's averaged mugshot
+                                # 2: tensor(1,384),
+                                # 3: tensor(1,384),
+                                # ...}
+    # gallery_templates[fish_id] = template    
+    # store it inside gallery_templates {1: tensor(1,384), 2: tensor(1,384), 3: tensor(1,384)}
+    logger.info(f"enrolled {len(gallery_templates)} templates, fish ids: {list(gallery_templates.keys())}")
 
+    banner_sub("MATCHING QUERY CROPS AGAINST GALLERY TEMPLATES - COSINE SIMILARITY")
+    correct = 0
+    total = 0
+    correct_by_fish = {}                                     # {fish_id: hits} # keeps the score of the different fish_id
+    total_by_fish = {}                                       # {fish_id: questions}
+    for true_fish_id, _, query_emb in query:   # walk the query LIST - unpack each tuple -> keep true_fish_id + query_emb, skip frame (_)
+                                              # the outer loop walks every single raw query crop 
+        scores = {} # 
+        # scores = {1: 0.71,    # this crop is 0.71 cosine-similar to fish 1's template
+        #           2: 0.63,    # 0.63 similar to fish 2
+        #           3: 0.68,    # 0.68 similar to fish 3 ....
+        for fid, template in gallery_templates.items(): # or the current query crop, score it against each of the 5 averaged templates (one fish per turn)
+            sim = F.cosine_similarity(query_emb, template).item()
+            scores[fid] = sim # writes the similarity into the scores dic for one query crop, filed under that fish's 
+        best_fish_id = max(scores, key=scores.get) # max walks the keys (the fish ids: 1, 2, 3, 4, 5), and for each one it uses scores.get to fetch that fish's value, then keeps track of who has the biggest value so far.
+        # global tally
+        total += 1 # counts every question
+        if best_fish_id == true_fish_id:
+            correct += 1 # counts every correctly answered question
+        # per-fish tally
+        total_by_fish[true_fish_id] = total_by_fish.get(true_fish_id, 0) + 1 # total count per fish_id: take this fish's current count (or 0 if it's the first time we've seen this fish), then add 1...
+        if best_fish_id == true_fish_id:
+            correct_by_fish[true_fish_id] = correct_by_fish.get(true_fish_id, 0) # correct count per fish_id — only runs on a hit (inside the if), same .get(...,0)+1 pattern
+    accuracy = correct / total
+    logger.info(f"OVERALL rank-1 accuracy: {correct}/{total} = {accuracy:.3f}")
+    for fid in sorted(total_by_fish):                        # per-fish breakdown
+        hits = correct_by_fish.get(fid, 0)                  # .get -> 0 if this fish never scored a hit
+        asked = total_by_fish[fid]
+        logger.info(f"  fish {fid}: {hits}/{asked} = {hits/asked:.3f}")
+    return accuracy
 
 # MAIN
 
