@@ -16,9 +16,23 @@ from torchvision import transforms
 
 transform = transforms.Compose([
         transforms.Resize((224, 224)), # DINOV2 wants 224 x 224 pixels
-        transforms.ToTensor,           # PIL to tensor , pixel 0-1
+        transforms.ToTensor(),           # PIL to tensor , pixel 0-1
         transforms.Normalize(mean=[0.485, 0.456, 0.406],     # centre on ImageNet stats - ranging between about -2 and 2
                          std=[0.229, 0.224, 0.225]),])
+
+# EXPLORING A TENSOR
+
+def describe_tensor(t):
+    """Print a tensor's key facts"""
+    print(f"  shape:   {tuple(t.shape)}")          # e.g. (3, 224, 224)
+    print(f"  dtype:   {t.dtype}")                 # e.g. torch.float32
+    print(f"  device:  {t.device}")               # cpu / mps
+    print(f"  min/max: {t.min():.3f} / {t.max():.3f}")   # value range after Normalize (~ -2 to +2)
+    print(f"  mean:    {t.mean():.3f}")            # roughly 0 if normalized well
+    print(f"  peek:    {t[0, :2, :3]}")            # tiny corner: channel 0, first 2 rows, first 3 cols
+    print(f"  grad?:   {t.requires_grad}")   # False — not part of a graph yet
+    print(f"  grad:    {t.grad}")             # None — no gradient computed
+
 
 # MAIN
 
@@ -33,12 +47,17 @@ class FishCropDataset(Dataset):# the class inherits the DATASET structure set up
         path = self.paths[i]
         image = Image.open(path).convert("RGB") # GET IMAGE - open jpg and convert this compress3ed file into a pixed grid with RBG value (color,height and width) 
         label = int(re.search(r"fish_(\d+)", path).group(1)) # GET LABEL - pull the fish_id from the filename 
-
+        tensor=transform(image) # run the image down the pre-processing belt - (3,254,244) normalized tensor.
+        return tensor, label
+    
 # ENTRY POINT
 
 if __name__ == "__main__":
     ds = FishCropDataset("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch*_fish*/*.jpg")
     print("total crops found:", len(ds))
+    sample_tensor, sample_label = ds[0]      # ds[0] calls __getitem__(0) -> returns (tensor, label)
     print("first path:", ds.paths[0])
+    print("label:", sample_label)
+    describe_tensor(sample_tensor)           # hand the tensor to your helper
 
 
