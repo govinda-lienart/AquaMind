@@ -181,7 +181,7 @@ def rank1_accuracy(records):
         # per-fish tally
         total_by_fish[true_fish_id] = total_by_fish.get(true_fish_id, 0) + 1 # total count per fish_id: take this fish's current count (or 0 if it's the first time we've seen this fish), then add 1...
         if best_fish_id == true_fish_id:
-            correct_by_fish[true_fish_id] = correct_by_fish.get(true_fish_id, 0) # correct count per fish_id — only runs on a hit (inside the if), same .get(...,0)+1 pattern
+            correct_by_fish[true_fish_id] = correct_by_fish.get(true_fish_id, 0) + 1 # correct count per fish_id — only runs on a hit (inside the if), same .get(...,0)+1 pattern
     accuracy = correct / total
     logger.info(f"OVERALL rank-1 accuracy: {correct}/{total} = {accuracy:.3f}")
     for fid in sorted(total_by_fish):                        # per-fish breakdown
