@@ -6,12 +6,14 @@ Usage:
 
 # IMPORTS
 
+import torch
 from torch.utils.data import Dataset, DataLoader
 import glob
 import re
 from PIL import Image
 from torchvision import transforms
-from scripts.console import banner, banner_sub  # readable console section headers
+from scripts.console import banner, banner_sub  # readable console section headers]
+import torch.nn as nn
 
 # PREPROCESSING BELT: PIL image - Model ready tensor
 
@@ -20,19 +22,6 @@ transform = transforms.Compose([
         transforms.ToTensor(),           # PIL to tensor , pixel 0-1
         transforms.Normalize(mean=[0.485, 0.456, 0.406],     # centre on ImageNet stats - ranging between about -2 and 2
                          std=[0.229, 0.224, 0.225]),])
-
-# HELP FUNCTIONS
-
-def describe_tensor(t):
-    """Print a tensor's key facts"""
-    print(f"  shape:   {tuple(t.shape)}")          # e.g. (3, 224, 224)
-    print(f"  dtype:   {t.dtype}")                 # e.g. torch.float32
-    print(f"  device:  {t.device}")               # cpu / mps
-    print(f"  min/max: {t.min():.3f} / {t.max():.3f}")   # value range after Normalize (~ -2 to +2)
-    print(f"  mean:    {t.mean():.3f}")            # roughly 0 if normalized well
-    print(f"  peek:    {t[0, :2, :3]}")            # tiny corner: channel 0, first 2 rows, first 3 cols
-    print(f"  grad?:   {t.requires_grad}")   # False — not part of a graph yet
-    print(f"  grad:    {t.grad}")             # None — no gradient computed
 
 # MAIN
 
@@ -68,22 +57,36 @@ def main():
     print("label map (fish_id -> slot):", ds.label_map)
 
     banner_sub("FIRST SAMPLE")
-    sample_tensor, sample_label = ds[0]      # ds[0] calls __getitem__(0) -> returns (tensor, label)
-    print("first path:", ds.paths[0])
+    sample_tensor, sample_label = ds[0]      #  this triggers getitem in the class FishCropDataset -  ds[0] calls __getitem__(0) -> returns (tensor, label)
+    print("first path:", ds.paths[0]) #
     print("label:", sample_label)
 
-    banner_sub("TENSOR INSPECTION OF FIRST SAMPLE")
-    describe_tensor(sample_tensor)           # hand the tensor to your helper
+    banner_sub("FIRST SAMPLE SHAPE")
+    print("sample tensor shape:", tuple(sample_tensor.shape))   # (3, 224, 224)
 
     banner_sub("DATALOADER — ONE BATCH")
     loader = DataLoader(ds, batch_size=32, shuffle=True)
-    # batch_size=32: common default — stable gradients, small enough for memory
-    # shuffle=True: breaks the sorted fish_1,fish_1,...,fish_2 ordering so each batch mixes fish
+                                                            # batch_size=32: common default — stable gradients, small enough for memory
+                                                            # shuffle=True: breaks the sorted fish_1,fish_1,...,fish_2 ordering so each batch mixes fish
 
-    tensors, labels = next(iter(loader))     # pull ONE batch
-    print("batch tensors shape:", tensors.shape)   # predicted (32, 3, 224, 224)?
-    print("batch labels shape: ", labels.shape)
-    print("labels in batch:    ", labels)          # a mix of slots 0-4 if shuffle worked
+    tensors, labels = next(iter(loader))     # pull ONE batch out of the loader
+    print("batch tensors shape:", tuple(tensors.shape))   # predicted (32, 3, 224, 224)?
+    print("labels in batch:    ", labels)                 # a mix of slots 0-4 -  shuffle worked
+
+    banner_sub("BACKBONE — CROPS → FINGERPRINTS") # THE PRE_TRAINED LAYER - converting to finger print - output layer
+    backbone = torch.hub.load("facebookresearch/dinov2", "dinov2_vits14") 
+    backbone.eval()                       # inference mode — not training the backbone
+    with torch.no_grad():                 # no gradient graph — pure forward pass
+        feats = backbone(tensors)         # push the SAME batch already pulled
+    print("fingerprints shape:", tuple(feats.shape))      #  (32, 384) 32 fingerprints 
+
+    banner_sub("HEAD FINGERPRINT -> 5 FISH SCORES") # THE EXPERT LAYER
+    head = nn.Linear(384, 5) # (in-size, out-size) 384 fingerprint numbers in -> 5 fish out # here we buld the machine - the layers and staches in the head
+    logits = head(feats) # head.__call__(feats)-> then forward - inside nn.Linear - run the 32 fingerprints through the head - Running the data in the machine - in the neural network
+    print("logits shape:", tuple(logits.shape))   # expect (32, 5): 32 crops, 5 scores each
+    print("first row:", logits[0])                # 5 raw scores for crop 0 — highest = head's guess
+
+    banner_sub("LOSS - HOW WRONG WERE THE GUESSES")
 
 # ENTRY POINT
 
