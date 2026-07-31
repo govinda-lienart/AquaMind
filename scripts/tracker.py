@@ -1,7 +1,7 @@
 """
-tracker_basic.py — a deliberately minimal fish tracker (EXPERIMENT).
-Run:  python -m scripts.tracker_basic
-Output: <output_video_path with '_basic' before .mp4>
+tracker.py — the fish tracker (SORT-style: velocity prediction + OC-SORT direction term).
+Run:  python -m scripts.tracker
+Output: a per-run folder <base>_<timestamp>/ holding the video, log, config sidecar, crops, and tracks.parquet
 """
 
 import os
@@ -13,10 +13,9 @@ from datetime import datetime
 import cv2
 import yaml
 import numpy as np
+import pandas as pd
 from ultralytics import YOLO
 from scipy.optimize import linear_sum_assignment
-
-from scripts.db import get_connection, get_video_id, register_track
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -197,7 +196,7 @@ def print_run_config(input_video_path, model_path, output_video_path, start_seco
 
 # ── main ───────────────────────────────────────────────────────────────────────
 def main():
-    c = yaml.safe_load(open(CONFIG_PATH))['basic_tracker']
+    c = yaml.safe_load(open(CONFIG_PATH))['tracker']
     input_video_path  = c['input_video_path']
     model_path        = c['model_path']
     num_fish          = c['num_fish']
@@ -210,7 +209,7 @@ def main():
     clean    = c['output_video_path'].rstrip('/,. ')          # tolerate trailing junk
     base     = os.path.splitext(os.path.basename(clean))[0]
     stamp    = datetime.now().strftime('%Y_%m_%d_%H%M')       # auto timestamp → a fresh folder every run
-    run_name = f'{base}_basic_{stamp}'                        # e.g. 'tracker_IMG_1839_basic_2026_07_23_1642'
+    run_name = f'{base}_{stamp}'                              # e.g. 'tracker_IMG_1839_2026_07_23_1642'
     base_dir = os.path.dirname(clean) or 'output_fish_tracker'
     run_dir  = os.path.join(base_dir, run_name)
     os.makedirs(run_dir, exist_ok=True)                       # create it if missing
@@ -245,12 +244,8 @@ def main():
 
     out = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (W, H))
 
-    # ── MySQL: clear this video's old tracks, then write fresh (identical to fish_tracker) ──
-    conn     = get_connection()
-    cursor   = conn.cursor()
-    video_id = get_video_id(cursor, input_video_path)
-    cursor.execute("DELETE FROM tracks WHERE video_id = %s", (video_id,))  # working storage: wipe prior run
-    conn.commit()
+    # ── collect this run's tracks in memory, write to parquet at the end (no MySQL) ──
+    track_rows = []   # one dict per (frame, fish); saved as tracks.parquet in this run's output folder
 
     tracks, next_id, locked, frame_count = [], 1, False, 0
 
@@ -315,7 +310,10 @@ def main():
         for t in tracks:
             if t.id is None:                         # tentative tracks (pre-lock) aren't persisted
                 continue
-            register_track(cursor, video_id, t.id, frame_count, timestamp, t.x, t.y, t.confidence, t.missing > 0)
+            track_rows.append({                      # one row per identified track this frame (parquet schema)
+                "frame_number": frame_count, "timestamp": timestamp, "fish_id": t.id,
+                "x": t.x, "y": t.y, "confidence": t.confidence, "occluded": int(t.missing > 0),
+            })
 
             # cropping out the fish bbox to save it on disk and use later for fish RE-ID Machine learning
             if t.missing > 0: 
@@ -336,14 +334,12 @@ def main():
         draw_frame(frame, tracks, locked, frame_count)
         out.write(frame)
 
-        cv2.imshow('Fish Tracker (basic)', frame)   # live preview
+        cv2.imshow('Fish Tracker', frame)   # live preview
         key = cv2.waitKey(1) & 0xFF                  # refresh window; read any key press
         if key == ord('q') or key == 27:            # q or ESC (27) quits early
             logger.info("quit requested - stopping early")
             break
 
-        if frame_count % 30 == 0:                    # commit periodically — same cadence as fish_tracker
-            conn.commit()
         if frame_count % 60 == 0:
             logger.info(f"  frame {frame_count}/{total_frames} | tracks={len(tracks)} | locked={locked}")
         frame_count += 1
@@ -351,9 +347,12 @@ def main():
     cap.release()
     out.release()
     cv2.destroyAllWindows()                          # close preview window
-    conn.commit()                                    # final flush
-    cursor.close()
-    conn.close()
+
+    # write this run's tracks to parquet (schema identical to the Stage 7 parquets — no MySQL)
+    tracks_df = pd.DataFrame(track_rows, columns=["frame_number", "timestamp", "fish_id", "x", "y", "confidence", "occluded"])
+    tracks_path = os.path.join(run_dir, "tracks.parquet")
+    tracks_df.to_parquet(tracks_path)
+    logger.info(f"saved {len(tracks_df)} track rows -> {tracks_path}")
     logger.info(f"\nDone. Saved to {out_path}")
 
 

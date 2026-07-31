@@ -75,8 +75,8 @@ fish_tracker:
   trail_length:      300   # e.g. 150 = keep last 150 frames of trail per fish; null = keep the entire video's trail (in-memory only, never saved to disk)
   show_frame_number: true # # burn the frame number onto the video - I need to set to false to disable
 
-# basic_tracker_script (tracker_basic.py)
-basic_tracker:
+# tracker_script (tracker.py)
+tracker:
   input_video_path:  videos/IMG_1839.MOV
   model_path:        runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440/weights/best.pt
   output_video_path: output_fish_tracker/tracker_IMG_1839   # a dated '_basic_<timestamp>' folder is created per run
