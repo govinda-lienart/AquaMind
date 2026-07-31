@@ -1,27 +1,37 @@
 
 """
+Stage 6 — per-video re-ID head (DINOv2 backbone + trained classifier head).
+
+Cache-or-compute:
+  - config.yaml `train_reid.videos.<name>.features_path` SET   -> LOAD that cache, skip the slow backbone
+  - features_path BLANK                                        -> BUILD a fresh timestamped cache, then train
 
 Usage:
-    python -m scripts.train_reid
+    python -m scripts.train_reid --video_name IMG_1839
 """
 #============================================================
 # IMPORTS
 #============================================================
 import torch
-from torch.utils.data import Dataset, DataLoader, TensorDataset # TensorDataset is tool that allows to use tensors directly given that now no need for preprocsing to tensors the backbone - its alrady cached
+from torch.utils.data import Dataset, DataLoader, TensorDataset # TensorDataset lets us batch tensors directly (feats already cached, no preprocessing)
 import os
 import glob
 import re
 import logging
 import yaml
+import argparse
 import subprocess
 import datetime
 from PIL import Image
 from torchvision import transforms
-from scripts.console import banner, banner_sub  # readable console section headers]
+from scripts.console import banner, banner_sub  # readable console section headers
 import torch.nn as nn
 
 logger = logging.getLogger(__name__)  # module logger; setup_logging() configures format/level in the entry point
+
+CONFIG_PATH = 'config.yaml'
+with open(CONFIG_PATH) as f:
+    cfg = yaml.safe_load(f)['train_reid']   # this script's config section
 
 #============================================================
 # PREPROCESSING BELT: PIL image - Model ready tensor
@@ -38,8 +48,10 @@ transform = transforms.Compose([
 #============================================================
 
 class FishCropDataset(Dataset):# the class inherits the DATASET structure set up by pytroch
-    def  __init__(self, crops_glob): # __init__ STORES a BIG list of e.g. 1949 paths and a TINY dict of 5 entries # launched once therefore init 
-        self.paths = sorted(glob.glob(crops_glob)) # collect every crop path matching the pattern * and store it in a list of paths - note sorted not 100 percent needed but it helps to make sure it always stores the paths in the same way - better for debugging 
+    def  __init__(self, crops_globs): # __init__ STORES a BIG list of e.g. 1949 paths and a TINY dict of 5 entries # launched once therefore init
+        if isinstance(crops_globs, str):                       # accept a single pattern OR a list of patterns (one per stretch)
+            crops_globs = [crops_globs]
+        self.paths = sorted(p for g in crops_globs for p in glob.glob(g)) # union of every pattern, sorted so path order is stable (better for debugging)
         raw_ids = {int(re.search(r"fish_(\d+)", p).group(1)) for p in self.paths}  # goes through each path and pulls the fish_id out for each path - here we call it raw cause this is exactly how it appears in the original, unprocessed. # note ythay also that {} make it a set {... for ...} (no colons ;) so duplicated vanishes cause fish_1 appears hudneres of time but the set only keeps 1
         self.label_map = {raw_id: i for i, raw_id in enumerate(sorted(raw_ids))}   # 1) sorted changes the set into a list [1,2,3,4,5] - a set has no order, so we sorted to guarantee order. 2) enumerate pairs each item with its position (0,1), (1,2),  (2, 3), (3, 4), (4, 5) - 3) raw id converts it all in a dict comprehension {1:0, 2:1, 3:2, 4:3, 5:4}.
                                                                                     # the converstion from just fish_id 1-5 to 0-4 has to do with the classifiers output
@@ -51,157 +63,144 @@ class FishCropDataset(Dataset):# the class inherits the DATASET structure set up
 
     def __getitem__(self, i): # pairing of label and fish_id # launched for evry crop/epoch thousands of time therefore not in init
         path = self.paths[i]
-        image = Image.open(path).convert("RGB") # GET IMAGE - open jpg and convert this compress3ed file into a pixed grid with RBG value (color,height and width) 
+        image = Image.open(path).convert("RGB") # GET IMAGE - open jpg and convert this compress3ed file into a pixed grid with RBG value (color,height and width)
         raw_id = int(re.search(r"fish_(\d+)", path).group(1))   # pull fish id from filename
         label = self.label_map[raw_id]                          #  for example read fish 5 off this crop's filename — asks table map, what slot number is that? → slot 4. That's my label."
         tensor = transform(image) # run the image down the pre-processing belt - (3,254,244) normalized tensor.
         return tensor, label
-    
+
 #============================================================
-# MAIN
-#===========================================================
+# CONFIG LOADER
+#============================================================
 
-def main():
+def grab_video_name(video_name):
+    "pull this video's re-ID params from config.yaml"
+    video_cfg     = cfg['videos'][video_name]
+    crops_run     = video_cfg['crops_run']
+    stretches     = video_cfg['stretches']           # which curated stretch(es) to train on (identity-safety)
+    backbone_name = video_cfg['backbone']
+    features_path = video_cfg.get('features_path')   # optional — None/blank means BUILD a fresh cache
+    num_epochs    = video_cfg['num_epochs']
+    lr            = video_cfg['lr']
+    batch_size    = video_cfg['batch_size']
+    banner('LOADING CONFIGURATION')
+    logger.info(f"loaded cfg: {video_cfg}")
+    return crops_run, stretches, backbone_name, features_path, num_epochs, lr, batch_size
 
-    # ============================================================
-    # SETUP 
-    # ============================================================
+#============================================================
+# FEATURES: cache-or-compute
+#============================================================
 
-    banner("FISH CROP DATASET")
+def build_or_load_features(crops_run, stretches, backbone_name, features_path):
+    """Return (all_feats, all_labels, label_map).
+       FAST path: features_path exists -> load it, backbone never runs.
+       SLOW path: otherwise run the backbone over the SELECTED stretches ONCE, save a timestamped cache + sidecar."""
 
-    run_dir    = "output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202"   # where crops live + where we save the cache
-    crops_glob = f"{run_dir}/curated_crops/stretch*_fish*/*.jpg"                # one source of truth for the crop pattern
-    ds = FishCropDataset(crops_glob)
+    # ---------- FAST PATH: load a prebuilt cache ----------
+    if features_path and os.path.exists(features_path):
+        banner_sub("LOADING CACHED FINGERPRINTS")
+        data = torch.load(features_path)
+        logger.info(f"loaded cache <- {features_path}  feats: {tuple(data['feats'].shape)}")
+        return data["feats"], data["labels"], data["label_map"]
 
-    banner_sub("DATASET OVERVIEW")
+    # ---------- SLOW PATH: build the cache from the selected stretches ----------
+    banner_sub("BUILDING FINGERPRINTS (one-time backbone pass)")
+    # one glob per selected stretch; int(s):02d so '2', 2, '02' all become 'stretch02' (matches the folder names)
+    crops_globs = [f"{crops_run}/curated_crops/stretch{int(s):02d}_fish*/*.jpg" for s in stretches]
+    logger.info(f"training stretches: {stretches}  ->  {crops_globs}")
+    ds = FishCropDataset(crops_globs)
     logger.info(f"total crops found: {len(ds)}")
     logger.info(f"label map (fish_id -> slot): {ds.label_map}")
+    loader = DataLoader(ds, batch_size=32, shuffle=False)   # order irrelevant for caching (feat & label travel together)
 
-    banner_sub("FIRST SAMPLE")
-    sample_tensor, sample_label = ds[0]      #  this triggers getitem in the class FishCropDataset -  ds[0] calls __getitem__(0) -> returns (tensor, label)
-    logger.info(f"first path: {ds.paths[0]}")
-    logger.info(f"label: {sample_label}")
+    backbone = torch.hub.load("facebookresearch/dinov2", backbone_name)
+    backbone.eval() # switches layers from training behaviour to inference behaviour
 
-    banner_sub("FIRST SAMPLE SHAPE")
-    logger.info(f"sample tensor shape: {tuple(sample_tensor.shape)}")   # (3, 224, 224)
-
-    banner_sub("DATALOADER — ONE BATCH")
-    loader = DataLoader(ds, batch_size=32, shuffle=True)
-                                                            # batch_size=32: common default — stable gradients, small enough for memory
-                                                            # shuffle=True: breaks the sorted fish_1,fish_1,...,fish_2 ordering so each batch mixes fish
-
-    # backbone — THE PRE_TRAINED LAYER - converting to finger print - output layer
-    backbone = torch.hub.load("facebookresearch/dinov2", "dinov2_vits14")
-    backbone.eval()                       # inference mode — not training the backbone
-
-    # head — THE EXPERT LAYER
-    head = nn.Linear(384, 5) # (in-size, out-size) 384 fingerprint numbers in -> 5 fish out # here we buld the machine - the layers and staches in the head
-    head.train() # set the head in training mode
-
-    # loss + optimizer
-    loss_fin = nn.CrossEntropyLoss()  # build the measuring tool - the grader # takes raw logits # softmax internally
-    optimizer = torch.optim.Adam(head.parameters(), lr=1e-3) # build-once setup  # the optimizer only affects the head. lr - 0.01 is training rate #
-
-    banner_sub("SANITY CHECK — ONE BATCH THROUGH THE PIPELINE")
-    tensors, labels = next(iter(loader))     # pull ONE batch out of the loader
-    with torch.no_grad():                 # no gradient graph — pure forward pass
-        feats = backbone(tensors)         # push the SAME batch already pulled
-    logger.info(f"fingerprints shape: {tuple(feats.shape)}")      #  (32, 384) 32 fingerprints
-    logits = head(feats) # head.__call__(feats)-> then forward - inside nn.Linear - run the 32 fingerprints through the head - Running the data in the machine - in the neural network
-    logger.info(f"logits shape: {tuple(logits.shape)}")   # expect (32, 5): 32 crops, 5 scores each
-    logger.info(f"first row: {logits[0]}")                # 5 raw scores for crop 0 — highest = head's guess
-    logger.info(f"start loss: {loss_fin(logits, labels).item()}") # compare 32 guesses against the 32 true labels # ~2.26 = untrained, random guessing
-
-    # ============================================================
-    # CACHE FINGERPRINTS (one-time pass: run backbone ONCE, save to disk -cached)
-    # ============================================================
-
-    banner_sub("CACHING FINGERPRINTS")
-    all_feats = []      # will collect fingerprint batches
-                        #     all_feats = [
-                        #     tensor of shape (32, 384),   # batch 1's fingerprints
-                        #     tensor of shape (32, 384),   # batch 2's fingerprints
-                        #     tensor of shape (29, 384),   # batch 61 (the short last one)
-                        # ]
-
+    all_feats = []      # will collect fingerprint batches: [ (32,384), (32,384), ..., (29,384) ]
     all_labels = []     # will collect the matching labels
+    with torch.no_grad():                       # frozen — no gradients, no backward, no training of the DINOv2 backbone
+        for tensors, labels in loader:          # grab the next 32 crops
+            all_feats.append(backbone(tensors)) # turn those 32 crops into 32 fingerprints, stash them
+            all_labels.append(labels)           # stash their labels in a second bucket
 
-    backbone.eval() # switches layers from training behavour to inference behaviour
-    with torch.no_grad():                       # frozen — no need to track gradients go no backward - no training of dino backbone
-        for tensors, labels in loader:          # # grab the next 32 crops
-            feats = backbone(tensors)           #  turn those 32 crops into 32 fingerprints - (32, 384) fingerprints for this batch
-            all_feats.append(feats)             #  # drop the fingerprints into a collecting bucket - stash this batch's fingerprints
-            all_labels.append(labels)           # # drop their labels into a second bucket - stash this batch's labels
-
-    all_feats = torch.cat(all_feats)            # cat glues/concatante all those separate tensors into one big tensor, stacking them on top of each  - list of ~61 (32,384) tensors -> one (1949, 384) 
-                                                #  [ (32,384), (32,384), ..., (29,384) ]   →   one (1949, 384) 
-                                                # — it's a table: 1949 rows, 384 columns. 
-                                                #    col0     col1     col2    ...    col383
-                                                # crop 0      [ -0.12,    0.88,   -1.44,   ...,    0.05 ]   ← fish 1's fingerprint
-                                                # crop 1      [  0.31,   -0.07,    0.92,   ...,   -0.63 ]   ← fish 1's fingerprint
-                                                # crop 1948   [  0.77,   -0.19,    0.63,   ...,   -0.08 ]   ← fish 5's fingerprint
-    all_labels = torch.cat(all_labels)          # list of ~61 (32,) tensors    -> one (1949,)
-    logger.info(f"cached feats: {tuple(all_feats.shape)}  labels: {tuple(all_labels.shape)}")
+    all_feats = torch.cat(all_feats)            # cat glues the ~61 (32,384) tensors into one (1949, 384) table
+    all_labels = torch.cat(all_labels)          # ~61 (32,) tensors -> one (1949,)
+    logger.info(f"built feats: {tuple(all_feats.shape)}  labels: {tuple(all_labels.shape)}")
 
     # versioned subfolder so a new cache never overwrites an old one (same idea as tracker_basic's timestamped run folder)
     stamp    = datetime.datetime.now().strftime("%Y_%m_%d_%H%M")
-    reid_dir = f"{run_dir}/reid_cache_{stamp}"
+    reid_dir = f"{crops_run}/reid_cache_{stamp}"
     os.makedirs(reid_dir, exist_ok=True)
 
     feat_path = f"{reid_dir}/reid_features.pt"
-    torch.save({"feats": all_feats, "labels": all_labels}, feat_path)   # write both tensors to one file
+    torch.save({"feats": all_feats, "labels": all_labels, "label_map": ds.label_map}, feat_path)  # label_map travels with the feats
     logger.info(f"saved fingerprints -> {feat_path}")
 
-    # ============================================================
-    # SIDECAR (provenance: how this cache was created — mirrors tracker_basic.py's config sidecar)
-    # ============================================================
-
-    # which stretches actually contributed crops (parsed live from the loaded paths, not assumed)
-    stretches = sorted({re.search(r"stretch(\d+)", p).group(1) for p in ds.paths})
-
+    # sidecar (provenance: how this cache was created — mirrors tracker_basic.py's config sidecar)
+    stretches_used = sorted({re.search(r"stretch(\d+)", p).group(1) for p in ds.paths})  # which stretches actually contributed
     sidecar = {
-        "tracker_run": os.path.basename(run_dir),       # which tracker run produced these crops
-        "crops_glob":  crops_glob,                      # the exact source-crop pattern (no drift — same var the dataset used)
-        "stretches":   stretches,                       # the actual stretch ids harvested (e.g. ['00','01',...])
-        "backbone":    "dinov2_vits14",                 # fingerprints from a different backbone are NOT comparable
-        "n_crops":     all_feats.shape[0],              # rows = number of crops cached (1949)
+        "tracker_run": os.path.basename(crops_run),     # which tracker run produced these crops
+        "crops_globs": crops_globs,                     # the exact source-crop patterns (no drift — same list the dataset used)
+        "stretches":   stretches_used,                  # the actual stretch ids harvested (e.g. ['02'])
+        "backbone":    backbone_name,                   # fingerprints from a different backbone are NOT comparable
+        "n_crops":     all_feats.shape[0],              # rows = number of crops cached
         "feat_dim":    all_feats.shape[1],              # cols = fingerprint length (384)
         "label_map":   ds.label_map,                    # fish_id -> slot, so slot 0 always means the same fish
-        "git_commit":  subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip(),  # code state
+        "git_commit":  subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip(),
         "created_at":  datetime.datetime.now().isoformat(timespec="seconds"),
     }
-    sidecar_path = f"{reid_dir}/reid_features.yaml"
-    with open(sidecar_path, "w") as f:
+    with open(f"{reid_dir}/reid_features.yaml", "w") as f:
         yaml.dump(sidecar, f, sort_keys=False)          # same yaml.dump pattern as tracker_basic.py
-    logger.info(f"saved sidecar -> {sidecar_path}")
+    logger.info(f"saved sidecar -> {reid_dir}/reid_features.yaml")
+    logger.info(f"REUSE: set  features_path: {feat_path}  in config.yaml to skip the backbone next time")
 
-    # ============================================================
-    # TRAINING LOOP
-    # ============================================================
+    return all_feats, all_labels, ds.label_map
 
+#============================================================
+# MAIN
+#============================================================
+
+def main(crops_run, stretches, backbone_name, features_path, num_epochs, lr, batch_size):
+
+    banner("FISH RE-ID — TRAIN HEAD")
+
+    # ---------- features: load a cache or build one ----------
+    all_feats, all_labels, label_map = build_or_load_features(crops_run, stretches, backbone_name, features_path)
+
+    n_classes = len(label_map)          # number of fish (NOT hardcoded — comes from the data)
+    feat_dim  = all_feats.shape[1]      # 384
+
+    # ---------- head + loss + optimizer (build once) ----------
+    head = nn.Linear(feat_dim, n_classes)   # (in-size, out-size) fingerprint -> one score per fish
+    head.train()                            # head in training mode
+    loss_fin = nn.CrossEntropyLoss()        # the grader: takes raw logits, does softmax internally
+    optimizer = torch.optim.Adam(head.parameters(), lr=lr)   # nudges ONLY the head
+
+    # ---------- training loop over cached fingerprints ----------
     banner_sub("TRAINING THE HEAD")
-    feat_ds = TensorDataset(all_feats, all_labels)              # wrap the CACHED tensors as a dataset (no files, no backbone)
-    feat_loader = DataLoader(feat_ds, batch_size=32, shuffle=True)   # batches of (fingerprint, label)
+    feat_ds = TensorDataset(all_feats, all_labels)                       # wrap the cached tensors as a dataset (no files, no backbone)
+    feat_loader = DataLoader(feat_ds, batch_size=batch_size, shuffle=True)   # batches of (fingerprint, label)
 
-    NUM_EPOCHS = 5
-    for epoch in range(NUM_EPOCHS):
-        running_loss = 0.0 # is an accumulator # empty bucket at the start of each epoch
-        for feats, labels in feat_loader: # batches of CACHED fingerprints now — no crops, no backbone -> instant
-            logits = head(feats) # fingerprints -> 5 scores (THIS has gradients)
+    for epoch in range(num_epochs):
+        running_loss = 0.0 # accumulator — reset each epoch (reporting only)
+        for feats, labels in feat_loader: # batches of CACHED fingerprints — no crops, no backbone -> instant
+            logits = head(feats) # fingerprints -> N scores (THIS has gradients)
             loss = loss_fin(logits, labels) # how wrong?
             optimizer.zero_grad() # reset old gradients
             loss.backward() # backprop: which way to nudge each head weight
             optimizer.step() # optimizer: actually nudge them
-            running_loss += loss.item() # add this batch's loss into the bucket # this is for reporting and for human user to have approximation info of loss
-        logger.info(f"epoch {epoch+1}/{NUM_EPOCHS}  avg loss: {running_loss / len(feat_loader):.4f}")
+            running_loss += loss.item() # add this batch's loss into the bucket
+        logger.info(f"epoch {epoch+1}/{num_epochs}  avg loss: {running_loss / len(feat_loader):.4f}")
 
-# ============================================================
+#============================================================
 # ENTRY POINT
-# ============================================================
+#============================================================
 
 if __name__ == "__main__":
     from scripts.logger import setup_logging   # configures level (LOG_LEVEL env) + format
     setup_logging()                            # un-mutes logger.info so the output shows
-    main()
 
-
+    parser = argparse.ArgumentParser(description="Train per-video re-ID head")
+    parser.add_argument("--video_name", default=cfg['video'], help="key under train_reid.videos in config.yaml")
+    args = parser.parse_args()
+    main(*grab_video_name(args.video_name))    # unpack the config tuple straight into main()

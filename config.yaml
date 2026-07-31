@@ -115,3 +115,17 @@ extract_crossing_frames:
   dedup_window:   5     # minimum frames between two crossing events to treat them as separate
   start_frame:    7791  # skip crossings at/below this frame (first ~2 min already labeled from the 2026_07_06 run); set 0 to extract from the start
 
+#_______________________________________________________
+# train_reid_script - Stage 6 per-video re-ID head (DINOv2 backbone + trained classifier head)
+train_reid:
+  video: IMG_1839
+  videos:
+    IMG_1839:
+      crops_run:     output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202   # tracker run whose curated_crops feed the cache
+      stretches:     ["02"]          # which curated stretch(es) to train on. ONE stretch = swap-safe (IDs clean by construction, matches the embed_crops baseline). Add more ONLY after verifying cross-stretch ID consistency.
+      backbone:      dinov2_vits14   # which pretrained model makes the 384-d fingerprints (feats from a different backbone are NOT comparable)
+      features_path:                 # OPTIONAL prebuilt reid_features.pt — set it to LOAD a cache (skip the slow backbone); leave blank to BUILD a fresh timestamped cache
+      num_epochs:    100             # cached feats -> head trains instantly, so we can afford many epochs
+      lr:            0.001           # Adam step size
+      batch_size:    32              # feats-per-batch for the head
+
