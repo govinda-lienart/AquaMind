@@ -66,8 +66,9 @@ class FishCropDataset(Dataset):# the class inherits the DATASET structure set up
         image = Image.open(path).convert("RGB") # GET IMAGE - open jpg and convert this compress3ed file into a pixed grid with RBG value (color,height and width)
         raw_id = int(re.search(r"fish_(\d+)", path).group(1))   # pull fish id from filename
         label = self.label_map[raw_id]                          #  for example read fish 5 off this crop's filename — asks table map, what slot number is that? → slot 4. That's my label."
+        frame = int(re.search(r"frame_(\d+)", path).group(1))   # pull frame number — needed for the TEMPORAL train/val split
         tensor = transform(image) # run the image down the pre-processing belt - (3,254,244) normalized tensor.
-        return tensor, label
+        return tensor, label, frame
 
 #============================================================
 # CONFIG LOADER
@@ -100,8 +101,10 @@ def build_or_load_features(crops_run, stretches, backbone_name, features_path):
     if features_path and os.path.exists(features_path):
         banner_sub("LOADING CACHED FINGERPRINTS")
         data = torch.load(features_path)
+        if "frames" not in data:   # old caches predate the temporal split
+            raise KeyError(f"{features_path} has no 'frames' — rebuild the cache (blank features_path in config)")
         logger.info(f"loaded cache <- {features_path}  feats: {tuple(data['feats'].shape)}")
-        return data["feats"], data["labels"], data["label_map"]
+        return data["feats"], data["labels"], data["frames"], data["label_map"]
 
     # ---------- SLOW PATH: build the cache from the selected stretches ----------
     banner_sub("BUILDING FINGERPRINTS (one-time backbone pass)")
@@ -118,14 +121,17 @@ def build_or_load_features(crops_run, stretches, backbone_name, features_path):
 
     all_feats = []      # will collect fingerprint batches: [ (32,384), (32,384), ..., (29,384) ]
     all_labels = []     # will collect the matching labels
+    all_frames = []     # will collect the matching frame numbers (for the temporal split)
     with torch.no_grad():                       # frozen — no gradients, no backward, no training of the DINOv2 backbone
-        for tensors, labels in loader:          # grab the next 32 crops
+        for tensors, labels, frames in loader:  # grab the next 32 crops
             all_feats.append(backbone(tensors)) # turn those 32 crops into 32 fingerprints, stash them
             all_labels.append(labels)           # stash their labels in a second bucket
+            all_frames.append(frames)           # stash their frame numbers
 
-    all_feats = torch.cat(all_feats)            # cat glues the ~61 (32,384) tensors into one (1949, 384) table
-    all_labels = torch.cat(all_labels)          # ~61 (32,) tensors -> one (1949,)
-    logger.info(f"built feats: {tuple(all_feats.shape)}  labels: {tuple(all_labels.shape)}")
+    all_feats = torch.cat(all_feats)            # cat glues the ~61 (32,384) tensors into one (N, 384) table
+    all_labels = torch.cat(all_labels)          # ~61 (32,) tensors -> one (N,)
+    all_frames = torch.cat(all_frames)          # ~61 (32,) tensors -> one (N,)
+    logger.info(f"built feats: {tuple(all_feats.shape)}  labels: {tuple(all_labels.shape)}  frames: {tuple(all_frames.shape)}")
 
     # versioned subfolder so a new cache never overwrites an old one (same idea as tracker_basic's timestamped run folder)
     stamp    = datetime.datetime.now().strftime("%Y_%m_%d_%H%M")
@@ -133,7 +139,7 @@ def build_or_load_features(crops_run, stretches, backbone_name, features_path):
     os.makedirs(reid_dir, exist_ok=True)
 
     feat_path = f"{reid_dir}/reid_features.pt"
-    torch.save({"feats": all_feats, "labels": all_labels, "label_map": ds.label_map}, feat_path)  # label_map travels with the feats
+    torch.save({"feats": all_feats, "labels": all_labels, "frames": all_frames, "label_map": ds.label_map}, feat_path)  # feats + labels + frames + map travel together
     logger.info(f"saved fingerprints -> {feat_path}")
 
     # sidecar (provenance: how this cache was created — mirrors tracker_basic.py's config sidecar)
@@ -154,7 +160,7 @@ def build_or_load_features(crops_run, stretches, backbone_name, features_path):
     logger.info(f"saved sidecar -> {reid_dir}/reid_features.yaml")
     logger.info(f"REUSE: set  features_path: {feat_path}  in config.yaml to skip the backbone next time")
 
-    return all_feats, all_labels, ds.label_map
+    return all_feats, all_labels, all_frames, ds.label_map
 
 #============================================================
 # MAIN
@@ -165,10 +171,24 @@ def main(crops_run, stretches, backbone_name, features_path, num_epochs, lr, bat
     banner("FISH RE-ID — TRAIN HEAD")
 
     # ---------- features: load a cache or build one ----------
-    all_feats, all_labels, label_map = build_or_load_features(crops_run, stretches, backbone_name, features_path)
+    all_feats, all_labels, all_frames, label_map = build_or_load_features(crops_run, stretches, backbone_name, features_path)
 
     n_classes = len(label_map)          # number of fish (NOT hardcoded — comes from the data)
     feat_dim  = all_feats.shape[1]      # 384
+
+    # ---------- TEMPORAL train/val split (early frames = train, late frames = val) ----------
+    # sort by frame, take the earliest TRAIN_FRAC as train and the rest as val.
+    # Splitting by TIME (not randomly) stops near-duplicate consecutive frames leaking
+    # from train into val — the only honest way to tell recognition from memorization.
+    banner_sub("TEMPORAL TRAIN/VAL SPLIT")
+    TRAIN_FRAC = 0.7
+    order   = torch.argsort(all_frames)                 # indices sorted early -> late
+    n_train = int(len(order) * TRAIN_FRAC)
+    train_idx, val_idx = order[:n_train], order[n_train:]
+    train_feats, train_labels = all_feats[train_idx], all_labels[train_idx]
+    val_feats,   val_labels   = all_feats[val_idx],   all_labels[val_idx]
+    logger.info(f"train: {len(train_idx)} crops (frames {all_frames[train_idx].min()}..{all_frames[train_idx].max()})")
+    logger.info(f"val:   {len(val_idx)} crops (frames {all_frames[val_idx].min()}..{all_frames[val_idx].max()})")
 
     # ---------- head + loss + optimizer (build once) ----------
     head = nn.Linear(feat_dim, n_classes)   # (in-size, out-size) fingerprint -> one score per fish
@@ -176,9 +196,9 @@ def main(crops_run, stretches, backbone_name, features_path, num_epochs, lr, bat
     loss_fin = nn.CrossEntropyLoss()        # the grader: takes raw logits, does softmax internally
     optimizer = torch.optim.Adam(head.parameters(), lr=lr)   # nudges ONLY the head
 
-    # ---------- training loop over cached fingerprints ----------
+    # ---------- training loop over the TRAIN split only ----------
     banner_sub("TRAINING THE HEAD")
-    feat_ds = TensorDataset(all_feats, all_labels)                       # wrap the cached tensors as a dataset (no files, no backbone)
+    feat_ds = TensorDataset(train_feats, train_labels)                   # TRAIN crops only (val is held out)
     feat_loader = DataLoader(feat_ds, batch_size=batch_size, shuffle=True)   # batches of (fingerprint, label)
 
     for epoch in range(num_epochs):
@@ -191,6 +211,31 @@ def main(crops_run, stretches, backbone_name, features_path, num_epochs, lr, bat
             optimizer.step() # optimizer: actually nudge them
             running_loss += loss.item() # add this batch's loss into the bucket
         logger.info(f"epoch {epoch+1}/{num_epochs}  avg loss: {running_loss / len(feat_loader):.4f}")
+
+    # ----------  EVALUATE on the held-out VAL split (the honest number) ----------
+    banner_sub("VALIDATION — ACCURACY ON UNSEEN LATE FRAMES")
+    head.eval()                                         # inference mode
+    with torch.no_grad():
+        val_preds = head(val_feats).argmax(dim=1)       # highest-scoring fish per crop = the guess
+    correct = (val_preds == val_labels)                 # boolean per crop: right or wrong
+    acc = correct.float().mean().item()                 # overall rank-1 accuracy
+    logger.info(f"OVERALL val accuracy: {correct.sum().item()}/{len(val_labels)} = {acc:.3f}")
+
+    slot_to_fish = {slot: fish for fish, slot in label_map.items()}   # invert map for readable output
+    for slot in range(n_classes):                       # per-fish breakdown
+        mask = val_labels == slot
+        if mask.sum() > 0:
+            fish_acc = correct[mask].float().mean().item()
+            logger.info(f"  fish {slot_to_fish[slot]} (slot {slot}): {correct[mask].sum().item()}/{mask.sum().item()} = {fish_acc:.3f}")
+
+    # confusion: for each TRUE fish, what did the head PREDICT? (points you at the look-alike / swap partner)
+    banner_sub("CONFUSION — true fish -> what the head guessed")
+    for slot in range(n_classes):
+        mask = val_labels == slot
+        if mask.sum() > 0:
+            guessed = val_preds[mask]                    # the head's guesses for this true fish's val crops
+            counts = {slot_to_fish[g]: int((guessed == g).sum()) for g in guessed.unique().tolist()}
+            logger.info(f"  true fish {slot_to_fish[slot]} was called: {counts}")
 
 #============================================================
 # ENTRY POINT

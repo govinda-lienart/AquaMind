@@ -6,6 +6,7 @@
 # IMPORTS
 
 import pandas as pd
+import numpy as np
 import logging
 import glob # search file names/paths
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -18,6 +19,7 @@ import argparse
 
 # CONFIG
 STEP = 15 # keep every 15th crop when subsampling for diversity
+MIN_SEPARATION_PX = 150 # if a fish's nearest neighbour is closer than this many px, its crop may be overlap-contaminated -> drop it (tune this)
 
 # HELPER FUNCTIONS
 
@@ -63,6 +65,41 @@ def build_crops_table(run_dir):
     logger.info(crops.shape)
     return crops
 
+def filter_separated(crops, run_dir, min_dist):
+    """Drop crops where the fish's nearest neighbour is closer than min_dist px.
+       When two boxes overlap, the crop captures the WRONG fish even though the tracker's ID is correct —
+       so a 'no swap' window can still hold contaminated crops. Geometry (pairwise distance) catches them."""
+    banner("FILTER OVERLAP-CONTAMINATED CROPS")   # STAGE 2.5
+
+    # positions x,y per fish per frame, from THIS run's tracks (same run that made the crops)
+    tracks_path = os.path.join(run_dir, "tracks.parquet")
+    tracks = pd.read_parquet(tracks_path)
+    logger.info(f"loaded {len(tracks)} track rows from {tracks_path}")
+
+    # for each frame, flag every fish whose closest neighbour is nearer than min_dist
+    banner_sub("flag (frame, fish) where nearest neighbour is too close")
+    contaminated = set()   # {(frame_number, fish_id), ...}
+    for frame_num, g in tracks.groupby("frame_number"):
+        xy  = g[["x", "y"]].to_numpy()                   # positions of all fish in this frame
+        ids = g["fish_id"].to_numpy()
+        if len(ids) < 2:
+            continue                                     # a lone fish can't be contaminated by a neighbour
+        diff = xy[:, None, :] - xy[None, :, :]           # (n, n, 2) pairwise coordinate differences
+        dist = np.hypot(diff[..., 0], diff[..., 1])      # (n, n) pairwise distances (same np.hypot as speed)
+        np.fill_diagonal(dist, np.inf)                   # ignore each fish's distance to itself (0)
+        nearest = dist.min(axis=1)                       # each fish's closest-neighbour distance
+        for fid, d in zip(ids, nearest):
+            if d < min_dist:
+                contaminated.add((int(frame_num), int(fid)))
+    logger.info(f"flagged {len(contaminated)} contaminated (frame, fish) pairs at min_dist={min_dist}px")
+
+    # drop the contaminated crops
+    before = len(crops)
+    keys = list(zip(crops.frame_number, crops.fish_id))
+    kept = crops[[k not in contaminated for k in keys]]
+    banner_sub(f"kept {len(kept)} of {before} crops after separation filter")
+    return kept
+
 def tag_and_subsample(crops, my_windows, step):
     """Range-join each crop to its curated window, drop out-of-window crops, then we keep every `step`-th crop per (stretch, fish) for diversity."""
     banner("TAG & SUBSAMPLE CROPS")   # STAGE 3
@@ -92,6 +129,9 @@ def copy_out(run_dir, curated):
     banner("COPY CURATED CROPS OUT")   # STAGE 4
 
     curated_root = os.path.join(run_dir, "curated_crops") # # output_fish_tracker/<run>/curated_crops
+    if os.path.exists(curated_root):
+        shutil.rmtree(curated_root)   # rebuild from scratch so old (now-filtered-out) crops don't linger from a prior run
+        logger.info(f"cleared existing {curated_root}")
     logger.info(f"copying into {curated_root}")
     copied = 0
     for i, row in curated.iterrows():
@@ -107,6 +147,7 @@ def main(run_dir):
 
     my_windows = load_windows(run_dir)  # load the verified-windows CSV and filter to this video's windows
     crops = build_crops_table(run_dir) # loading/building crops df
+    crops = filter_separated(crops, run_dir, MIN_SEPARATION_PX)  # NEW: drop overlap-contaminated crops (geometry filter)
     curated = tag_and_subsample(crops, my_windows, STEP)     # interaction between 2 dataframes (windows x crops) using  range join - tagging the crops to which curated window they belong
     copy_out(run_dir, curated)     # saving on disk the selected crops
 
