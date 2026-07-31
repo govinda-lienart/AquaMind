@@ -18,7 +18,7 @@ import shutil # to copy files
 import argparse
 
 # CONFIG
-STEP = 15 # keep every 15th crop when subsampling for diversity
+STEP = 3 # keep every 15th crop when subsampling for diversity
 MIN_SEPARATION_PX = 150 # if a fish's nearest neighbour is closer than this many px, its crop may be overlap-contaminated -> drop it (tune this)
 
 # HELPER FUNCTIONS

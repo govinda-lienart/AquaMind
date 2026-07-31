@@ -13,8 +13,8 @@ import logging
 import torch
 import torch.nn.functional as F  # cosine_similarity lives here
 from PIL import Image
-from torchvision import transforms
 from scripts.console import banner, banner_sub
+from scripts.reid_features import transform, load_backbone   # shared belt + backbone loader (same ones train_reid uses)
 import glob
 import re
 import pandas as pd
@@ -24,20 +24,12 @@ logger = logging.getLogger(__name__)
 
 # LOAD THE MODEL ("the brain") - once, at import, reused by every embed() call
 banner("LOAD DINOv2 ON MPS")
-logger.info("loading DINOv2...")
-model = torch.hub.load("facebookresearch/dinov2", "dinov2_vits14")
-model.eval()                 # evaluation mode - layers behave in stable/inference mode
 device = "mps"               # running on local machine M1 GPU
-model.to(device)             # move the model from CPU RAM to M1 GPU memory
+model = load_backbone("dinov2_vits14", device=device)   # shared loader (same DINOv2 reid_features uses)
 logger.info(f"model loaded on {device}")
 
-# BUILD THE PREPROCESSING BELT - once, reused by every embed() call
-transform = transforms.Compose([
-    transforms.Resize((224, 224)), # reshape into 224 x 224 squared size that matches DINO format ingestion
-    transforms.ToTensor(), # convert it to Tensor # pixels value are ranging between 0-1, # but Dino doesnt want 0-1, but wants numbers centred around zero (roughly -2 to +2)
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], # normalize following ImageNet statistics = average red/green/blue brightness across the millions of images DINOv2's ancestors trained on
-                         std=[0.229, 0.224, 0.225]), # new_value = (old_value − mean) / std e.g pixel value 1.0: (1.0 − 0.485) / 0.229 = +2.25 - so the average pixel lands around 0.0
-])
+# preprocessing belt (`transform`) now imported from reid_features — one shared definition, so embed_crops
+# and train_reid preprocess crops IDENTICALLY (fingerprints are only comparable if the transform matches)
 
 # HELPER FUNCTION
 
