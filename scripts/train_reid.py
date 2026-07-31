@@ -8,10 +8,14 @@ Usage:
 # IMPORTS
 #============================================================
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, TensorDataset # TensorDataset is tool that allows to use tensors directly given that now no need for preprocsing to tensors the backbone - its alrady cached
+import os
 import glob
 import re
 import logging
+import yaml
+import subprocess
+import datetime
 from PIL import Image
 from torchvision import transforms
 from scripts.console import banner, banner_sub  # readable console section headers]
@@ -65,7 +69,9 @@ def main():
 
     banner("FISH CROP DATASET")
 
-    ds = FishCropDataset("output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/curated_crops/stretch*_fish*/*.jpg")
+    run_dir    = "output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202"   # where crops live + where we save the cache
+    crops_glob = f"{run_dir}/curated_crops/stretch*_fish*/*.jpg"                # one source of truth for the crop pattern
+    ds = FishCropDataset(crops_glob)
 
     banner_sub("DATASET OVERVIEW")
     logger.info(f"total crops found: {len(ds)}")
@@ -107,23 +113,87 @@ def main():
     logger.info(f"start loss: {loss_fin(logits, labels).item()}") # compare 32 guesses against the 32 true labels # ~2.26 = untrained, random guessing
 
     # ============================================================
+    # CACHE FINGERPRINTS (one-time pass: run backbone ONCE, save to disk -cached)
+    # ============================================================
+
+    banner_sub("CACHING FINGERPRINTS")
+    all_feats = []      # will collect fingerprint batches
+                        #     all_feats = [
+                        #     tensor of shape (32, 384),   # batch 1's fingerprints
+                        #     tensor of shape (32, 384),   # batch 2's fingerprints
+                        #     tensor of shape (29, 384),   # batch 61 (the short last one)
+                        # ]
+
+    all_labels = []     # will collect the matching labels
+
+    backbone.eval() # switches layers from training behavour to inference behaviour
+    with torch.no_grad():                       # frozen — no need to track gradients go no backward - no training of dino backbone
+        for tensors, labels in loader:          # # grab the next 32 crops
+            feats = backbone(tensors)           #  turn those 32 crops into 32 fingerprints - (32, 384) fingerprints for this batch
+            all_feats.append(feats)             #  # drop the fingerprints into a collecting bucket - stash this batch's fingerprints
+            all_labels.append(labels)           # # drop their labels into a second bucket - stash this batch's labels
+
+    all_feats = torch.cat(all_feats)            # cat glues/concatante all those separate tensors into one big tensor, stacking them on top of each  - list of ~61 (32,384) tensors -> one (1949, 384) 
+                                                #  [ (32,384), (32,384), ..., (29,384) ]   →   one (1949, 384) 
+                                                # — it's a table: 1949 rows, 384 columns. 
+                                                #    col0     col1     col2    ...    col383
+                                                # crop 0      [ -0.12,    0.88,   -1.44,   ...,    0.05 ]   ← fish 1's fingerprint
+                                                # crop 1      [  0.31,   -0.07,    0.92,   ...,   -0.63 ]   ← fish 1's fingerprint
+                                                # crop 1948   [  0.77,   -0.19,    0.63,   ...,   -0.08 ]   ← fish 5's fingerprint
+    all_labels = torch.cat(all_labels)          # list of ~61 (32,) tensors    -> one (1949,)
+    logger.info(f"cached feats: {tuple(all_feats.shape)}  labels: {tuple(all_labels.shape)}")
+
+    # versioned subfolder so a new cache never overwrites an old one (same idea as tracker_basic's timestamped run folder)
+    stamp    = datetime.datetime.now().strftime("%Y_%m_%d_%H%M")
+    reid_dir = f"{run_dir}/reid_cache_{stamp}"
+    os.makedirs(reid_dir, exist_ok=True)
+
+    feat_path = f"{reid_dir}/reid_features.pt"
+    torch.save({"feats": all_feats, "labels": all_labels}, feat_path)   # write both tensors to one file
+    logger.info(f"saved fingerprints -> {feat_path}")
+
+    # ============================================================
+    # SIDECAR (provenance: how this cache was created — mirrors tracker_basic.py's config sidecar)
+    # ============================================================
+
+    # which stretches actually contributed crops (parsed live from the loaded paths, not assumed)
+    stretches = sorted({re.search(r"stretch(\d+)", p).group(1) for p in ds.paths})
+
+    sidecar = {
+        "tracker_run": os.path.basename(run_dir),       # which tracker run produced these crops
+        "crops_glob":  crops_glob,                      # the exact source-crop pattern (no drift — same var the dataset used)
+        "stretches":   stretches,                       # the actual stretch ids harvested (e.g. ['00','01',...])
+        "backbone":    "dinov2_vits14",                 # fingerprints from a different backbone are NOT comparable
+        "n_crops":     all_feats.shape[0],              # rows = number of crops cached (1949)
+        "feat_dim":    all_feats.shape[1],              # cols = fingerprint length (384)
+        "label_map":   ds.label_map,                    # fish_id -> slot, so slot 0 always means the same fish
+        "git_commit":  subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip(),  # code state
+        "created_at":  datetime.datetime.now().isoformat(timespec="seconds"),
+    }
+    sidecar_path = f"{reid_dir}/reid_features.yaml"
+    with open(sidecar_path, "w") as f:
+        yaml.dump(sidecar, f, sort_keys=False)          # same yaml.dump pattern as tracker_basic.py
+    logger.info(f"saved sidecar -> {sidecar_path}")
+
+    # ============================================================
     # TRAINING LOOP
     # ============================================================
 
     banner_sub("TRAINING THE HEAD")
+    feat_ds = TensorDataset(all_feats, all_labels)              # wrap the CACHED tensors as a dataset (no files, no backbone)
+    feat_loader = DataLoader(feat_ds, batch_size=32, shuffle=True)   # batches of (fingerprint, label)
+
     NUM_EPOCHS = 5
     for epoch in range(NUM_EPOCHS):
         running_loss = 0.0 # is an accumulator # empty bucket at the start of each epoch
-        for tensors, labels in loader: # every batch, all e.g 61 of them *e.g 1949 crops/ 32 per batch = 60.9 # so the head during one epoch gets nodged 61 one times per epoch = 305 nudges - every crop seen 5 times
-            with torch.no_grad(): # backbone stays frozen - no gradients
-                feats = backbone(tensors) # crops -> fingerprints
+        for feats, labels in feat_loader: # batches of CACHED fingerprints now — no crops, no backbone -> instant
             logits = head(feats) # fingerprints -> 5 scores (THIS has gradients)
             loss = loss_fin(logits, labels) # how wrong?
             optimizer.zero_grad() # reset old gradients
             loss.backward() # backprop: which way to nudge each head weight
             optimizer.step() # optimizer: actually nudge them
             running_loss += loss.item() # add this batch's loss into the bucket # this is for reporting and for human user to have approximation info of loss
-        logger.info(f"epoch {epoch+1}/{NUM_EPOCHS}  avg loss: {running_loss / len(loader):.4f}")
+        logger.info(f"epoch {epoch+1}/{NUM_EPOCHS}  avg loss: {running_loss / len(feat_loader):.4f}")
 
 # ============================================================
 # ENTRY POINT
