@@ -122,9 +122,24 @@ train_reid:
   videos:
     IMG_1839:
       crops_run:     output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202   # tracker run whose curated_crops feed the classifier
-      stretches:     ["02", "04", "05"]    # each stretch is trained + evaluated SEPARATELY (one MLflow run each) — never pooled, since cross-stretch fish IDs aren't verified
+      stretches:     ["00"]    # each stretch is trained + evaluated SEPARATELY (one MLflow run each) — never pooled, since cross-stretch fish IDs aren't verified
       backbone:      dinov2_vits14   # which pretrained model makes the 384-d fingerprints (feats from a different backbone are NOT comparable)
       num_epochs:    100             # frozen feats -> head trains fast, so we can afford many epochs
       lr:            0.001           # Adam step size
       batch_size:    32              # feats-per-batch for the head
+
+#_______________________________________________________
+# finetune_reid_script - Stage 6.4 UNFREEZE DINOv2 + train end-to-end (backbone learns; runs in the loop, no cache)
+finetune_reid:
+  video: IMG_1839
+  videos:
+    IMG_1839:
+      crops_run:       output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202
+      stretches:       ["02"]          # per-stretch, never pooled (same identity-safety rule as train_reid)
+      backbone:        dinov2_vits14
+      num_epochs:      30
+      head_lr:         0.001           # larger LR for the fresh head
+      backbone_lr:     0.00001         # 1e-5 — SMALL, so we nudge (not wreck) DINOv2's pretrained weights
+      batch_size:      32
+      unfreeze_blocks: 2               # unfreeze the last N transformer blocks (fewer = less overfit on small data)
 

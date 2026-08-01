@@ -50,7 +50,8 @@ def load_backbone(name, device=None):
 #============================================================
 
 class FishCropDataset(Dataset):# the class inherits the DATASET structure set up by pytroch
-    def  __init__(self, crops_globs): # __init__ STORES a BIG list of e.g. 1949 paths and a TINY dict of 5 entries # launched once therefore init
+    def  __init__(self, crops_globs, tf=None): # __init__ STORES a BIG list of e.g. 1949 paths and a TINY dict of 5 entries # launched once therefore init
+        self.tf = tf if tf is not None else transform          # custom transform (e.g. augmentation for fine-tuning); defaults to the shared eval belt
         if isinstance(crops_globs, str):                       # accept a single pattern OR a list of patterns (one per stretch)
             crops_globs = [crops_globs]
         self.paths = sorted(p for g in crops_globs for p in glob.glob(g)) # union of every pattern, sorted so path order is stable (better for debugging)
@@ -69,7 +70,7 @@ class FishCropDataset(Dataset):# the class inherits the DATASET structure set up
         raw_id = int(re.search(r"fish_(\d+)", path).group(1))   # pull fish id from filename
         label = self.label_map[raw_id]                          #  for example read fish 5 off this crop's filename — asks table map, what slot number is that? → slot 4. That's my label."
         frame = int(re.search(r"frame_(\d+)", path).group(1))   # pull frame number — needed for the TEMPORAL train/val split
-        tensor = transform(image) # run the image down the pre-processing belt - (3,254,244) normalized tensor.
+        tensor = self.tf(image) # run the image down the pre-processing belt (or the augmented one) - (3,224,224) tensor.
         return tensor, label, frame
 
 #============================================================
