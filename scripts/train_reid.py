@@ -1,10 +1,9 @@
 
 """
-Stage 6 — per-video re-ID head (DINOv2 backbone + trained classifier head).
+Stage 6 — per-video re-ID head: FROZEN DINOv2 backbone + trained classifier head.
 
-Cache-or-compute:
-  - config.yaml `train_reid.videos.<name>.features_path` SET   -> LOAD that cache, skip the slow backbone
-  - features_path BLANK                                        -> BUILD a fresh timestamped cache, then train
+Per configured stretch: build fingerprints (frozen backbone) -> temporal train/val split ->
+train the head -> eval (per-fish accuracy + confusion) -> log to MLflow. Stretches never pooled.
 
 Usage:
     python -m scripts.train_reid --video_name IMG_1839
@@ -22,7 +21,7 @@ import subprocess
 import datetime
 from scripts.console import banner, banner_sub  # readable console section headers
 import torch.nn as nn
-from scripts.reid_features import build_or_load_features   # shared: crops -> DINOv2 fingerprints (+ cache)
+from scripts.reid_features import build_features   # shared: crops -> DINOv2 fingerprints (frozen backbone)
 
 logger = logging.getLogger(__name__)  # module logger; setup_logging() configures format/level in the entry point
 
@@ -40,13 +39,12 @@ def grab_video_name(video_name):
     crops_run     = video_cfg['crops_run']
     stretches     = video_cfg['stretches']           # which curated stretch(es) to train on (identity-safety)
     backbone_name = video_cfg['backbone']
-    features_path = video_cfg.get('features_path')   # optional — None/blank means BUILD a fresh cache
     num_epochs    = video_cfg['num_epochs']
     lr            = video_cfg['lr']
     batch_size    = video_cfg['batch_size']
     banner('LOADING CONFIGURATION')
     logger.info(f"loaded cfg: {video_cfg}")
-    return crops_run, stretches, backbone_name, features_path, num_epochs, lr, batch_size
+    return crops_run, stretches, backbone_name, num_epochs, lr, batch_size
 
 #============================================================
 # MLFLOW LOGGING (one run = params + metrics + git state)
@@ -78,8 +76,8 @@ def run_one_stretch(crops_run, stretch, backbone_name, num_epochs, lr, batch_siz
 
     banner(f"FISH RE-ID — STRETCH {stretch}")
 
-    # ---------- features: build for THIS stretch only (rebuild each time; keeps stretches independent, no pooling) ----------
-    all_feats, all_labels, all_frames, label_map = build_or_load_features(crops_run, [stretch], backbone_name, None)
+    # ---------- features: build for THIS stretch only (keeps stretches independent, no pooling) ----------
+    all_feats, all_labels, all_frames, label_map = build_features(crops_run, [stretch], backbone_name)
 
     n_classes = len(label_map)          # number of fish (NOT hardcoded — comes from the data)
     feat_dim  = all_feats.shape[1]      # 384
@@ -166,7 +164,7 @@ def run_one_stretch(crops_run, stretch, backbone_name, num_epochs, lr, batch_siz
 # MAIN — run each configured stretch SEPARATELY (never pooled: cross-stretch fish IDs aren't verified)
 #============================================================
 
-def main(crops_run, stretches, backbone_name, features_path, num_epochs, lr, batch_size):
+def main(crops_run, stretches, backbone_name, num_epochs, lr, batch_size):
     sweep_id = datetime.datetime.now().strftime("%Y_%m_%d_%H%M%S")   # one id shared by every stretch in THIS command
     banner(f"RE-ID over {len(stretches)} stretch(es): {stretches}  (sweep {sweep_id})")
     for stretch in stretches:                                 # one independent train+eval+MLflow run per stretch

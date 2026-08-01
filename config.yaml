@@ -121,10 +121,10 @@ train_reid:
   video: IMG_1839
   videos:
     IMG_1839:
-      crops_run:     output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202   # tracker run whose curated_crops feed the cache
+      crops_run:     output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202   # tracker run whose curated_crops feed the classifier
       stretches:     ["02", "04", "05"]    # each stretch is trained + evaluated SEPARATELY (one MLflow run each) — never pooled, since cross-stretch fish IDs aren't verified
       backbone:      dinov2_vits14   # which pretrained model makes the 384-d fingerprints (feats from a different backbone are NOT comparable)
-      num_epochs:    100             # cached feats -> head trains instantly, so we can afford many epochs
+      num_epochs:    100             # frozen feats -> head trains fast, so we can afford many epochs
       lr:            0.001           # Adam step size
       batch_size:    32              # feats-per-batch for the head
 
