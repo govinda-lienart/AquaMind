@@ -41,6 +41,8 @@ class Track:
         self.hits       = 1         # how many frames it has been matched
         self.missing    = 0         # consecutive frames with no detection (ghost)
         self.appearance = None      # running (unit-length) DINOv2 fingerprint — this fish's look, when appearance is ON
+        self.match_geom = None      # DEBUG: last frame's geometry distance (px) to the matched detection
+        self.match_app  = None      # DEBUG: last frame's appearance cosine-distance to memory (None if no memory)
 
 
     
@@ -97,6 +99,8 @@ def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.
     Unmatched tracks are marked missing. Returns matched detection indices.
     """
     matched_dets, matched_tracks = set(), set()
+    for t in tracks:                             # reset per-frame debug values (g/a for the overlay)
+        t.match_geom = t.match_app = None
     if not tracks or not len(dets):
         for t in tracks:
             t.mark_missing()
@@ -130,11 +134,19 @@ def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.
                     assign_cost[r, k] += app_weight * app_dist
         for r, c in zip(*linear_sum_assignment(assign_cost)):
             ti = track_idx[r]
+            adist = None if np.isnan(app_dist_mat[r, c]) else float(app_dist_mat[r, c])
             if pos_cost[r, c] > gate_fn(tracks[ti]):               # GEOMETRY gate — a tag can never teleport onto a far fish
                 continue
-            if app_gate is not None and not np.isnan(app_dist_mat[r, c]) and app_dist_mat[r, c] > app_gate:
+            if app_gate is not None and adist is not None and adist > app_gate:
+                logger.info(json.dumps({"event": "appearance_veto", "fish_id": tracks[ti].id,   # gate refused this match
+                                        "app_dist": round(adist, 3), "geom_px": round(float(pos_cost[r, c]), 1)}))
                 continue                                           # APPEARANCE gate (veto): "that's not me" -> stay unmatched (ghost), let the right track claim it
             x, y, bbox, conf = dets[avail[c]]
+            tracks[ti].match_geom = float(pos_cost[r, c])          # record the two decision values (for overlay + review)
+            tracks[ti].match_app  = adist
+            if adist is not None and adist > 0.5 and tracks[ti].id is not None:   # matched but doesn't look like itself -> suspected swap
+                logger.info(json.dumps({"event": "appearance_mismatch", "fish_id": tracks[ti].id,
+                                        "app_dist": round(adist, 3), "geom_px": round(float(pos_cost[r, c]), 1)}))
             # only feed appearance into memory when this detection is WELL-SEPARATED (else keep the clean pre-crossing memory)
             feat = det_feats[avail[c]] if (det_feats is not None and det_separated[avail[c]]) else None
             tracks[ti].update(x, y, bbox, conf, feat)
@@ -184,7 +196,7 @@ def draw_calibration_badge(frame, frame_count):
     cv2.putText(frame, text, (x + pad, y + th + pad - 2), font, scale, (0, 215, 255), thick, cv2.LINE_AA)
 
 
-def draw_frame(frame, tracks, locked, frame_count):
+def draw_frame(frame, tracks, locked, frame_count, debug=False, app_gate=None):
     for t in tracks:
         x1, y1, x2, y2 = [int(v) for v in t.bbox]
         color = id_color(t.id)
@@ -197,6 +209,18 @@ def draw_frame(frame, tracks, locked, frame_count):
         if label:
             cv2.putText(frame, label, (x1, y1 - 8),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+        # DEBUG overlay: g = geometry dist (px), a = appearance cosine-dist to memory (color-coded)
+        if debug and t.id and t.missing == 0:
+            g_txt = f"g{t.match_geom:.0f}" if t.match_geom is not None else "g-"
+            cv2.putText(frame, g_txt, (x1, y2 + 16), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+            if t.match_app is None:
+                a_txt, a_col = "a-", (200, 200, 200)
+            else:
+                a_txt = f"a{t.match_app:.2f}"
+                a_col = ((80, 255, 80) if t.match_app < 0.4 else          # green: looks like itself
+                         (0, 0, 255) if (app_gate is not None and t.match_app >= app_gate) or t.match_app > 0.5 else  # red: mismatch / swap-risk
+                         (0, 220, 255))                                    # yellow: borderline
+            cv2.putText(frame, a_txt, (x1 + 48, y2 + 16), cv2.FONT_HERSHEY_SIMPLEX, 0.5, a_col, 1)
     cv2.putText(frame, f"Frame: {frame_count}", (10, frame.shape[0] - 12),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
     if not locked:
@@ -269,6 +293,7 @@ def main():
     app_min_sep    = float(c.get('appearance_min_sep', 150))                 # only update appearance memory when a fish is this far from all others (px)
     app_gate       = c.get('appearance_gate')                               # VETO: refuse a match whose cosine-dist to memory exceeds this (None = off)
     app_gate       = float(app_gate) if (use_appearance and app_gate is not None) else None
+    show_debug     = bool(c.get('appearance_debug', False)) and use_appearance   # draw per-fish g/a decision values on the video
 
     # build a per-run output FOLDER (holds the video, log, and config sidecar)
     clean    = c['output_video_path'].rstrip('/,. ')          # tolerate trailing junk
@@ -416,10 +441,7 @@ def main():
             cv2.imwrite(filename, crop) # outputs True/False; writes the .jpg image to that path on disk
 
         # drawing the frame
-        draw_frame(frame, tracks, locked, frame_count)
-        if use_appearance:                               # on-screen badge so you can SEE appearance is active
-            cv2.putText(frame, "APPEARANCE ON", (10, H - 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)
+        draw_frame(frame, tracks, locked, frame_count, debug=show_debug, app_gate=app_gate)
         out.write(frame)
 
         cv2.imshow('Fish Tracker', frame)   # live preview
