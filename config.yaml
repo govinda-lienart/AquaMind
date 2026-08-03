@@ -65,10 +65,11 @@ tracker:
   model_path:        runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440/weights/best.pt
   output_video_path: output_fish_tracker/tracker_IMG_1839_appearance   # a dated '_basic_<timestamp>' folder is created per run
   start_seconds:     0    # start video
-  end_seconds:       30   # end video, choose 'null' for the whole video
+  end_seconds:       20   # end video, choose 'null' for the whole video
   num_fish:          5
   calibration_secs:  5    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match
+  merge_fix:         true   # hold IDs through a detector MERGE crossing: freeze velocity through a blob (don't let the merged centroid bend the trajectory) + coast lost fish on their clean momentum (frame-capped). false = plain geometry. Toggle off if it destabilises.
   appearance:          true          # fuse DINOv2 appearance into matching (helps hold IDs at crossings); false = geometry only
   appearance_weight:   100            # px per unit cosine-distance — how strongly appearance can tip an ambiguous match (only when appearance: true)
   appearance_min_sep:  150            # only refresh a fish's appearance memory when it is this far (px) from ALL others — stops overlap crops poisoning it

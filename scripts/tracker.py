@@ -26,6 +26,9 @@ logger.setLevel(logging.INFO)
 CONFIG_PATH   = 'config.yaml'
 REACQUIRE_TAU = 15    # ghost search radius grows by one max_distance every 15 missing frames
 VEL_SMOOTH    = 0.5   # EMA weight for the velocity estimate (0=frozen, 1=raw last step)
+MIN_SPEED     = 3.0   # px/frame — below this a ghost's heading is noise, so DON'T coast it (stay at last position)
+MAX_COAST     = 8     # frames — coast a ghost AT MOST this far (covers a crossing merge); past this it FREEZES and the
+                      # WIDENING gate re-acquires. Frame-cap is what keeps a long occlusion from drifting into a permanent ghost.
 
 
 # ── a track that remembers where the fish was AND where it's heading ────────────
@@ -50,12 +53,29 @@ class Track:
         but 'nearest predicted position' picks the right one."""
         return (self.x + self.vx, self.y + self.vy)
 
-    def update(self, x, y, bbox, confidence, feat=None):
+    def predicted(self, cap):
+        """COAST a ghost forward along its trajectory (your straight-line-momentum idea) so a fish lost
+        mid-crossing is searched for where it WOULD be, not where it was lost. Triple-guarded so it can't
+        destabilise: (1) near-stationary tracks don't coast (heading = noise); (2) capped in FRAMES
+        (MAX_COAST) so a long occlusion doesn't drift off; (3) capped in DISTANCE so a bad velocity can't
+        fling it across the tank. Healthy track (missing=0) -> just the 1-frame pred."""
+        speed = (self.vx ** 2 + self.vy ** 2) ** 0.5
+        if speed < MIN_SPEED:
+            return (self.x, self.y)
+        frames = min(self.missing + 1, MAX_COAST)
+        dx, dy = self.vx * frames, self.vy * frames
+        dist = (dx ** 2 + dy ** 2) ** 0.5
+        if dist > cap:
+            dx, dy = dx * cap / dist, dy * cap / dist
+        return (self.x + dx, self.y + dy)
+
+    def update(self, x, y, bbox, confidence, feat=None, freeze_vel=False):
         frames  = self.missing + 1                    # frames elapsed since the last real detection
-        inst_vx = (x - self.x) / frames               # per-frame velocity across that gap
-        inst_vy = (y - self.y) / frames
-        self.vx = VEL_SMOOTH * inst_vx + (1 - VEL_SMOOTH) * self.vx   # EMA — smooth out detection jitter
-        self.vy = VEL_SMOOTH * inst_vy + (1 - VEL_SMOOTH) * self.vy
+        if not freeze_vel:                            # freeze through a MERGE: the blob centroid is BOTH fish, so
+            inst_vx = (x - self.x) / frames           # recomputing velocity from it BENDS the trajectory -> swap at split.
+            inst_vy = (y - self.y) / frames           # keeping the clean pre-merge velocity lets both coast + re-sort correctly.
+            self.vx = VEL_SMOOTH * inst_vx + (1 - VEL_SMOOTH) * self.vx   # EMA — smooth out detection jitter
+            self.vy = VEL_SMOOTH * inst_vy + (1 - VEL_SMOOTH) * self.vy
         self.x, self.y, self.bbox = x, y, bbox
         self.confidence = confidence
         self.hits   += 1
@@ -69,7 +89,7 @@ class Track:
 
 
 # ── the whole tracker in one function: match tracks → detections ───────────────
-def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.0, app_min_sep=150, app_gate=None, app_max_gap=None):
+def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.0, app_min_sep=150, app_gate=None, app_max_gap=None, merge_fix=False):
     """
     Two-pass matching that protects identities from theft and teleport-swaps.
 
@@ -106,11 +126,19 @@ def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.
     else:
         det_separated = np.ones(len(det_pos), dtype=bool)     # a lone detection can't be contaminated
 
+    # MERGE detected = fewer boxes than confirmed fish. During a merge, NEITHER involved fish should
+    # snap onto the blob (its centroid is both fish) — both coast on clean momentum and re-sort at the split.
+    n_confirmed = sum(1 for t in tracks if t.id is not None)
+    is_merge = merge_fix and 0 < len(dets) < n_confirmed
+
     def _match(track_idx, gate_fn):
         avail = [c for c in range(len(dets)) if c not in matched_dets]
         if not track_idx or not avail:
             return
-        anchors  = np.array([tracks[i].pred for i in track_idx])   # predicted position, not last seen
+        # merge_fix: COAST ghosts along their momentum (frame-capped) so a fish lost mid-crossing is searched
+        # for where it WOULD be; else the plain 1-frame prediction. Healthy tracks coast 1 frame either way.
+        anchors  = np.array([(tracks[i].predicted(max_distance * 3) if merge_fix else tracks[i].pred)
+                             for i in track_idx])
         pos      = det_pos[avail]
         pos_cost = np.linalg.norm(anchors[:, None] - pos[None, :], axis=2)  # geometry (pixels) — used for the GATE
         assign_cost  = pos_cost.copy()                             # geometry (+ appearance) — used for the ASSIGNMENT
@@ -132,9 +160,17 @@ def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.
             if app_gate is not None and not np.isnan(app_dist_mat[r, c]) and app_dist_mat[r, c] > app_gate:
                 continue                                           # APPEARANCE gate (veto): "that's not me" -> stay unmatched (ghost), let the right track claim it
             x, y, bbox, conf = dets[avail[c]]
+            sep = det_separated[avail[c]]
+            if is_merge:                                           # MERGE: if 2+ fish predict onto this ONE box, it's a blob (both fish) —
+                dx0, dy0 = det_pos[avail[c]]                       # don't snap either onto it; let them coast + re-sort at the split
+                n_near = sum(1 for tt in tracks if tt.id is not None
+                             and np.hypot(dx0 - tt.pred[0], dy0 - tt.pred[1]) < max_distance)
+                if n_near > 1:
+                    continue
             # only feed appearance into memory when this detection is WELL-SEPARATED (else keep the clean pre-crossing memory)
-            feat = det_feats[avail[c]] if (det_feats is not None and det_separated[avail[c]]) else None
-            tracks[ti].update(x, y, bbox, conf, feat)
+            feat = det_feats[avail[c]] if (det_feats is not None and sep) else None
+            # merge_fix: if this detection is a BLOB (not separated), freeze velocity so the merge doesn't bend the trajectory
+            tracks[ti].update(x, y, bbox, conf, feat, freeze_vel=(merge_fix and not sep))
             matched_dets.add(avail[c])
             matched_tracks.add(ti)
 
@@ -267,6 +303,7 @@ def main():
     app_gate       = c.get('appearance_gate')                               # VETO: refuse a match whose cosine-dist to memory exceeds this (None = off)
     app_gate       = float(app_gate) if (use_appearance and app_gate is not None) else None
     app_max_gap_secs = float(c.get('appearance_max_gap_secs', 2.5))          # trust appearance only within this many seconds (measured ~2s hold-time); staler ghost memory -> geometry only
+    merge_fix        = bool(c.get('merge_fix', False))                       # coast ghosts on frozen pre-merge velocity + freeze velocity through a blob -> hold IDs through a detector MERGE crossing
 
     # build a per-run output FOLDER (holds the video, log, and config sidecar)
     clean    = c['output_video_path'].rstrip('/,. ')          # tolerate trailing junk
@@ -360,7 +397,7 @@ def main():
 
         if not locked:
             # CALIBRATION: match, then spawn a new track for any leftover detection
-            matched = associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep, app_gate, app_max_gap)
+            matched = associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep, app_gate, app_max_gap, merge_fix)
             for i, (cx, cy, bbox, conf) in enumerate(dets):
                 if i not in matched:
                     tracks.append(Track(None, cx, cy, bbox, conf))
@@ -384,7 +421,7 @@ def main():
             # as a ghost near its last position and only re-acquires a NEARBY
             # detection — never teleports across the tank onto another fish.
             prev_missing = {t.id: t.missing for t in tracks}   # snapshot before matching
-            associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep, app_gate, app_max_gap)
+            associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep, app_gate, app_max_gap, merge_fix)
             for t in tracks:                                   # log lost/recovered transitions
                 was, now = prev_missing[t.id], t.missing
                 if was == 0 and now > 0:                       # first frame a fish drops out
