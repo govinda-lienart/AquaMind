@@ -14,8 +14,11 @@ import cv2
 import yaml
 import numpy as np
 import pandas as pd
+import torch
+from PIL import Image
 from ultralytics import YOLO
 from scipy.optimize import linear_sum_assignment
+from scripts.reid_features import load_backbone, transform   # shared DINOv2 embedder (appearance only)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -37,6 +40,7 @@ class Track:
         self.confidence = confidence  # YOLO detection confidence (stored in tracks, like fish_tracker)
         self.hits       = 1         # how many frames it has been matched
         self.missing    = 0         # consecutive frames with no detection (ghost)
+        self.appearance = None      # running (unit-length) DINOv2 fingerprint — this fish's look, when appearance is ON
 
 
     
@@ -51,7 +55,7 @@ class Track:
         but 'nearest predicted position' picks the right one."""
         return (self.x + self.vx, self.y + self.vy)
 
-    def update(self, x, y, bbox, confidence):
+    def update(self, x, y, bbox, confidence, feat=None):
         frames  = self.missing + 1                    # frames elapsed since the last real detection
         inst_vx = (x - self.x) / frames               # per-frame velocity across that gap
         inst_vy = (y - self.y) / frames
@@ -61,13 +65,16 @@ class Track:
         self.confidence = confidence
         self.hits   += 1
         self.missing = 0
+        if feat is not None:                          # EMA-update the appearance memory, keep it unit-length
+            self.appearance = feat if self.appearance is None else 0.9 * self.appearance + 0.1 * feat
+            self.appearance = self.appearance / (np.linalg.norm(self.appearance) + 1e-8)
 
     def mark_missing(self):
         self.missing += 1
 
 
 # ── the whole tracker in one function: match tracks → detections ───────────────
-def associate(tracks, dets, det_pos, max_distance):
+def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.0, app_min_sep=150):
     """
     Two-pass matching that protects identities from theft and teleport-swaps.
 
@@ -89,19 +96,38 @@ def associate(tracks, dets, det_pos, max_distance):
             t.mark_missing()
         return matched_dets
 
+    # which detections are WELL-SEPARATED from all others? only those are safe to update appearance from
+    # (a crop near another fish is overlap-contaminated — updating memory with it poisons the fingerprint)
+    if len(det_pos) > 1:
+        dd = np.linalg.norm(det_pos[:, None] - det_pos[None, :], axis=2)
+        np.fill_diagonal(dd, np.inf)                          # ignore self-distance
+        det_separated = dd.min(axis=1) >= app_min_sep         # True = nearest other fish is far enough
+    else:
+        det_separated = np.ones(len(det_pos), dtype=bool)     # a lone detection can't be contaminated
+
     def _match(track_idx, gate_fn):
         avail = [c for c in range(len(dets)) if c not in matched_dets]
         if not track_idx or not avail:
             return
-        anchors = np.array([tracks[i].pred for i in track_idx])   # predicted position, not last seen
-        pos     = det_pos[avail]
-        cost    = np.linalg.norm(anchors[:, None] - pos[None, :], axis=2)
-        for r, c in zip(*linear_sum_assignment(cost)):
+        anchors  = np.array([tracks[i].pred for i in track_idx])   # predicted position, not last seen
+        pos      = det_pos[avail]
+        pos_cost = np.linalg.norm(anchors[:, None] - pos[None, :], axis=2)  # geometry (pixels) — used for the GATE
+        assign_cost = pos_cost.copy()                              # geometry (+ appearance) — used for the ASSIGNMENT
+        if det_feats is not None and app_weight > 0:
+            for r, ti in enumerate(track_idx):
+                if tracks[ti].appearance is None:                  # no memory yet -> geometry only for this track
+                    continue
+                for k, c in enumerate(avail):
+                    app_dist = 1.0 - float(np.dot(tracks[ti].appearance, det_feats[c]))   # cosine distance (feats are unit-length)
+                    assign_cost[r, k] += app_weight * app_dist
+        for r, c in zip(*linear_sum_assignment(assign_cost)):
             ti = track_idx[r]
-            if cost[r, c] > gate_fn(tracks[ti]):
+            if pos_cost[r, c] > gate_fn(tracks[ti]):               # GATE on geometry ONLY — appearance can tip a match, never teleport a tag
                 continue
             x, y, bbox, conf = dets[avail[c]]
-            tracks[ti].update(x, y, bbox, conf)
+            # only feed appearance into memory when this detection is WELL-SEPARATED (else keep the clean pre-crossing memory)
+            feat = det_feats[avail[c]] if (det_feats is not None and det_separated[avail[c]]) else None
+            tracks[ti].update(x, y, bbox, conf, feat)
             matched_dets.add(avail[c])
             matched_tracks.add(ti)
 
@@ -194,6 +220,30 @@ def print_run_config(input_video_path, model_path, output_video_path, start_seco
     input("Press Enter to start...")
 
 
+# ── appearance: one DINOv2 fingerprint per detection (only when appearance is ON) ──
+def embed_detections(frame, dets, backbone, device, head=None):
+    """L2-normalized appearance vector per detection: BGR crop -> RGB -> transform -> backbone [-> head].
+       With head=None it's the RAW DINOv2 fingerprint; with a trained head it's the DISCRIMINATIVE
+       (identity-focused) projection — much better at telling your fish apart than raw cosine."""
+    if not dets:
+        return None
+    crops = []
+    for _cx, _cy, bbox, _conf in dets:
+        x1, y1, x2, y2 = [max(0, int(v)) for v in bbox]
+        crop = frame[y1:y2, x1:x2]
+        if crop.size == 0:                                   # guard a degenerate box
+            crop = frame[0:2, 0:2]
+        rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)          # cv2 is BGR; DINOv2 wants RGB
+        crops.append(transform(Image.fromarray(rgb)))
+    batch = torch.stack(crops).to(device)
+    with torch.no_grad():
+        feats = backbone(batch)
+        if head is not None:
+            feats = head(feats)                              # project into the trained head's discriminative space
+    feats = torch.nn.functional.normalize(feats, dim=1)      # unit-length -> cosine similarity == dot product
+    return feats.cpu().numpy()
+
+
 # ── main ───────────────────────────────────────────────────────────────────────
 def main():
     c = yaml.safe_load(open(CONFIG_PATH))['tracker']
@@ -204,6 +254,9 @@ def main():
     calibration_secs  = c['calibration_secs']
     start = c.get('start_seconds') or 0
     end   = c.get('end_seconds')
+    use_appearance = bool(c.get('appearance', False))                       # fuse DINOv2 appearance into matching?
+    app_weight     = float(c.get('appearance_weight', 100)) if use_appearance else 0.0
+    app_min_sep    = float(c.get('appearance_min_sep', 150))                 # only update appearance memory when a fish is this far from all others (px)
 
     # build a per-run output FOLDER (holds the video, log, and config sidecar)
     clean    = c['output_video_path'].rstrip('/,. ')          # tolerate trailing junk
@@ -229,6 +282,23 @@ def main():
                      num_fish, calibration_secs, max_distance)
 
     model = YOLO(model_path)
+
+    # appearance embedder — loaded ONLY when appearance is ON. If a trained head is given, detections
+    # are projected through backbone -> head (discriminative); otherwise raw DINOv2 (weak cosine).
+    backbone = app_device = app_head = None
+    if use_appearance:
+        app_device = "mps" if torch.backends.mps.is_available() else "cpu"
+        head_path  = c.get('appearance_head')
+        if head_path:
+            hd = torch.load(head_path, map_location=app_device)
+            app_backbone_name = hd["backbone"]                      # match the backbone the head was trained on
+            app_head = torch.nn.Linear(hd["feat_dim"], hd["n_classes"])
+            app_head.load_state_dict(hd["head_state"])
+            app_head.eval().to(app_device)
+        else:
+            app_backbone_name = c.get('appearance_backbone', 'dinov2_vits14')
+        backbone = load_backbone(app_backbone_name, device=app_device)
+        logger.info(f"  appearance ON — {app_backbone_name}{' + trained head' if app_head else ' (raw)'} on {app_device}, weight={app_weight}")
 
     cap = cv2.VideoCapture(input_video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
@@ -266,9 +336,12 @@ def main():
             det_pos.append(((x1 + x2) / 2, (y1 + y2) / 2))
         det_pos = np.array(det_pos) if det_pos else np.empty((0, 2))
 
+        # appearance fingerprints for THIS frame's detections (None when appearance is OFF)
+        det_feats = embed_detections(frame, dets, backbone, app_device, app_head) if use_appearance else None
+
         if not locked:
             # CALIBRATION: match, then spawn a new track for any leftover detection
-            matched = associate(tracks, dets, det_pos, max_distance)
+            matched = associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep)
             for i, (cx, cy, bbox, conf) in enumerate(dets):
                 if i not in matched:
                     tracks.append(Track(None, cx, cy, bbox, conf))
@@ -292,7 +365,7 @@ def main():
             # as a ghost near its last position and only re-acquires a NEARBY
             # detection — never teleports across the tank onto another fish.
             prev_missing = {t.id: t.missing for t in tracks}   # snapshot before matching
-            associate(tracks, dets, det_pos, max_distance)
+            associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep)
             for t in tracks:                                   # log lost/recovered transitions
                 was, now = prev_missing[t.id], t.missing
                 if was == 0 and now > 0:                       # first frame a fish drops out
@@ -330,8 +403,11 @@ def main():
             filename = f"{crop_folder_path}/{crop_name}.jpg"  # outputs e.g. 'output_fish_tracker/run_01/crops/fish_5/frame_1001_fish_5.jpg'
             cv2.imwrite(filename, crop) # outputs True/False; writes the .jpg image to that path on disk
 
-        # drawing the frame    
+        # drawing the frame
         draw_frame(frame, tracks, locked, frame_count)
+        if use_appearance:                               # on-screen badge so you can SEE appearance is active
+            cv2.putText(frame, "APPEARANCE ON", (10, H - 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 2)
         out.write(frame)
 
         cv2.imshow('Fish Tracker', frame)   # live preview

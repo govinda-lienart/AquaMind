@@ -59,32 +59,21 @@ log_artifact_mlflow:
 ml_backend:
   model_path: runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440/weights/best.pt
 
-# fish_tracker_script
-fish_tracker:
-  input_video_path:  videos/IMG_1839.MOV
-  model_path:        runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440/weights/best.pt
-  output_video_path: output_fish_tracker/tracker_IMG_1839
-  start_seconds:     0    # start video
-  end_seconds:       none # end video choose'null' for the whole video
-  num_fish:          5
-  calibration_secs:  10    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
-  max_distance:      150   # max pixels between predicted and detected position to count as a match
-  confirm_hits:      90    # frames a detection must persist to get a permanent fish ID (~1.5s at 60fps). Lowered from 200: reflections are class-1 and filtered out before the tracker, so long persistence isn't needed to outlast them; 90 still rejects transient blobs while letting dark-zone fish confirm in time.
-  max_missing:       300   # frames a tentative track can disappear before being dropped
-  show_trail:        true  # draw each fish's recent path as a colored trail
-  trail_length:      300   # e.g. 150 = keep last 150 frames of trail per fish; null = keep the entire video's trail (in-memory only, never saved to disk)
-  show_frame_number: true # # burn the frame number onto the video - I need to set to false to disable
-
 # tracker_script (tracker.py)
 tracker:
   input_video_path:  videos/IMG_1839.MOV
   model_path:        runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440/weights/best.pt
-  output_video_path: output_fish_tracker/tracker_IMG_1839   # a dated '_basic_<timestamp>' folder is created per run
+  output_video_path: output_fish_tracker/tracker_IMG_1839_appearance   # a dated '_basic_<timestamp>' folder is created per run
   start_seconds:     0    # start video
-  end_seconds:       null   # end video, choose 'null' for the whole video
+  end_seconds:       100   # end video, choose 'null' for the whole video
   num_fish:          5
   calibration_secs:  5    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match
+  appearance:          true          # fuse DINOv2 appearance into matching (helps hold IDs at crossings); false = geometry only
+  appearance_weight:   100            # px per unit cosine-distance — how strongly appearance can tip an ambiguous match (only when appearance: true)
+  appearance_min_sep:  150            # only refresh a fish's appearance memory when it is this far (px) from ALL others — stops overlap crops poisoning it
+  appearance_backbone: dinov2_vits14  # embedder used when NO head is given (raw DINOv2 — weak cosine)
+  appearance_head:     output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/reid_head_stretch04.pt   # trained head (~69%, stretch04) -> DISCRIMINATIVE appearance; blank = raw DINOv2
 
 # analyse_behaviour_script and analyse_chasing_script
 analyse_behaviour:
@@ -122,7 +111,7 @@ train_reid:
   videos:
     IMG_1839:
       crops_run:     output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202   # tracker run whose curated_crops feed the classifier
-      stretches:     ["00"]    # each stretch is trained + evaluated SEPARATELY (one MLflow run each) — never pooled, since cross-stretch fish IDs aren't verified
+      stretches:     ["04"]    # each stretch is trained + evaluated SEPARATELY (one MLflow run each) — never pooled, since cross-stretch fish IDs aren't verified
       backbone:      dinov2_vits14   # which pretrained model makes the 384-d fingerprints (feats from a different backbone are NOT comparable)
       num_epochs:    100             # frozen feats -> head trains fast, so we can afford many epochs
       lr:            0.001           # Adam step size

@@ -19,6 +19,9 @@ import yaml
 import argparse
 import subprocess
 import datetime
+import matplotlib
+matplotlib.use("Agg")            # headless — save figures, never open a window
+import matplotlib.pyplot as plt
 from scripts.console import banner, banner_sub  # readable console section headers
 import torch.nn as nn
 from scripts.reid_features import build_features   # shared: crops -> DINOv2 fingerprints (frozen backbone)
@@ -50,8 +53,9 @@ def grab_video_name(video_name):
 # MLFLOW LOGGING (one run = params + metrics + git state)
 #============================================================
 
-def log_to_mlflow(params, metrics, sweep_id):
+def log_to_mlflow(params, metrics, sweep_id, train_losses, val_accs, fig):
     """log this re-ID run's params + metrics + git state to MLflow — matches evaluate_tracker's pattern.
+       Also logs the per-epoch curves (step metrics) + the overfitting figure.
        sweep_id groups all stretches launched by the SAME command into one identifiable batch."""
     import mlflow
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -62,9 +66,14 @@ def log_to_mlflow(params, metrics, sweep_id):
     with mlflow.start_run(run_name=f"{sweep_id}__stretch{params['stretch']}"):   # readable name in the UI
         mlflow.log_params(params)
         mlflow.log_metrics(metrics)
+        for e, (tl, va) in enumerate(zip(train_losses, val_accs)):   # per-epoch curves (view in the MLflow UI)
+            mlflow.log_metric("epoch_train_loss", tl, step=e)
+            mlflow.log_metric("epoch_val_acc",   va, step=e)
+        mlflow.log_figure(fig, f"overfit_curve_stretch{params['stretch']}.png")
         mlflow.set_tag("sweep_id", sweep_id)    # all stretches from ONE command share this -> filter/group by it
         mlflow.set_tag("git_commit", commit)
         mlflow.set_tag("git_dirty", dirty)      # so future-you knows this run had unsaved changes
+    plt.close(fig)
     logger.info(f"logged to MLflow (aquamind_reid, sweep={sweep_id}, stretch={params['stretch']}, commit={commit[:8]}, dirty={dirty})")
 
 #============================================================
@@ -107,7 +116,9 @@ def run_one_stretch(crops_run, stretch, backbone_name, num_epochs, lr, batch_siz
     feat_ds = TensorDataset(train_feats, train_labels)                   # TRAIN crops only (val is held out)
     feat_loader = DataLoader(feat_ds, batch_size=batch_size, shuffle=True)   # batches of (fingerprint, label)
 
+    train_losses, val_accs = [], []
     for epoch in range(num_epochs):
+        head.train()
         running_loss = 0.0 # accumulator — reset each epoch (reporting only)
         for feats, labels in feat_loader: # batches of CACHED fingerprints — no crops, no backbone -> instant
             logits = head(feats) # fingerprints -> N scores (THIS has gradients)
@@ -116,7 +127,27 @@ def run_one_stretch(crops_run, stretch, backbone_name, num_epochs, lr, batch_siz
             loss.backward() # backprop: which way to nudge each head weight
             optimizer.step() # optimizer: actually nudge them
             running_loss += loss.item() # add this batch's loss into the bucket
-        logger.info(f"epoch {epoch+1}/{num_epochs}  avg loss: {running_loss / len(feat_loader):.4f}")
+        train_loss = running_loss / len(feat_loader)
+        head.eval()                                     # val every epoch (cheap — head is tiny, feats cached) -> the curve
+        with torch.no_grad():
+            val_acc = (head(val_feats).argmax(dim=1) == val_labels).float().mean().item()
+        train_losses.append(train_loss); val_accs.append(val_acc)
+        logger.info(f"epoch {epoch+1}/{num_epochs}  train_loss {train_loss:.4f}  val_acc {val_acc:.3f}")
+
+    best_epoch = int(torch.tensor(val_accs).argmax()) + 1
+    logger.info(f"BEST val_acc {max(val_accs):.3f} @ epoch {best_epoch}  |  final {val_accs[-1]:.3f}  |  gap = {max(val_accs) - val_accs[-1]:.3f} (overfitting if >0)")
+
+    # ---------- overfitting curve: train loss (down) vs val accuracy (peaks then droops if overfitting) ----------
+    xs = range(1, num_epochs + 1)
+    fig, ax1 = plt.subplots(figsize=(7, 4))
+    ax1.plot(xs, train_losses, "r-o", ms=3, label="train loss")
+    ax1.set_xlabel("epoch"); ax1.set_ylabel("train loss", color="r"); ax1.tick_params(axis="y", labelcolor="r")
+    ax2 = ax1.twinx()
+    ax2.plot(xs, val_accs, "b-o", ms=3, label="val accuracy")
+    ax2.set_ylabel("val accuracy", color="b"); ax2.tick_params(axis="y", labelcolor="b")
+    ax2.axvline(best_epoch, color="gray", ls="--", lw=1)   # mark the best epoch (early-stop point)
+    ax1.set_title(f"stretch{stretch} frozen head — train loss vs val accuracy (best @ epoch {best_epoch})")
+    fig.tight_layout()
 
     # ----------  EVALUATE on the held-out VAL split (the honest number) ----------
     banner_sub("VALIDATION — ACCURACY ON UNSEEN LATE FRAMES")
@@ -127,7 +158,7 @@ def run_one_stretch(crops_run, stretch, backbone_name, num_epochs, lr, batch_siz
     acc = correct.float().mean().item()                 # overall rank-1 accuracy
     logger.info(f"OVERALL val accuracy: {correct.sum().item()}/{len(val_labels)} = {acc:.3f}")
 
-    metrics = {"val_accuracy": acc}                      # collect for MLflow
+    metrics = {"val_accuracy": acc, "best_val_accuracy": max(val_accs), "best_epoch": best_epoch}   # collect for MLflow
     slot_to_fish = {slot: fish for fish, slot in label_map.items()}   # invert map for readable output
     for slot in range(n_classes):                       # per-fish breakdown
         mask = val_labels == slot
@@ -158,7 +189,19 @@ def run_one_stretch(crops_run, stretch, backbone_name, num_epochs, lr, batch_siz
         "n_train":    n_train,
         "n_val":      len(val_idx),
     }
-    log_to_mlflow(params, metrics, sweep_id)
+    log_to_mlflow(params, metrics, sweep_id, train_losses, val_accs, fig)
+
+    # ---------- save the trained head so the TRACKER can use it as a discriminative appearance metric ----------
+    head_path = f"{crops_run}/reid_head_stretch{int(stretch):02d}.pt"
+    torch.save({
+        "head_state": head.state_dict(),   # the nn.Linear(feat_dim, n_classes) weights
+        "feat_dim":   feat_dim,
+        "n_classes":  n_classes,
+        "label_map":  label_map,
+        "backbone":   backbone_name,        # tracker must use the SAME backbone
+        "stretch":    stretch,
+    }, head_path)
+    logger.info(f"saved head -> {head_path}  (use as tracker appearance_head)")
 
 #============================================================
 # MAIN — run each configured stretch SEPARATELY (never pooled: cross-stretch fish IDs aren't verified)
