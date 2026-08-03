@@ -74,7 +74,7 @@ class Track:
 
 
 # ── the whole tracker in one function: match tracks → detections ───────────────
-def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.0, app_min_sep=150):
+def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.0, app_min_sep=150, app_gate=None):
     """
     Two-pass matching that protects identities from theft and teleport-swaps.
 
@@ -87,6 +87,12 @@ def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.
              CAPPED (3x max_distance). A fish can't cross the tank in one frame,
              so a tag can never teleport onto a far, unrelated fish — it waits as
              a ghost until its own fish reappears nearby.
+
+    APPEARANCE GATE (app_gate) — a VETO, not just a tie-breaker: a track REFUSES a
+    detection whose appearance cosine-distance to its memory exceeds app_gate, even
+    if geometry is fine. That track stays unmatched (ghosts) so the RIGHT track can
+    claim the detection — this is what stops a track locking onto a wrong-but-near
+    fish after a merge (issue #2). Only applied to tracks that HAVE an appearance memory.
 
     Unmatched tracks are marked missing. Returns matched detection indices.
     """
@@ -112,18 +118,22 @@ def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.
         anchors  = np.array([tracks[i].pred for i in track_idx])   # predicted position, not last seen
         pos      = det_pos[avail]
         pos_cost = np.linalg.norm(anchors[:, None] - pos[None, :], axis=2)  # geometry (pixels) — used for the GATE
-        assign_cost = pos_cost.copy()                              # geometry (+ appearance) — used for the ASSIGNMENT
+        assign_cost  = pos_cost.copy()                             # geometry (+ appearance) — used for the ASSIGNMENT
+        app_dist_mat = np.full_like(pos_cost, np.nan)              # per-pair cosine distance (NaN = track has no memory -> don't gate it)
         if det_feats is not None and app_weight > 0:
             for r, ti in enumerate(track_idx):
                 if tracks[ti].appearance is None:                  # no memory yet -> geometry only for this track
                     continue
                 for k, c in enumerate(avail):
                     app_dist = 1.0 - float(np.dot(tracks[ti].appearance, det_feats[c]))   # cosine distance (feats are unit-length)
+                    app_dist_mat[r, k] = app_dist
                     assign_cost[r, k] += app_weight * app_dist
         for r, c in zip(*linear_sum_assignment(assign_cost)):
             ti = track_idx[r]
-            if pos_cost[r, c] > gate_fn(tracks[ti]):               # GATE on geometry ONLY — appearance can tip a match, never teleport a tag
+            if pos_cost[r, c] > gate_fn(tracks[ti]):               # GEOMETRY gate — a tag can never teleport onto a far fish
                 continue
+            if app_gate is not None and not np.isnan(app_dist_mat[r, c]) and app_dist_mat[r, c] > app_gate:
+                continue                                           # APPEARANCE gate (veto): "that's not me" -> stay unmatched (ghost), let the right track claim it
             x, y, bbox, conf = dets[avail[c]]
             # only feed appearance into memory when this detection is WELL-SEPARATED (else keep the clean pre-crossing memory)
             feat = det_feats[avail[c]] if (det_feats is not None and det_separated[avail[c]]) else None
@@ -257,6 +267,8 @@ def main():
     use_appearance = bool(c.get('appearance', False))                       # fuse DINOv2 appearance into matching?
     app_weight     = float(c.get('appearance_weight', 100)) if use_appearance else 0.0
     app_min_sep    = float(c.get('appearance_min_sep', 150))                 # only update appearance memory when a fish is this far from all others (px)
+    app_gate       = c.get('appearance_gate')                               # VETO: refuse a match whose cosine-dist to memory exceeds this (None = off)
+    app_gate       = float(app_gate) if (use_appearance and app_gate is not None) else None
 
     # build a per-run output FOLDER (holds the video, log, and config sidecar)
     clean    = c['output_video_path'].rstrip('/,. ')          # tolerate trailing junk
@@ -341,7 +353,7 @@ def main():
 
         if not locked:
             # CALIBRATION: match, then spawn a new track for any leftover detection
-            matched = associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep)
+            matched = associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep, app_gate)
             for i, (cx, cy, bbox, conf) in enumerate(dets):
                 if i not in matched:
                     tracks.append(Track(None, cx, cy, bbox, conf))
@@ -365,7 +377,7 @@ def main():
             # as a ghost near its last position and only re-acquires a NEARBY
             # detection — never teleports across the tank onto another fish.
             prev_missing = {t.id: t.missing for t in tracks}   # snapshot before matching
-            associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep)
+            associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep, app_gate)
             for t in tracks:                                   # log lost/recovered transitions
                 was, now = prev_missing[t.id], t.missing
                 if was == 0 and now > 0:                       # first frame a fish drops out

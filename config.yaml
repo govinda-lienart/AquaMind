@@ -65,13 +65,14 @@ tracker:
   model_path:        runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440/weights/best.pt
   output_video_path: output_fish_tracker/tracker_IMG_1839_appearance   # a dated '_basic_<timestamp>' folder is created per run
   start_seconds:     0    # start video
-  end_seconds:       100   # end video, choose 'null' for the whole video
+  end_seconds:       50   # end video, choose 'null' for the whole video
   num_fish:          5
   calibration_secs:  5    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match
   appearance:          true          # fuse DINOv2 appearance into matching (helps hold IDs at crossings); false = geometry only
   appearance_weight:   100            # px per unit cosine-distance — how strongly appearance can tip an ambiguous match (only when appearance: true)
   appearance_min_sep:  150            # only refresh a fish's appearance memory when it is this far (px) from ALL others — stops overlap crops poisoning it
+  appearance_gate:   0.6               # VETO threshold (cosine distance): a track REFUSES a detection whose look mismatches its memory by more than this -> it ghosts and the right track claims it. Blank = off. Try ~0.5-0.7; tune.
   appearance_backbone: dinov2_vits14  # embedder used when NO head is given (raw DINOv2 — weak cosine)
   appearance_head:     output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/reid_head_stretch04.pt   # trained head (~69%, stretch04) -> DISCRIMINATIVE appearance; blank = raw DINOv2
 
