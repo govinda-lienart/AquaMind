@@ -41,13 +41,6 @@ class Track:
         self.hits       = 1         # how many frames it has been matched
         self.missing    = 0         # consecutive frames with no detection (ghost)
         self.appearance = None      # running (unit-length) DINOv2 fingerprint — this fish's look, when appearance is ON
-        self.match_geom = None      # DEBUG: last frame's geometry distance (px) to the matched detection
-        self.match_app  = None      # DEBUG: last frame's appearance cosine-distance to memory (None if no memory)
-
-
-    
-
-
 
     @property
     def pred(self):
@@ -76,7 +69,7 @@ class Track:
 
 
 # ── the whole tracker in one function: match tracks → detections ───────────────
-def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.0, app_min_sep=150, app_gate=None):
+def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.0, app_min_sep=150, app_gate=None, app_max_gap=None):
     """
     Two-pass matching that protects identities from theft and teleport-swaps.
 
@@ -99,8 +92,6 @@ def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.
     Unmatched tracks are marked missing. Returns matched detection indices.
     """
     matched_dets, matched_tracks = set(), set()
-    for t in tracks:                             # reset per-frame debug values (g/a for the overlay)
-        t.match_geom = t.match_app = None
     if not tracks or not len(dets):
         for t in tracks:
             t.mark_missing()
@@ -128,25 +119,19 @@ def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.
             for r, ti in enumerate(track_idx):
                 if tracks[ti].appearance is None:                  # no memory yet -> geometry only for this track
                     continue
+                if app_max_gap is not None and tracks[ti].missing > app_max_gap:   # memory too STALE (hidden > ~hold-time) -> don't trust appearance, geometry only
+                    continue
                 for k, c in enumerate(avail):
                     app_dist = 1.0 - float(np.dot(tracks[ti].appearance, det_feats[c]))   # cosine distance (feats are unit-length)
                     app_dist_mat[r, k] = app_dist
                     assign_cost[r, k] += app_weight * app_dist
         for r, c in zip(*linear_sum_assignment(assign_cost)):
             ti = track_idx[r]
-            adist = None if np.isnan(app_dist_mat[r, c]) else float(app_dist_mat[r, c])
             if pos_cost[r, c] > gate_fn(tracks[ti]):               # GEOMETRY gate — a tag can never teleport onto a far fish
                 continue
-            if app_gate is not None and adist is not None and adist > app_gate:
-                logger.info(json.dumps({"event": "appearance_veto", "fish_id": tracks[ti].id,   # gate refused this match
-                                        "app_dist": round(adist, 3), "geom_px": round(float(pos_cost[r, c]), 1)}))
+            if app_gate is not None and not np.isnan(app_dist_mat[r, c]) and app_dist_mat[r, c] > app_gate:
                 continue                                           # APPEARANCE gate (veto): "that's not me" -> stay unmatched (ghost), let the right track claim it
             x, y, bbox, conf = dets[avail[c]]
-            tracks[ti].match_geom = float(pos_cost[r, c])          # record the two decision values (for overlay + review)
-            tracks[ti].match_app  = adist
-            if adist is not None and adist > 0.5 and tracks[ti].id is not None:   # matched but doesn't look like itself -> suspected swap
-                logger.info(json.dumps({"event": "appearance_mismatch", "fish_id": tracks[ti].id,
-                                        "app_dist": round(adist, 3), "geom_px": round(float(pos_cost[r, c]), 1)}))
             # only feed appearance into memory when this detection is WELL-SEPARATED (else keep the clean pre-crossing memory)
             feat = det_feats[avail[c]] if (det_feats is not None and det_separated[avail[c]]) else None
             tracks[ti].update(x, y, bbox, conf, feat)
@@ -196,7 +181,7 @@ def draw_calibration_badge(frame, frame_count):
     cv2.putText(frame, text, (x + pad, y + th + pad - 2), font, scale, (0, 215, 255), thick, cv2.LINE_AA)
 
 
-def draw_frame(frame, tracks, locked, frame_count, debug=False, app_gate=None):
+def draw_frame(frame, tracks, locked, frame_count):
     for t in tracks:
         x1, y1, x2, y2 = [int(v) for v in t.bbox]
         color = id_color(t.id)
@@ -209,18 +194,6 @@ def draw_frame(frame, tracks, locked, frame_count, debug=False, app_gate=None):
         if label:
             cv2.putText(frame, label, (x1, y1 - 8),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-        # DEBUG overlay: g = geometry dist (px), a = appearance cosine-dist to memory (color-coded)
-        if debug and t.id and t.missing == 0:
-            g_txt = f"g{t.match_geom:.0f}" if t.match_geom is not None else "g-"
-            cv2.putText(frame, g_txt, (x1, y2 + 16), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-            if t.match_app is None:
-                a_txt, a_col = "a-", (200, 200, 200)
-            else:
-                a_txt = f"a{t.match_app:.2f}"
-                a_col = ((80, 255, 80) if t.match_app < 0.4 else          # green: looks like itself
-                         (0, 0, 255) if (app_gate is not None and t.match_app >= app_gate) or t.match_app > 0.5 else  # red: mismatch / swap-risk
-                         (0, 220, 255))                                    # yellow: borderline
-            cv2.putText(frame, a_txt, (x1 + 48, y2 + 16), cv2.FONT_HERSHEY_SIMPLEX, 0.5, a_col, 1)
     cv2.putText(frame, f"Frame: {frame_count}", (10, frame.shape[0] - 12),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
     if not locked:
@@ -293,7 +266,7 @@ def main():
     app_min_sep    = float(c.get('appearance_min_sep', 150))                 # only update appearance memory when a fish is this far from all others (px)
     app_gate       = c.get('appearance_gate')                               # VETO: refuse a match whose cosine-dist to memory exceeds this (None = off)
     app_gate       = float(app_gate) if (use_appearance and app_gate is not None) else None
-    show_debug     = bool(c.get('appearance_debug', False)) and use_appearance   # draw per-fish g/a decision values on the video
+    app_max_gap_secs = float(c.get('appearance_max_gap_secs', 2.5))          # trust appearance only within this many seconds (measured ~2s hold-time); staler ghost memory -> geometry only
 
     # build a per-run output FOLDER (holds the video, log, and config sidecar)
     clean    = c['output_video_path'].rstrip('/,. ')          # tolerate trailing junk
@@ -329,8 +302,14 @@ def main():
         if head_path:
             hd = torch.load(head_path, map_location=app_device)
             app_backbone_name = hd["backbone"]                      # match the backbone the head was trained on
-            app_head = torch.nn.Linear(hd["feat_dim"], hd["n_classes"])
-            app_head.load_state_dict(hd["head_state"])
+            if "out_dim" in hd:                                     # CONTRASTIVE projection head (MLP) — discriminative, short-range identity metric
+                app_head = torch.nn.Sequential(
+                    torch.nn.Linear(hd["in_dim"], hd["hidden_dim"]), torch.nn.ReLU(),
+                    torch.nn.Linear(hd["hidden_dim"], hd["out_dim"]))
+                app_head.load_state_dict({k.replace("net.", ""): v for k, v in hd["head_state"].items()})
+            else:                                                  # train_reid CLASSIFIER head (single Linear)
+                app_head = torch.nn.Linear(hd["feat_dim"], hd["n_classes"])
+                app_head.load_state_dict(hd["head_state"])
             app_head.eval().to(app_device)
         else:
             app_backbone_name = c.get('appearance_backbone', 'dinov2_vits14')
@@ -341,6 +320,9 @@ def main():
     fps = cap.get(cv2.CAP_PROP_FPS)
     W   = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     H   = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    app_max_gap = int(app_max_gap_secs * fps) if use_appearance else None    # hold-time as frames (fps known now)
+    if use_appearance:
+        logger.info(f"  appearance time-gate: trust memory up to {app_max_gap} frames (~{app_max_gap_secs}s)")
 
     if start:
         cap.set(cv2.CAP_PROP_POS_FRAMES, int(start * fps))
@@ -378,7 +360,7 @@ def main():
 
         if not locked:
             # CALIBRATION: match, then spawn a new track for any leftover detection
-            matched = associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep, app_gate)
+            matched = associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep, app_gate, app_max_gap)
             for i, (cx, cy, bbox, conf) in enumerate(dets):
                 if i not in matched:
                     tracks.append(Track(None, cx, cy, bbox, conf))
@@ -402,7 +384,7 @@ def main():
             # as a ghost near its last position and only re-acquires a NEARBY
             # detection — never teleports across the tank onto another fish.
             prev_missing = {t.id: t.missing for t in tracks}   # snapshot before matching
-            associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep, app_gate)
+            associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep, app_gate, app_max_gap)
             for t in tracks:                                   # log lost/recovered transitions
                 was, now = prev_missing[t.id], t.missing
                 if was == 0 and now > 0:                       # first frame a fish drops out
@@ -414,7 +396,7 @@ def main():
                                             "missing_frames": was}))
 
         
-        # write this frame's identified tracks to MySQL (only tracks that already have an id;
+        # collect this frame's identified tracks for the parquet (only tracks that already have an id;
         # x/y are the centroid, occluded = ghost, confidence from the last matched detection)
         timestamp = start + frame_count / fps
         for t in tracks:
@@ -441,7 +423,7 @@ def main():
             cv2.imwrite(filename, crop) # outputs True/False; writes the .jpg image to that path on disk
 
         # drawing the frame
-        draw_frame(frame, tracks, locked, frame_count, debug=show_debug, app_gate=app_gate)
+        draw_frame(frame, tracks, locked, frame_count)
         out.write(frame)
 
         cv2.imshow('Fish Tracker', frame)   # live preview

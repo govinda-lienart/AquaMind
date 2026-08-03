@@ -65,17 +65,17 @@ tracker:
   model_path:        runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440/weights/best.pt
   output_video_path: output_fish_tracker/tracker_IMG_1839_appearance   # a dated '_basic_<timestamp>' folder is created per run
   start_seconds:     0    # start video
-  end_seconds:       50   # end video, choose 'null' for the whole video
+  end_seconds:       30   # end video, choose 'null' for the whole video
   num_fish:          5
   calibration_secs:  5    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match
   appearance:          true          # fuse DINOv2 appearance into matching (helps hold IDs at crossings); false = geometry only
   appearance_weight:   100            # px per unit cosine-distance — how strongly appearance can tip an ambiguous match (only when appearance: true)
   appearance_min_sep:  150            # only refresh a fish's appearance memory when it is this far (px) from ALL others — stops overlap crops poisoning it
-  appearance_gate:   0.6               # VETO threshold (cosine distance): a track REFUSES a detection whose look mismatches its memory by more than this -> it ghosts and the right track claims it. Blank = off. Try ~0.5-0.7; tune.
-  appearance_debug:  true              # draw per-fish g (geometry px) + a (appearance cosine-dist) under each box; a is green<0.4 / yellow / red>=gate. Also logs appearance_veto + appearance_mismatch events.
+  appearance_gate:                     # VETO threshold — OFF. Tried 0.30 (data-tuned) and it caused long ghost frames (fish boxless ~10s): a refused fish drifts past geometry's reach while ghosting, then can't re-acquire. Veto-at-a-crossing is not worth the ghost spiral. Leave blank.
+  appearance_max_gap_secs: 2.5         # trust appearance only within this many seconds (measured ~2s hold-time for the contrastive embedding); a fish hidden longer -> geometry only (stale memory has drifted)
   appearance_backbone: dinov2_vits14  # embedder used when NO head is given (raw DINOv2 — weak cosine)
-  appearance_head:     output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/reid_head_stretch04.pt   # trained head (~69%, stretch04) -> DISCRIMINATIVE appearance; blank = raw DINOv2
+  appearance_head:     output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/stitch/contrastive_head.pt   # CONTRASTIVE projection head -> discriminative short-range identity metric; blank = raw DINOv2
 
 # analyse_behaviour_script and analyse_chasing_script
 analyse_behaviour:
@@ -134,3 +134,17 @@ finetune_reid:
       batch_size:      32
       unfreeze_blocks: 2               # unfreeze the last N transformer blocks (fewer = less overfit on small data)
 
+#_______________________________________________________
+# contrastive_reid_script - Stage 6.5 SELF-SUPERVISED contrastive projection (idtracker.ai 2025 method)
+# Learns identity features WITHOUT global labels: positives = same fragment (guaranteed same fish),
+# negatives = COEXISTING fragments (different fish — can't be two places at once). Trains a projection
+# head on cached frozen DINOv2 feats (fast, low overfit risk). Reads run_dir from train_reid.videos.
+contrastive_reid:
+  video: IMG_1839
+  backbone:        dinov2_vits14   # must match the run used to build fragments (feats not comparable across backbones)
+  out_dim:         64              # projection dimension (idtracker uses ~8; 64 clusters fine, tune down if it helps)
+  temperature:     0.1             # SupCon softmax temperature (lower = sharper contrast)
+  lr:              0.001           # Adam step size for the projection head
+  steps:           3000            # training steps (each = one coexisting group; cheap on cached feats)
+  crops_per_frag:  6               # crops sampled per fragment per batch (needs >=2 for positives)
+  hidden_dim:      256             # projection MLP hidden width (384 -> hidden -> out_dim)
