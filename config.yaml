@@ -52,18 +52,18 @@ prepare_dataset:
 
 # log_artifact_mlflow_script
 log_artifact_mlflow:
-  run_path: runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440
-  dataset_name: dataset_ann_5r_8c_9r_10r_11c_2026_07_20_1107   # the dataset THIS run was trained on — pin it here so provenance stays truthful even after prepare_dataset moves on to a new dataset 
+  run_path: runs/aquamind_yolov8_run_5r_8c_9r_10r_11c_14c_2026_07_21_2107_20260721_1518
+  dataset_name: dataset_ann_5r_8c_9r_10r_11c_14c_2026_07_21_2107   # the dataset THIS run was trained on — pin it here so provenance stays truthful even after prepare_dataset moves on to a new dataset
 
 # ml_backend_script — YOLO model used by LabelStudio for self-labeling (pre-labeling).
 # Decoupled from fish_tracker on purpose: set whichever model you want to pre-label with here.
 ml_backend:
-  model_path: runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440/weights/best.pt
+  model_path: models:/aquamind-yolo-detector@champion   # registry alias → resolved to native YOLO by scripts.model_registry.load_yolo (was: runs/.../2026_07_20_.../weights/best.pt)
 
 # tracker_script (tracker.py)
 tracker:
   input_video_path:  videos/IMG_1839.MOV
-  model_path:        runs/aquamind_yolov8_run_5r_8c_9r_10r_11c_14c_2026_07_21_2107_20260721_1518/weights/best.pt
+  model_path:        models:/aquamind-yolo-detector@champion   # was: runs/.../2026_07_21_.../weights/best.pt — now resolved via scripts.model_registry.load_yolo
   output_video_path: output_fish_tracker/tracker_IMG_1839_appearance   # a dated '_basic_<timestamp>' folder is created per run
   start_seconds:     0    # start video
   end_seconds:       60   # end video, choose 'null' for the whole video

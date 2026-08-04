@@ -98,7 +98,8 @@ log-mlflow:
 	python -m scripts.log_artifact_mlflow
 
 run-mlflow:
-	mlflow ui --backend-store-uri mlruns/ --port 5002
+	mlflow ui --backend-store-uri sqlite:///mlflow.db --port 5003
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STAGE 5 — TRACKING

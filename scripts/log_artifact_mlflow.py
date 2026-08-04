@@ -12,6 +12,7 @@ import logging
 import os
 
 import mlflow
+import mlflow.pyfunc
 import pandas as pd
 import yaml
 
@@ -25,6 +26,22 @@ TRACKING_URI = 'sqlite:///mlflow.db'      # Model Registry needs a DB backend �
 EXPERIMENT   = 'aquamind'
 YOLO_MODEL   = 'yolov8n'
 MODEL_NAME   = 'aquamind-yolo-detector'   # the registered model; each retrain = a new auto-incremented version (v1, v2, ...)
+ALIAS        = 'champion'                 # moving pointer to the current best version — downstream loads models:/<name>@champion
+
+
+# ── MODEL WRAPPER ─────────────────────────────────────────────────────────────
+
+class YoloModel(mlflow.pyfunc.PythonModel):
+    """Wraps best.pt so MLflow logs it as a proper MODEL flavor (MLmodel + env → registrable + servable),
+    instead of registering a bare .pt file. load_context rebuilds the native YOLO from the logged weights."""
+
+    def load_context(self, context):
+        from ultralytics import YOLO
+        self.model = YOLO(context.artifacts['weights'])
+
+    def predict(self, context, model_input, params=None):
+        results = self.model(model_input, verbose=False)
+        return [r.boxes.data.cpu().numpy() for r in results]   # xyxy+conf+cls per image (generic serving path)
 
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -99,7 +116,7 @@ def main():
     mlflow.set_tracking_uri(TRACKING_URI)
     mlflow.set_experiment(EXPERIMENT)
 
-    with mlflow.start_run(run_name=run_name) as run:
+    with mlflow.start_run(run_name=run_name):
 
         mlflow.log_param('yolo_model',          YOLO_MODEL)
         mlflow.log_param('dataset_name',        card['dataset_name'])
@@ -114,16 +131,20 @@ def main():
         log_dataset_card(dataset_path)
         mlflow.log_artifacts(run_path)
 
-        # ── MODEL REGISTRY — register best.pt as a new VERSION of the named model, linked to THIS run's lineage ──
-        # MLflow 3.x: high-level register_model() expects a logged MODEL flavor; for a raw .pt artifact use the low-level client.
-        model_uri = f"runs:/{run.info.run_id}/weights/best.pt"          # best.pt inside this run's logged artifacts
-        client = mlflow.MlflowClient()
-        try:
-            client.create_registered_model(MODEL_NAME)                  # first run only; harmless if it already exists
-        except Exception:
-            pass
-        version = client.create_model_version(MODEL_NAME, source=model_uri, run_id=run.info.run_id).version   # v1, v2, ...
-        logger.info(f"registered '{MODEL_NAME}' v{version} — lineage: dataset={card['dataset_name']}, commit={card['git_commit'][:8]}")
+        # ── MODEL REGISTRY (textbook) — log best.pt as a proper pyfunc MODEL flavor + register in one call ──
+        # log_model creates an MLmodel flavor (servable + loadable via models:/), registered_model_name= registers
+        # it atomically as a new VERSION linked to THIS run's lineage. Then move the @champion alias to it.
+        best_pt = os.path.join(run_path, 'weights', 'best.pt')
+        info = mlflow.pyfunc.log_model(
+            name='model',
+            python_model=YoloModel(),
+            artifacts={'weights': best_pt},
+            registered_model_name=MODEL_NAME,
+            pip_requirements=['ultralytics', 'torch'],
+        )
+        version = info.registered_model_version                          # v1, v2, ...
+        mlflow.MlflowClient().set_registered_model_alias(MODEL_NAME, ALIAS, version)
+        logger.info(f"registered '{MODEL_NAME}' v{version} (alias @{ALIAS}) — lineage: dataset={card['dataset_name']}, commit={card['git_commit'][:8]}")
 
     logger.info("metrics + artifacts logged and model registered — you can now delete the runs/ folder")
 

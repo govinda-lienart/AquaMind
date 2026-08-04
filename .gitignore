@@ -15,6 +15,7 @@ yolov5/
 secrets/
 backup_notebook_files/
 mlruns/
+mlflow.db
 runs/
 track_deepsort.py
 output_video_bytetrack/

@@ -16,9 +16,9 @@ import numpy as np
 import pandas as pd
 import torch
 from PIL import Image
-from ultralytics import YOLO
 from scipy.optimize import linear_sum_assignment
 from scripts.reid_features import load_backbone, transform   # shared DINOv2 embedder (appearance only)
+from scripts.model_registry import load_yolo                 # path OR models:/...@champion → native YOLO
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -391,7 +391,7 @@ def main():
     print_run_config(input_video_path, model_path, out_path, start, end,
                      num_fish, calibration_secs, max_distance)
 
-    model = YOLO(model_path)
+    model = load_yolo(model_path)
 
     # appearance embedder — loaded ONLY when appearance is ON. If a trained head is given, detections
     # are projected through backbone -> head (discriminative); otherwise raw DINOv2 (weak cosine).

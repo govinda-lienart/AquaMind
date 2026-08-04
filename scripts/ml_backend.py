@@ -18,7 +18,7 @@ import requests
 import yaml
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
-from ultralytics import YOLO
+from scripts.model_registry import load_yolo   # path OR models:/...@champion → native YOLO
 
 CONFIG_PATH = 'config.yaml'
 CLASSES     = {0: 'danio_rerio', 1: 'reflection'}
@@ -49,7 +49,7 @@ def get_model():
         # model for self-labeling lives in its own ml_backend block; fall back to
         # the tracker's model if ml_backend.model_path isn't set, so this never crashes.
         path = cfg.get('ml_backend', {}).get('model_path') or cfg['tracker']['model_path']
-        model = YOLO(path)
+        model = load_yolo(path)
         print(f"  Model loaded: {path}")
     return model
 
