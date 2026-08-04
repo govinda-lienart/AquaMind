@@ -139,7 +139,7 @@ test:
 # ════════════
 
 backup_rclone:
-	rclone sync . "aquamind-full-backup:AquaMind/backup_20260614" \
+	rclone sync . "aquamind-full-backup:AquaMind/backup_20260804" \
 	--progress \
 	--exclude ".git/**" \
 	--exclude "__pycache__/**" \

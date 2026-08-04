@@ -25,6 +25,7 @@ import numpy as np
 
 from scripts.logger import setup_logging
 from scripts.console import banner
+from scripts.db import get_connection, register_frames   # register frames in MySQL so store_annotations can link labels (like extract_crossing_frames)
 
 logger = logging.getLogger(__name__)
 
@@ -93,9 +94,18 @@ def main():
         if not ok:
             break
         if fn in target_set:
-            cv2.imwrite(os.path.join(out_dir, f"frame_{fn}.jpg"), frame); saved += 1
+            cv2.imwrite(os.path.join(out_dir, f"frame_{fn:06d}.jpg"), frame); saved += 1   # 6-digit -> matches get_frame_id
         fn += 1
     cap.release()
+
+    # register in MySQL (INSERT IGNORE) so store_annotations can resolve frame_id — same step as extract_crossing_frames
+    n_reg = None
+    try:
+        conn = get_connection()
+        n_reg = register_frames(conn, out_dir, video_path)
+        conn.commit(); conn.close()
+    except Exception as ex:
+        logger.warning(f"MySQL registration SKIPPED ({ex}). Is {video_path} in the videos table? Register it, then re-run.")
 
     with open(os.path.join(out_dir, 'extraction_params.yaml'), 'w') as f:
         yaml.dump({'strategy': 'ghosting (tracker lost the fish = YOLO failure) — active-learning hard mining',
@@ -104,6 +114,7 @@ def main():
 
     banner("✅ GHOST FRAMES SAVED")
     logger.info(f"  frames saved : {saved}   (from {len(ranges)} ghosting bursts / {n_ival} lost-fish intervals)")
+    logger.info(f"  registered   : {n_reg if n_reg is not None else 'SKIPPED'} rows in MySQL frames table")
     logger.info(f"  location     : {os.path.abspath(out_dir)}")
     logger.info(f"  sidecar      : {os.path.join(out_dir, 'extraction_params.yaml')}")
     logger.info(f"  NEXT         : set  upload_labelstudio.frames_dir: {out_dir}   then  make upload-labelstudio")

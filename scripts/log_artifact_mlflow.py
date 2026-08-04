@@ -20,10 +20,11 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-CONFIG_PATH = 'config.yaml'
-MLRUNS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'mlruns')
-EXPERIMENT  = 'aquamind'
-YOLO_MODEL  = 'yolov8n'
+CONFIG_PATH  = 'config.yaml'
+TRACKING_URI = 'sqlite:///mlflow.db'      # Model Registry needs a DB backend — the file-based mlruns/ store can't register models
+EXPERIMENT   = 'aquamind'
+YOLO_MODEL   = 'yolov8n'
+MODEL_NAME   = 'aquamind-yolo-detector'   # the registered model; each retrain = a new auto-incremented version (v1, v2, ...)
 
 
 # ── HELPERS ───────────────────────────────────────────────────────────────────
@@ -84,7 +85,7 @@ def main():
         cfg = yaml.safe_load(f)
     run_path     = cfg['log_artifact_mlflow']['run_path']
     run_name     = run_path.strip('/').split('/')[-1]
-    dataset_path = f"dataset/{cfg['prepare_dataset']['dataset_name']}"
+    dataset_path = f"dataset/{cfg['log_artifact_mlflow']['dataset_name']}"   # pinned to the run's own dataset, NOT prepare_dataset's (which points at the next dataset)
 
     card = load_dataset_card(dataset_path)
 
@@ -95,10 +96,10 @@ def main():
 
     df = load_results_csv(run_path)
 
-    mlflow.set_tracking_uri(MLRUNS_PATH)
+    mlflow.set_tracking_uri(TRACKING_URI)
     mlflow.set_experiment(EXPERIMENT)
 
-    with mlflow.start_run(run_name=run_name):
+    with mlflow.start_run(run_name=run_name) as run:
 
         mlflow.log_param('yolo_model',          YOLO_MODEL)
         mlflow.log_param('dataset_name',        card['dataset_name'])
@@ -113,7 +114,18 @@ def main():
         log_dataset_card(dataset_path)
         mlflow.log_artifacts(run_path)
 
-    logger.info("all metrics and artifacts logged — you can now delete the runs/ folder")
+        # ── MODEL REGISTRY — register best.pt as a new VERSION of the named model, linked to THIS run's lineage ──
+        # MLflow 3.x: high-level register_model() expects a logged MODEL flavor; for a raw .pt artifact use the low-level client.
+        model_uri = f"runs:/{run.info.run_id}/weights/best.pt"          # best.pt inside this run's logged artifacts
+        client = mlflow.MlflowClient()
+        try:
+            client.create_registered_model(MODEL_NAME)                  # first run only; harmless if it already exists
+        except Exception:
+            pass
+        version = client.create_model_version(MODEL_NAME, source=model_uri, run_id=run.info.run_id).version   # v1, v2, ...
+        logger.info(f"registered '{MODEL_NAME}' v{version} — lineage: dataset={card['dataset_name']}, commit={card['git_commit'][:8]}")
+
+    logger.info("metrics + artifacts logged and model registered — you can now delete the runs/ folder")
 
 
 # ── ENTRY POINT ───────────────────────────────────────────────────────────────

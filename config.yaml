@@ -17,30 +17,30 @@ extract_frames:
 
 # download_labelstudio_script
 download_labelstudio:
-  project_name: crossing_IMG_2349_second_part_hard_mining    # Label Studio project name
+  project_name: ghost_frames_hard_mining_IMG_1839_20260804_14h09    # Label Studio project name
   min_task_id:                           # leave empty for no lower limit
   max_task_id:                            # leave empty for no upper limit
   mode: export                           # export or search
   search_term: frame_2220                # used only when mode = search
-  export_labels: false                    # download YOLO .txt label files into labels/ folder
-  export_images: true                    # download source images into images/ folder
+  export_labels: true                    # download YOLO .txt label files into labels/ folder
+  export_images: false                    # download source images into images/ folder
 
 # upload_labelstudio_script - hard negative mining - upload crossing frames to LabelStudio
 upload_labelstudio:
-  project_name: crossing_IMG_2349_second_part
-  frames_dir: frames/crossing_frames_IMG_2349_20260721_16h30
+  project_name: ghost_frames_hard_mining_IMG_1839
+  frames_dir: frames/ghost_frames_IMG_1839_20260804_1405
 
 # store_annotations_script
 store_annotations:
-  labels_path: labelstudio_download/labelstudio_IMG_2349_second_part_hard_mining_21072026_20h39/labels
-  frames_folder: frames/crossing_frames_IMG_2349_20260721_16h30
-  video_name: IMG_2349
-  frame_source: crossing_event   # regular | crossing_event (the frames folder's sidecar overrides this)
-  notes: hard negative mining — 109 crossing frames, YOLO pre-labeled + manually corrected
+  labels_path: labelstudio_download/labelstudio_frames_hard_mining_IMG_1839_20260804_14h09_04082026_16h44/labels
+  frames_folder: frames/ghost_frames_IMG_1839_20260804_1405
+  video_name: IMG_1839
+  frame_source: ghosting_event   # regular | crossing_event (the frames folder's sidecar overrides this)
+  notes: hard negative mining — using ghosting, YOLO pre-labeled + manually corrected
 
 # prepare_dataset_script
 prepare_dataset:
-  dataset_name: dataset_ann_5r_8c_9r_10r_11c_14c_2026_07_21_2107
+  dataset_name: data_ann_5r_8c_9r_10r_11c_14c_17g_2026_08_04_2006
   annotation_set_ids:   # integer IDs from annotation_sets table — run store_annotations.py first
     - 5
     - 8
@@ -48,11 +48,12 @@ prepare_dataset:
     - 10
     - 11
     - 14
+    - 17
 
 # log_artifact_mlflow_script
 log_artifact_mlflow:
   run_path: runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440
-  # dataset: it reads the dataset listed in prepare dataset to pull the sidecar metadata from this dataset 
+  dataset_name: dataset_ann_5r_8c_9r_10r_11c_2026_07_20_1107   # the dataset THIS run was trained on — pin it here so provenance stays truthful even after prepare_dataset moves on to a new dataset 
 
 # ml_backend_script — YOLO model used by LabelStudio for self-labeling (pre-labeling).
 # Decoupled from fish_tracker on purpose: set whichever model you want to pre-label with here.
@@ -62,7 +63,7 @@ ml_backend:
 # tracker_script (tracker.py)
 tracker:
   input_video_path:  videos/IMG_1839.MOV
-  model_path:        runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440/weights/best.pt
+  model_path:        runs/aquamind_yolov8_run_5r_8c_9r_10r_11c_14c_2026_07_21_2107_20260721_1518/weights/best.pt
   output_video_path: output_fish_tracker/tracker_IMG_1839_appearance   # a dated '_basic_<timestamp>' folder is created per run
   start_seconds:     0    # start video
   end_seconds:       60   # end video, choose 'null' for the whole video
