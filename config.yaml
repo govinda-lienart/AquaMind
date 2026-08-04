@@ -1,9 +1,9 @@
 
 # extract_frames_script
 extract_frames:
-  video_path:     output_fish_tracker/tracker_IMG_1231__2026_07_21_2055/tracker_IMG_1231__2026_07_21_2055.mp4# videos/test.MOV
+  video_path:     videos/IMG_1839.MOV   # RAW source (never a tracker output — those have boxes drawn on them)
   frames_dir:     frames
-  sample_rate:    1     # frames per second to extract (1=1fps, 2=2fps, 60=every frame) — used only in window mode
+  sample_rate:    4     # frames per second to extract (1=1fps, 4=4fps for dense hard-negative mining, 60=every frame) — used only in window mode
   start_seconds:  0     # leave 0 for beginning of video — window mode
   end_seconds:    null  # leave null for full video — window mode
   # frame_ranges: multi-range mode. When set (non-empty), overrides the seconds/sample_rate window above.
@@ -65,7 +65,7 @@ tracker:
   model_path:        runs/aquamind_yolov8_run_ann_5r_8c_9r_10r_11c_2026_07_20_1107_20260720_0440/weights/best.pt
   output_video_path: output_fish_tracker/tracker_IMG_1839_appearance   # a dated '_basic_<timestamp>' folder is created per run
   start_seconds:     0    # start video
-  end_seconds:       20   # end video, choose 'null' for the whole video
+  end_seconds:       60   # end video, choose 'null' for the whole video
   num_fish:          5
   calibration_secs:  5    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match
@@ -75,6 +75,9 @@ tracker:
   appearance_min_sep:  150            # only refresh a fish's appearance memory when it is this far (px) from ALL others — stops overlap crops poisoning it
   appearance_gate:                     # VETO threshold — OFF. Tried 0.30 (data-tuned) and it caused long ghost frames (fish boxless ~10s): a refused fish drifts past geometry's reach while ghosting, then can't re-acquire. Veto-at-a-crossing is not worth the ghost spiral. Leave blank.
   appearance_max_gap_secs: 2.5         # trust appearance only within this many seconds (measured ~2s hold-time for the contrastive embedding); a fish hidden longer -> geometry only (stale memory has drifted)
+  appearance_debug:  true              # draw per-fish g (geometry px) + a (appearance cosine-dist) under each box + red "APP" when appearance FLIPPED the match; run-end logs how many flips (0 = appearance never mattered -> geometry alone suffices)
+  appearance_audit:  true              # POST-CROSSING SWAP AUDIT: after a fish exits a crossing, cross-check its look vs its OWN pre-crossing memory vs other fish's -> flags "?SWAP N" + logs appearance_swap_flag. FLAG only (doesn't act); measure precision, then decide on auto-correct.
+  appearance_audit_margin: 0.03        # flag when the exit is this-much MORE similar (cosine) to another fish's memory than its own. Higher = fewer/more-confident flags.
   appearance_backbone: dinov2_vits14  # embedder used when NO head is given (raw DINOv2 — weak cosine)
   appearance_head:     output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/stitch/contrastive_head.pt   # CONTRASTIVE projection head -> discriminative short-range identity metric; blank = raw DINOv2
 
@@ -97,6 +100,14 @@ analyse_behaviour:
         bottom_y_px: 971     # tank-bottom y in video pixels (depth 100%); measured with throwaway/pixel_measure.py
         calibration_secs: 10 # skip tracker warm-up window (matches fish_tracker config
     
+#_______________________________________________________
+# extract_ghost_frames_script - hard negative mining by GHOSTING (active learning: mine where the tracker LOST a fish = YOLO failed)
+extract_ghost_frames:
+  log_path:   output_fish_tracker/tracker_IMG_1839_appearance_2026_08_04_0728/tracker_IMG_1839_appearance_2026_08_04_0728.log   # the tracker run to MINE
+  video_path: videos/IMG_1839.MOV   # RAW source to cut frames from (never a tracker output)
+  output_dir: frames                # a ghost_frames_<video>_<stamp> folder is created here
+  per_burst:  3                     # frames sampled per ghosting burst (evenly spaced) — cuts redundancy; 0 = every ghosting frame (~765)
+
 #_______________________________________________________
 # extract_crossing_frames_script - hard negative mining
 extract_crossing_frames:

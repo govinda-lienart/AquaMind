@@ -24,6 +24,10 @@ sync-videos:
 extract-frames:
 	python -m scripts.extract_frames
 
+# Mine GHOSTING frames (where the tracker LOST a fish = YOLO failed) → active-learning hard negatives for relabeling
+extract-ghost-frames:
+	python -m scripts.extract_ghost_frames
+
 # ══════════════════════════════════════════════════════════════════════════════
 # STAGE 2 — ANNOTATION (LabelStudio)
 # Import frames, label in LabelStudio, export annotations
