@@ -44,6 +44,15 @@ class Track:
         self.hits       = 1         # how many frames it has been matched
         self.missing    = 0         # consecutive frames with no detection (ghost)
         self.appearance = None      # running (unit-length) DINOv2 fingerprint — this fish's look, when appearance is ON
+        self.match_geom = None      # debug: geometry distance (px) to the matched detection this frame
+        self.match_app  = None      # debug: appearance cosine-distance to memory for the matched detection
+        self.match_flipped = False  # debug: True if appearance CHANGED the match (geometry alone would pick a different fish)
+        self.prev_appearance = None # snapshot of the memory BEFORE this frame (for the audit)
+        self.exit_feat = None       # the (clean, separated) detection fingerprint this fish matched this frame
+        self.audit_partner = None   # post-crossing audit: id of the fish this one's exit looks MORE like (suspected swap) — for overlay
+        self.cross_memory = None    # clean fingerprint snapshotted when the fish ENTERED a crossing (its pre-crossing look)
+        self.crossing = False       # currently close to (crossing) another fish -> audit its look once it separates again
+        self.audit_hold = 0         # frames-remaining to keep the SWAP highlight up in the status panel
 
     @property
     def pred(self):
@@ -89,7 +98,7 @@ class Track:
 
 
 # ── the whole tracker in one function: match tracks → detections ───────────────
-def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.0, app_min_sep=150, app_gate=None, app_max_gap=None, merge_fix=False):
+def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.0, app_min_sep=150, app_gate=None, app_max_gap=None, merge_fix=False, debug=False):
     """
     Two-pass matching that protects identities from theft and teleport-swaps.
 
@@ -112,6 +121,9 @@ def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.
     Unmatched tracks are marked missing. Returns matched detection indices.
     """
     matched_dets, matched_tracks = set(), set()
+    for t in tracks:                                          # reset per-frame debug values + snapshot clean pre-frame memory for the audit
+        t.match_geom = t.match_app = None; t.match_flipped = False
+        t.prev_appearance = t.appearance; t.exit_feat = None   # audit_partner persists via audit_hold (managed in main)
     if not tracks or not len(dets):
         for t in tracks:
             t.mark_missing()
@@ -153,6 +165,11 @@ def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.
                     app_dist = 1.0 - float(np.dot(tracks[ti].appearance, det_feats[c]))   # cosine distance (feats are unit-length)
                     app_dist_mat[r, k] = app_dist
                     assign_cost[r, k] += app_weight * app_dist
+        # debug: what would GEOMETRY ALONE have chosen? (to flag when appearance FLIPPED the match)
+        geo_choice = {}
+        if debug:
+            for gr, gc in zip(*linear_sum_assignment(pos_cost)):
+                geo_choice[track_idx[gr]] = avail[gc]
         for r, c in zip(*linear_sum_assignment(assign_cost)):
             ti = track_idx[r]
             if pos_cost[r, c] > gate_fn(tracks[ti]):               # GEOMETRY gate — a tag can never teleport onto a far fish
@@ -167,8 +184,15 @@ def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.
                              and np.hypot(dx0 - tt.pred[0], dy0 - tt.pred[1]) < max_distance)
                 if n_near > 1:
                     continue
+            if debug:                                              # record WHAT DROVE this match, for the overlay
+                tracks[ti].match_geom = float(pos_cost[r, c])
+                a = app_dist_mat[r, c]
+                tracks[ti].match_app = None if np.isnan(a) else float(a)
+                tracks[ti].match_flipped = (geo_choice.get(ti) != avail[c])   # appearance changed the pick
             # only feed appearance into memory when this detection is WELL-SEPARATED (else keep the clean pre-crossing memory)
             feat = det_feats[avail[c]] if (det_feats is not None and sep) else None
+            if feat is not None:                                   # clean exit fingerprint — kept for the post-crossing swap audit
+                tracks[ti].exit_feat = feat
             # merge_fix: if this detection is a BLOB (not separated), freeze velocity so the merge doesn't bend the trajectory
             tracks[ti].update(x, y, bbox, conf, feat, freeze_vel=(merge_fix and not sep))
             matched_dets.add(avail[c])
@@ -217,21 +241,57 @@ def draw_calibration_badge(frame, frame_count):
     cv2.putText(frame, text, (x + pad, y + th + pad - 2), font, scale, (0, 215, 255), thick, cv2.LINE_AA)
 
 
-def draw_frame(frame, tracks, locked, frame_count):
+def draw_status_panel(frame, tracks, W):
+    """Stable top-right list of all fish: 'Fish N: OK', or an orange 'Fish N: SWAP? -> M' while a
+    suspected swap is highlighted (held ~2s by audit_hold)."""
+    conf = sorted([t for t in tracks if t.id is not None], key=lambda t: t.id)
+    if not conf:
+        return
+    pad, rowh = 12, 26
+    w, h = 230, rowh * (len(conf) + 1) + pad
+    x0, y0 = W - w - 12, 55
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (x0, y0), (x0 + w, y0 + h), (0, 0, 0), -1)
+    cv2.addWeighted(overlay, 0.45, frame, 0.55, 0, frame)
+    cv2.putText(frame, "FISH STATUS", (x0 + pad, y0 + rowh - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+    for i, t in enumerate(conf):
+        y = y0 + rowh * (i + 2) - 6
+        if t.audit_hold > 0:                                   # flagged a suspected swap (held ~2s)
+            txt, col = f"Fish {t.id}: SWAP? -> {t.audit_partner}", (0, 140, 255)
+        elif t.crossing:                                       # currently crossing another fish -> identity unverifiable
+            txt, col = f"Fish {t.id}: crossing...", (0, 220, 255)
+        else:                                                  # alone + identity confirmed
+            txt, col = f"Fish {t.id}: safe", (80, 220, 80)
+        cv2.putText(frame, txt, (x0 + pad, y), cv2.FONT_HERSHEY_SIMPLEX, 0.52, col, 2)
+
+
+def draw_frame(frame, tracks, locked, frame_count, debug=False, audit=False):
     for t in tracks:
         x1, y1, x2, y2 = [int(v) for v in t.bbox]
         color = id_color(t.id)
+        flagged  = audit and t.audit_hold > 0                  # suspected-swap fish -> thick orange
+        crossing = audit and t.crossing and not flagged        # currently crossing -> yellow
         if locked and t.missing > 0:
             draw_dashed(frame, (x1, y1), (x2, y2), color)
             label = f"Fish {t.id} (lost)"
         else:
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            box_col = (0, 140, 255) if flagged else (0, 220, 255) if crossing else color
+            cv2.rectangle(frame, (x1, y1), (x2, y2), box_col, 4 if flagged else 2)
             label = f"Fish {t.id}" if t.id else ""
         if label:
             cv2.putText(frame, label, (x1, y1 - 8),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+        # debug: WHY this match — g=geometry px, a=appearance cosine-dist; 'APP' (red) = appearance FLIPPED the pick
+        if debug and t.match_geom is not None:
+            a_txt = f" a{t.match_app:.2f}" if t.match_app is not None else ""
+            cv2.putText(frame, f"g{t.match_geom:.0f}{a_txt}", (x1, y2 + 16),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+            if t.match_flipped:
+                cv2.putText(frame, "APP", (x1, y2 + 34), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
     cv2.putText(frame, f"Frame: {frame_count}", (10, frame.shape[0] - 12),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+    if locked and audit:
+        draw_status_panel(frame, tracks, frame.shape[1])
     if not locked:
         draw_calibration_badge(frame, frame_count)
 
@@ -304,6 +364,9 @@ def main():
     app_gate       = float(app_gate) if (use_appearance and app_gate is not None) else None
     app_max_gap_secs = float(c.get('appearance_max_gap_secs', 2.5))          # trust appearance only within this many seconds (measured ~2s hold-time); staler ghost memory -> geometry only
     merge_fix        = bool(c.get('merge_fix', False))                       # coast ghosts on frozen pre-merge velocity + freeze velocity through a blob -> hold IDs through a detector MERGE crossing
+    app_debug        = bool(c.get('appearance_debug', False)) and use_appearance   # draw g/a per fish + flag when appearance FLIPPED a match
+    app_audit        = bool(c.get('appearance_audit', False)) and use_appearance    # post-crossing swap AUDIT: after a fish exits a crossing, does its look match its OWN pre-crossing memory or another fish's?
+    audit_margin     = float(c.get('appearance_audit_margin', 0.03))                # flag if the exit is this-much-more similar to ANOTHER fish's memory than its own (relative check)
 
     # build a per-run output FOLDER (holds the video, log, and config sidecar)
     clean    = c['output_video_path'].rstrip('/,. ')          # tolerate trailing junk
@@ -374,6 +437,8 @@ def main():
     track_rows = []   # one dict per (frame, fish); saved as tracks.parquet in this run's output folder
 
     tracks, next_id, locked, frame_count = [], 1, False, 0
+    app_flip_count = 0                                        # how many matches appearance CHANGED vs geometry alone (debug)
+    app_audit_count = 0                                       # how many post-crossing swaps the appearance audit FLAGGED
 
     while True:
         ret, frame = cap.read()
@@ -397,7 +462,7 @@ def main():
 
         if not locked:
             # CALIBRATION: match, then spawn a new track for any leftover detection
-            matched = associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep, app_gate, app_max_gap, merge_fix)
+            matched = associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep, app_gate, app_max_gap, merge_fix, app_debug)
             for i, (cx, cy, bbox, conf) in enumerate(dets):
                 if i not in matched:
                     tracks.append(Track(None, cx, cy, bbox, conf))
@@ -421,7 +486,7 @@ def main():
             # as a ghost near its last position and only re-acquires a NEARBY
             # detection — never teleports across the tank onto another fish.
             prev_missing = {t.id: t.missing for t in tracks}   # snapshot before matching
-            associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep, app_gate, app_max_gap, merge_fix)
+            associate(tracks, dets, det_pos, max_distance, det_feats, app_weight, app_min_sep, app_gate, app_max_gap, merge_fix, app_debug)
             for t in tracks:                                   # log lost/recovered transitions
                 was, now = prev_missing[t.id], t.missing
                 if was == 0 and now > 0:                       # first frame a fish drops out
@@ -431,6 +496,40 @@ def main():
                     logger.info(json.dumps({"event": "occlusion_recovery", "fish_ids": str(t.id),
                                             "decision": "recovered", "frame": frame_count,
                                             "missing_frames": was}))
+                if app_debug and t.match_flipped:              # appearance CHANGED this match — the direct "does appearance matter" signal
+                    app_flip_count += 1
+                    logger.info(json.dumps({"event": "appearance_flip", "fish_id": t.id, "frame": frame_count,
+                                            "g": round(t.match_geom, 1), "a": round(t.match_app, 3) if t.match_app else None}))
+
+            if app_audit:                                      # PROXIMITY-TRIGGERED SWAP AUDIT — fires whenever two boxes cross, checks when they separate
+                def mem(t):
+                    return t.cross_memory if t.cross_memory is not None else t.prev_appearance
+                conf = [t for t in tracks if t.id is not None]
+                for A in conf:
+                    if A.audit_hold > 0:                       # count down the 2-second SWAP highlight
+                        A.audit_hold -= 1
+                        if A.audit_hold == 0:
+                            A.audit_partner = None
+                    near = any(np.hypot(A.x - B.x, A.y - B.y) < app_min_sep for B in conf if B.id != A.id)
+                    if near:
+                        if not A.crossing:                     # ENTERING a crossing -> snapshot the clean pre-crossing look
+                            A.crossing = True; A.cross_memory = A.prev_appearance
+                    elif A.crossing:                           # just SEPARATED -> audit once it has a clean look
+                        if A.exit_feat is None or mem(A) is None:
+                            continue                           # not a clean look yet -> stay armed
+                        A.crossing = False
+                        self_d = 1.0 - float(np.dot(A.exit_feat, mem(A)))
+                        others = [(1.0 - float(np.dot(A.exit_feat, mem(B))), B)
+                                  for B in conf if B.id != A.id and mem(B) is not None]
+                        if not others:
+                            continue
+                        cross_d, B = min(others, key=lambda x: x[0])
+                        if self_d - cross_d > audit_margin:    # exit looks MORE like B than itself -> suspected swap
+                            A.audit_partner = B.id; A.audit_hold = int(2 * fps); app_audit_count += 1
+                            logger.info(json.dumps({"event": "appearance_swap_flag", "frame": frame_count,
+                                                    "fish_id": A.id, "suspected_swap_with": B.id,
+                                                    "self_dist": round(self_d, 3), "cross_dist": round(cross_d, 3),
+                                                    "margin": round(self_d - cross_d, 3)}))
 
         
         # collect this frame's identified tracks for the parquet (only tracks that already have an id;
@@ -460,7 +559,7 @@ def main():
             cv2.imwrite(filename, crop) # outputs True/False; writes the .jpg image to that path on disk
 
         # drawing the frame
-        draw_frame(frame, tracks, locked, frame_count)
+        draw_frame(frame, tracks, locked, frame_count, app_debug, app_audit)
         out.write(frame)
 
         cv2.imshow('Fish Tracker', frame)   # live preview
@@ -482,6 +581,12 @@ def main():
     tracks_path = os.path.join(run_dir, "tracks.parquet")
     tracks_df.to_parquet(tracks_path)
     logger.info(f"saved {len(tracks_df)} track rows -> {tracks_path}")
+    if app_debug:                                            # the direct answer to "does appearance still matter?"
+        logger.info(f"APPEARANCE flipped the match in {app_flip_count} track-frames "
+                    f"(0 = appearance never changed a decision -> geometry alone suffices; you could set appearance:false)")
+    if app_audit:                                            # the auditor's yield — measure precision (real swaps / flagged) before trusting it to CORRECT
+        logger.info(f"APPEARANCE AUDIT flagged {app_audit_count} post-crossing SUSPECTED SWAPS "
+                    f"(check these frames against the video; if precision is high, promote to auto-correct)")
     logger.info(f"\nDone. Saved to {out_path}")
 
 
