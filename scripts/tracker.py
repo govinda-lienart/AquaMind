@@ -52,6 +52,7 @@ class Track:
         self.audit_partner = None   # post-crossing audit: id of the fish this one's exit looks MORE like (suspected swap) — for overlay
         self.cross_memory = None    # clean fingerprint snapshotted when the fish ENTERED a crossing (its pre-crossing look)
         self.crossing = False       # currently close to (crossing) another fish -> audit its look once it separates again
+        self.cross_partners = set() # ids of fish ACTUALLY touched during this crossing episode — audit only compares against these, never the whole tank
         self.audit_hold = 0         # frames-remaining to keep the SWAP highlight up in the status panel
 
     @property
@@ -269,7 +270,7 @@ def draw_status_panel(frame, tracks, W):
         if t.audit_hold > 0:                                   # flagged a suspected swap (held ~2s)
             txt, col = f"Fish {t.id}: SWAP? -> {t.audit_partner}", (0, 140, 255)
         elif t.crossing:                                       # currently crossing another fish -> identity unverifiable
-            txt, col = f"Fish {t.id}: crossing...", (0, 220, 255)
+            txt, col = f"Fish {t.id}: crossing...", (255, 255, 255)   # white — (0,220,255) collided with Fish 4's own ID color
         else:                                                  # alone + identity confirmed
             txt, col = f"Fish {t.id}: safe", (80, 220, 80)
         cv2.putText(frame, txt, (x0 + pad, y), cv2.FONT_HERSHEY_SIMPLEX, 0.52, col, 2)
@@ -285,7 +286,7 @@ def draw_frame(frame, tracks, locked, frame_count, debug=False, audit=False):
             draw_dashed(frame, (x1, y1), (x2, y2), color)
             label = f"Fish {t.id} (lost)"
         else:
-            box_col = (0, 140, 255) if flagged else (0, 220, 255) if crossing else color
+            box_col = (0, 140, 255) if flagged else (255, 255, 255) if crossing else color   # white — (0,220,255) collided with Fish 4's own ID color
             cv2.rectangle(frame, (x1, y1), (x2, y2), box_col, 4 if flagged else 2)
             label = f"Fish {t.id}" if t.id else ""
         if label:
@@ -298,6 +299,23 @@ def draw_frame(frame, tracks, locked, frame_count, debug=False, audit=False):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
             if t.match_flipped:
                 cv2.putText(frame, "APP", (x1, y2 + 34), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+    if audit:                                                   # second pass: for each flagged fish, highlight the
+        by_id = {t.id: t for t in tracks if t.id is not None}   # SPECIFIC partner it's suspected of swapping with —
+        for t in tracks:                                        # not just the flagged fish's own box, since "who" is the point
+            if not (t.audit_hold > 0 and t.audit_partner is not None):
+                continue
+            partner = by_id.get(t.audit_partner)
+            if partner is None or partner.missing > 0:          # partner not visible this frame -> nothing to point at
+                continue
+            px1, py1, px2, py2 = [int(v) for v in partner.bbox]
+            draw_dashed(frame, (px1, py1), (px2, py2), (0, 140, 255), dash=8)   # dashed orange = "implicated, not itself flagged"
+            ax1, ay1, ax2, ay2 = [int(v) for v in t.bbox]
+            c1 = ((ax1 + ax2) // 2, (ay1 + ay2) // 2)
+            c2 = ((px1 + px2) // 2, (py1 + py2) // 2)
+            cv2.arrowedLine(frame, c1, c2, (0, 140, 255), 2, tipLength=0.08)     # points FROM the flagged fish TO the suspected partner
+            mid = ((c1[0] + c2[0]) // 2, (c1[1] + c2[1]) // 2)
+            cv2.putText(frame, "SWAP?", (mid[0] - 30, mid[1] - 8),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 140, 255), 2, cv2.LINE_AA)
     cv2.putText(frame, f"Frame: {frame_count}", (10, frame.shape[0] - 12),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
     if locked and audit:
@@ -520,17 +538,18 @@ def main():
                         A.audit_hold -= 1
                         if A.audit_hold == 0:
                             A.audit_partner = None
-                    near = any(box_gap(A.bbox, B.bbox) <= 0 for B in conf if B.id != A.id)   # boxes actually touching/overlapping, not just "nearby"
-                    if near:
+                    touching = {B.id for B in conf if B.id != A.id and box_gap(A.bbox, B.bbox) <= 0}   # boxes actually touching/overlapping, not just "nearby"
+                    if touching:
                         if not A.crossing:                     # ENTERING a crossing -> snapshot the clean pre-crossing look
-                            A.crossing = True; A.cross_memory = A.prev_appearance
+                            A.crossing = True; A.cross_memory = A.prev_appearance; A.cross_partners = set()
+                        A.cross_partners |= touching            # accumulate everyone actually touched this episode (a scrum can change partners frame to frame)
                     elif A.crossing:                           # just SEPARATED -> audit once it has a clean look
                         if A.exit_feat is None or mem(A) is None:
                             continue                           # not a clean look yet -> stay armed
                         A.crossing = False
                         self_d = 1.0 - float(np.dot(A.exit_feat, mem(A)))
                         others = [(1.0 - float(np.dot(A.exit_feat, mem(B))), B)
-                                  for B in conf if B.id != A.id and mem(B) is not None]
+                                  for B in conf if B.id in A.cross_partners and mem(B) is not None]   # ONLY fish actually touched — a swap with someone never nearby is impossible
                         if not others:
                             continue
                         cross_d, B = min(others, key=lambda x: x[0])
