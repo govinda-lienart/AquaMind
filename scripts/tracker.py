@@ -97,6 +97,16 @@ class Track:
         self.missing += 1
 
 
+def box_gap(bbox_a, bbox_b):
+    """Shortest distance between two axis-aligned xyxy boxes' EDGES (0 if touching/overlapping) —
+    unlike center-to-center distance, this doesn't fire early just because two fish have big boxes."""
+    ax1, ay1, ax2, ay2 = bbox_a
+    bx1, by1, bx2, by2 = bbox_b
+    dx = max(bx1 - ax2, ax1 - bx2, 0)   # horizontal gap; 0 if they overlap in x
+    dy = max(by1 - ay2, ay1 - by2, 0)   # vertical gap; 0 if they overlap in y
+    return np.hypot(dx, dy)
+
+
 # ── the whole tracker in one function: match tracks → detections ───────────────
 def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.0, app_min_sep=150, app_gate=None, app_max_gap=None, merge_fix=False, debug=False):
     """
@@ -510,7 +520,7 @@ def main():
                         A.audit_hold -= 1
                         if A.audit_hold == 0:
                             A.audit_partner = None
-                    near = any(np.hypot(A.x - B.x, A.y - B.y) < app_min_sep for B in conf if B.id != A.id)
+                    near = any(box_gap(A.bbox, B.bbox) <= 0 for B in conf if B.id != A.id)   # boxes actually touching/overlapping, not just "nearby"
                     if near:
                         if not A.crossing:                     # ENTERING a crossing -> snapshot the clean pre-crossing look
                             A.crossing = True; A.cross_memory = A.prev_appearance
