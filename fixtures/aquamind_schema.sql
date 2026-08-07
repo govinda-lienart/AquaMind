@@ -39,7 +39,7 @@ CREATE TABLE frames (
 CREATE TABLE annotation_sets (
     id               INT AUTO_INCREMENT PRIMARY KEY,
     video_id         INT NOT NULL,
-    frame_source     ENUM('regular', 'crossing_event') NOT NULL,
+    frame_source     ENUM('regular', 'crossing_event', 'ghosting_event') NOT NULL,
     notes            TEXT,
     frames_extracted INT,
     iou_threshold    FLOAT,

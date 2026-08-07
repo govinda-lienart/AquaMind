@@ -19,6 +19,9 @@ from PIL import Image
 from scipy.optimize import linear_sum_assignment
 from scripts.reid_features import load_backbone, transform   # shared DINOv2 embedder (appearance only)
 from scripts.model_registry import load_yolo                 # path OR models:/...@champion → native YOLO
+from scripts.tracker_viz import draw_frame                   # overlay rendering (boxes, status panel, swap-audit arrows)
+from scripts.tracker_diagnostics import (setup_run_logging, print_run_config,       # run logging + startup summary
+                                          plot_appearance_timeline, plot_force_diagram, plot_margin_diagram)  # post-run plots
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -47,6 +50,8 @@ class Track:
         self.match_geom = None      # debug: geometry distance (px) to the matched detection this frame
         self.match_app  = None      # debug: appearance cosine-distance to memory for the matched detection
         self.match_flipped = False  # debug: True if appearance CHANGED the match (geometry alone would pick a different fish)
+        self.margin_geom     = None # debug: gap (px) between best and 2nd-best candidate, GEOMETRY alone — how decisive was this row's competition
+        self.margin_combined = None # debug: same gap, but with appearance folded in — bigger than margin_geom = appearance REINFORCED the winner, even without flipping it
         self.prev_appearance = None # snapshot of the memory BEFORE this frame (for the audit)
         self.exit_feat = None       # the (clean, separated) detection fingerprint this fish matched this frame
         self.audit_partner = None   # post-crossing audit: id of the fish this one's exit looks MORE like (suspected swap) — for overlay
@@ -134,6 +139,7 @@ def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.
     matched_dets, matched_tracks = set(), set()
     for t in tracks:                                          # reset per-frame debug values + snapshot clean pre-frame memory for the audit
         t.match_geom = t.match_app = None; t.match_flipped = False
+        t.margin_geom = t.margin_combined = None
         t.prev_appearance = t.appearance; t.exit_feat = None   # audit_partner persists via audit_hold (managed in main)
     if not tracks or not len(dets):
         for t in tracks:
@@ -176,6 +182,15 @@ def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.
                     app_dist = 1.0 - float(np.dot(tracks[ti].appearance, det_feats[c]))   # cosine distance (feats are unit-length)
                     app_dist_mat[r, k] = app_dist
                     assign_cost[r, k] += app_weight * app_dist
+        # debug: how DECISIVE was this row's competition — gap between best and 2nd-best candidate, geometry
+        # alone vs the full combined cost. A CONTINUOUS measure of appearance's influence, unlike match_flipped
+        # (binary — did the WINNER change) — this shows appearance reinforcing an already-correct pick too.
+        if debug and len(avail) > 1:
+            for r, ti in enumerate(track_idx):
+                g_sorted = np.sort(pos_cost[r, :])
+                tracks[ti].margin_geom = float(g_sorted[1] - g_sorted[0])
+                c_sorted = np.sort(assign_cost[r, :])
+                tracks[ti].margin_combined = float(c_sorted[1] - c_sorted[0])
         # debug: what would GEOMETRY ALONE have chosen? (to flag when appearance FLIPPED the match)
         geo_choice = {}
         if debug:
@@ -220,135 +235,6 @@ def associate(tracks, dets, det_pos, max_distance, det_feats=None, app_weight=0.
         if i not in matched_tracks:
             t.mark_missing()
     return matched_dets
-
-
-# ── drawing ────────────────────────────────────────────────────────────────────
-def id_color(tid):
-    palette = [(255, 80, 80), (80, 180, 255), (80, 255, 80), (0, 220, 255),
-               (255, 0, 255), (255, 180, 0), (180, 100, 255)]
-    return palette[(tid - 1) % len(palette)] if tid else (0, 255, 255)
-
-
-def draw_dashed(frame, p1, p2, color, dash=6):
-    x1, y1 = p1; x2, y2 = p2
-    for x in range(x1, x2, dash * 2):
-        cv2.line(frame, (x, y1), (min(x + dash, x2), y1), color, 1)
-        cv2.line(frame, (x, y2), (min(x + dash, x2), y2), color, 1)
-    for y in range(y1, y2, dash * 2):
-        cv2.line(frame, (x1, y), (x1, min(y + dash, y2)), color, 1)
-        cv2.line(frame, (x2, y), (x2, min(y + dash, y2)), color, 1)
-
-
-def draw_calibration_badge(frame, frame_count):
-    """Semi-transparent amber 'CALIBRATING' badge, top-left, with an animated ellipsis."""
-    dots = "." * (1 + (frame_count // 15) % 3)          # ".", "..", "..." — shows it's live
-    text = f"CALIBRATING{dots}"
-    font, scale, thick = cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2
-    (tw, th), _ = cv2.getTextSize("CALIBRATING...", font, scale, thick)  # size on longest form so box doesn't jitter
-    x, y, pad = 15, 15, 10
-    overlay = frame.copy()
-    cv2.rectangle(overlay, (x, y), (x + tw + 2 * pad, y + th + 2 * pad), (0, 0, 0), -1)
-    cv2.addWeighted(overlay, 0.5, frame, 0.5, 0, frame)  # translucent dark backing
-    cv2.putText(frame, text, (x + pad, y + th + pad - 2), font, scale, (0, 215, 255), thick, cv2.LINE_AA)
-
-
-def draw_status_panel(frame, tracks, W):
-    """Stable top-right list of all fish: 'Fish N: OK', or an orange 'Fish N: SWAP? -> M' while a
-    suspected swap is highlighted (held ~2s by audit_hold)."""
-    conf = sorted([t for t in tracks if t.id is not None], key=lambda t: t.id)
-    if not conf:
-        return
-    pad, rowh = 12, 26
-    w, h = 230, rowh * (len(conf) + 1) + pad
-    x0, y0 = W - w - 12, 55
-    overlay = frame.copy()
-    cv2.rectangle(overlay, (x0, y0), (x0 + w, y0 + h), (0, 0, 0), -1)
-    cv2.addWeighted(overlay, 0.45, frame, 0.55, 0, frame)
-    cv2.putText(frame, "FISH STATUS", (x0 + pad, y0 + rowh - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-    for i, t in enumerate(conf):
-        y = y0 + rowh * (i + 2) - 6
-        if t.audit_hold > 0:                                   # flagged a suspected swap (held ~2s)
-            txt, col = f"Fish {t.id}: SWAP? -> {t.audit_partner}", (0, 140, 255)
-        elif t.crossing:                                       # currently crossing another fish -> identity unverifiable
-            txt, col = f"Fish {t.id}: crossing...", (255, 255, 255)   # white — (0,220,255) collided with Fish 4's own ID color
-        else:                                                  # alone + identity confirmed
-            txt, col = f"Fish {t.id}: safe", (80, 220, 80)
-        cv2.putText(frame, txt, (x0 + pad, y), cv2.FONT_HERSHEY_SIMPLEX, 0.52, col, 2)
-
-
-def draw_frame(frame, tracks, locked, frame_count, debug=False, audit=False):
-    for t in tracks:
-        x1, y1, x2, y2 = [int(v) for v in t.bbox]
-        color = id_color(t.id)
-        flagged  = audit and t.audit_hold > 0                  # suspected-swap fish -> thick orange
-        crossing = audit and t.crossing and not flagged        # currently crossing -> yellow
-        if locked and t.missing > 0:
-            draw_dashed(frame, (x1, y1), (x2, y2), color)
-            label = f"Fish {t.id} (lost)"
-        else:
-            box_col = (0, 140, 255) if flagged else (255, 255, 255) if crossing else color   # white — (0,220,255) collided with Fish 4's own ID color
-            cv2.rectangle(frame, (x1, y1), (x2, y2), box_col, 4 if flagged else 2)
-            label = f"Fish {t.id}" if t.id else ""
-        if label:
-            cv2.putText(frame, label, (x1, y1 - 8),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-        # debug: WHY this match — g=geometry px, a=appearance cosine-dist; 'APP' (red) = appearance FLIPPED the pick
-        if debug and t.match_geom is not None:
-            a_txt = f" a{t.match_app:.2f}" if t.match_app is not None else ""
-            cv2.putText(frame, f"g{t.match_geom:.0f}{a_txt}", (x1, y2 + 16),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-            if t.match_flipped:
-                cv2.putText(frame, "APP", (x1, y2 + 34), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-    if audit:                                                   # second pass: for each flagged fish, highlight the
-        by_id = {t.id: t for t in tracks if t.id is not None}   # SPECIFIC partner it's suspected of swapping with —
-        for t in tracks:                                        # not just the flagged fish's own box, since "who" is the point
-            if not (t.audit_hold > 0 and t.audit_partner is not None):
-                continue
-            partner = by_id.get(t.audit_partner)
-            if partner is None or partner.missing > 0:          # partner not visible this frame -> nothing to point at
-                continue
-            px1, py1, px2, py2 = [int(v) for v in partner.bbox]
-            draw_dashed(frame, (px1, py1), (px2, py2), (0, 140, 255), dash=8)   # dashed orange = "implicated, not itself flagged"
-            ax1, ay1, ax2, ay2 = [int(v) for v in t.bbox]
-            c1 = ((ax1 + ax2) // 2, (ay1 + ay2) // 2)
-            c2 = ((px1 + px2) // 2, (py1 + py2) // 2)
-            cv2.arrowedLine(frame, c1, c2, (0, 140, 255), 2, tipLength=0.08)     # points FROM the flagged fish TO the suspected partner
-            mid = ((c1[0] + c2[0]) // 2, (c1[1] + c2[1]) // 2)
-            cv2.putText(frame, "SWAP?", (mid[0] - 30, mid[1] - 8),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 140, 255), 2, cv2.LINE_AA)
-    cv2.putText(frame, f"Frame: {frame_count}", (10, frame.shape[0] - 12),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-    if locked and audit:
-        draw_status_panel(frame, tracks, frame.shape[1])
-    if not locked:
-        draw_calibration_badge(frame, frame_count)
-
-
-# ── logging + run summary (same style as fish_tracker.py) ──────────────────────
-def setup_run_logging(log_path):
-    """One logger, two handlers: file (in the run folder) + console — bare messages, like fish_tracker."""
-    formatter       = logging.Formatter('%(message)s')
-    file_handler    = logging.FileHandler(log_path)
-    console_handler = logging.StreamHandler()
-    file_handler.setFormatter(formatter)
-    console_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
-
-def print_run_config(input_video_path, model_path, output_video_path, start_seconds, end_seconds,
-                     num_fish, calibration_secs, max_distance):
-    logger.info("=" * 50)
-    logger.info(f"  Video:          {input_video_path}")
-    logger.info(f"  Model:          {model_path}")
-    logger.info(f"  Output:         {output_video_path}")
-    logger.info(f"  Seconds:        {start_seconds} → {end_seconds}")
-    logger.info(f"  Fish:           {num_fish}")
-    logger.info(f"  Calibration:    {calibration_secs} seconds")
-    logger.info(f"  max_distance:   {max_distance} px")
-    logger.info(f"  reacquire_tau:  {REACQUIRE_TAU} frames")
-    logger.info("=" * 50)
-    input("Press Enter to start...")
 
 
 # ── appearance: one DINOv2 fingerprint per detection (only when appearance is ON) ──
@@ -417,7 +303,7 @@ def main():
     setup_run_logging(log_path)
     logger.info(f"  run folder: {run_dir}")
     print_run_config(input_video_path, model_path, out_path, start, end,
-                     num_fish, calibration_secs, max_distance)
+                     num_fish, calibration_secs, max_distance, REACQUIRE_TAU)
 
     model = load_yolo(model_path)
 
@@ -463,6 +349,8 @@ def main():
 
     # ── collect this run's tracks in memory, write to parquet at the end (no MySQL) ──
     track_rows = []   # one dict per (frame, fish); saved as tracks.parquet in this run's output folder
+    debug_rows = []   # one dict per (frame, fish) when app_debug is on: the raw geometry-vs-appearance "forces" behind each match
+    margin_rows = []  # one dict per (frame, fish) when app_debug is on: how much the winner beat the runner-up by — geometry alone vs combined
 
     tracks, next_id, locked, frame_count = [], 1, False, 0
     app_flip_count = 0                                        # how many matches appearance CHANGED vs geometry alone (debug)
@@ -528,6 +416,13 @@ def main():
                     app_flip_count += 1
                     logger.info(json.dumps({"event": "appearance_flip", "fish_id": t.id, "frame": frame_count,
                                             "g": round(t.match_geom, 1), "a": round(t.match_app, 3) if t.match_app else None}))
+                if app_debug and t.match_geom is not None:     # the raw "forces" behind THIS match, every frame — not just when appearance won
+                    debug_rows.append({"frame": frame_count, "fish_id": t.id, "geom": t.match_geom,
+                                        "app_weighted": (app_weight * t.match_app) if t.match_app is not None else 0.0,
+                                        "flipped": t.match_flipped})
+                if app_debug and t.margin_geom is not None:    # the CONTINUOUS effect — did appearance widen the winner's safety margin, even without flipping it?
+                    margin_rows.append({"frame": frame_count, "fish_id": t.id, "margin_geom": t.margin_geom,
+                                        "margin_combined": t.margin_combined, "flipped": t.match_flipped})
 
             if app_audit:                                      # PROXIMITY-TRIGGERED SWAP AUDIT — fires whenever two boxes cross, checks when they separate
                 def mem(t):
@@ -616,6 +511,11 @@ def main():
     if app_audit:                                            # the auditor's yield — measure precision (real swaps / flagged) before trusting it to CORRECT
         logger.info(f"APPEARANCE AUDIT flagged {app_audit_count} post-crossing SUSPECTED SWAPS "
                     f"(check these frames against the video; if precision is high, promote to auto-correct)")
+    if app_debug or app_audit:                                # only meaningful if flip/swap events were actually being logged
+        plot_appearance_timeline(log_path, run_dir, num_fish)
+    if app_debug:                                             # only app_debug populates match_geom/match_app every frame
+        plot_force_diagram(debug_rows, run_dir, num_fish, max_distance)
+        plot_margin_diagram(margin_rows, run_dir, num_fish)
     logger.info(f"\nDone. Saved to {out_path}")
 
 

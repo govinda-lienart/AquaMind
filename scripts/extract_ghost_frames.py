@@ -108,7 +108,8 @@ def main():
         logger.warning(f"MySQL registration SKIPPED ({ex}). Is {video_path} in the videos table? Register it, then re-run.")
 
     with open(os.path.join(out_dir, 'extraction_params.yaml'), 'w') as f:
-        yaml.dump({'strategy': 'ghosting (tracker lost the fish = YOLO failure) — active-learning hard mining',
+        yaml.dump({'frame_source': 'ghosting_event',
+                   'strategy': 'ghosting (tracker lost the fish = YOLO failure) — active-learning hard mining',
                    'source_log': log_path, 'video': video_path, 'per_burst': per_burst,
                    'ghosting_intervals': n_ival, 'bursts': len(ranges), 'frames_saved': saved}, f)
 

@@ -66,7 +66,7 @@ tracker:
   model_path:        models:/aquamind-yolo-detector@champion   # was: runs/.../2026_07_21_.../weights/best.pt — now resolved via scripts.model_registry.load_yolo
   output_video_path: output_fish_tracker/tracker_IMG_1839_appearance   # a dated '_basic_<timestamp>' folder is created per run
   start_seconds:     0    # start video
-  end_seconds:       40   # end video, choose 'null' for the whole video
+  end_seconds:       30   # end video, choose 'null' for the whole video
   num_fish:          5
   calibration_secs:  5    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match
