@@ -285,8 +285,9 @@ def main():
     # build a per-run output FOLDER (holds the video, log, and config sidecar)
     clean    = c['output_video_path'].rstrip('/,. ')          # tolerate trailing junk
     base     = os.path.splitext(os.path.basename(clean))[0]
+    mode     = 'appearance' if use_appearance else 'basic'     # auto-tag the run so basic (crop-generating) and appearance (re-ID) runs never collide
     stamp    = datetime.now().strftime('%Y_%m_%d_%H%M')       # auto timestamp → a fresh folder every run
-    run_name = f'{base}_{stamp}'                              # e.g. 'tracker_IMG_1839_2026_07_23_1642'
+    run_name = f'{base}_{mode}_{stamp}'                       # e.g. 'tracker_IMG_1839_basic_2026_07_23_1642'
     base_dir = os.path.dirname(clean) or 'output_fish_tracker'
     run_dir  = os.path.join(base_dir, run_name)
     os.makedirs(run_dir, exist_ok=True)                       # create it if missing
@@ -468,15 +469,19 @@ def main():
             })
 
             # cropping out the fish bbox to save it on disk and use later for fish RE-ID Machine learning
-            if t.missing > 0: 
+            # basic (geometry-only) runs generate this re-ID training data; appearance runs already
+            # have it from the basic run that trained their head, so skip the redundant write
+            if use_appearance:
+                continue
+            if t.missing > 0:
                 continue # here if for example the frame is a ghost...skip no need to grab it for RE_ID as we dont want to crop a ghost
             x1, y1, x2, y2 = t.bbox # here we unpack the bbox attribnute of track objects...which gives the format xyxy (different fdormat than xywh) but great cause this gives us the edges of the image to crop
-            crop = frame[int(y1):int(y2), int(x1):int(x2)] # so here we crop in the frame array pixels - numpy - so we select the row first (vertical) range y1 to y2 for height of the box, and then we select horizantal x1 to x2 
-            
+            crop = frame[int(y1):int(y2), int(x1):int(x2)] # so here we crop in the frame array pixels - numpy - so we select the row first (vertical) range y1 to y2 for height of the box, and then we select horizantal x1 to x2
+
             # creating folders storing the crops
             crop_folder_path = os.path.join(run_dir, 'crops', f'fish_{t.id}') # outputs e.g. 'output_fish_tracker/run_01/crops/fish_5'
             os.makedirs(crop_folder_path, exist_ok=True) # this one outputs nothing but creates the folder 'output_fish_tracker/run_01/crops/fish_5' on disk (does nothing if it already exists)
-            
+
             # creating the actual crop file
             crop_name = f"frame_{frame_count}_fish_{t.id}"  # outputs e.g. 'frame_1001_fish_5'
             filename = f"{crop_folder_path}/{crop_name}.jpg"  # outputs e.g. 'output_fish_tracker/run_01/crops/fish_5/frame_1001_fish_5.jpg'

@@ -160,7 +160,9 @@ def main(video_name):
     with open("config.yaml") as f:
         full = yaml.safe_load(f)
     cfg = full["contrastive_reid"]
-    run_dir = full["train_reid"]["videos"][video_name]["crops_run"]
+    run_info = full["tracker_crop_parquet"]["videos"][video_name]
+    run_dir = run_info["run_dir"]
+    backbone_name = run_info["backbone"]
     device = "mps" if torch.backends.mps.is_available() else "cpu"
 
     banner(f"CONTRASTIVE re-ID (self-supervised, fragment pairs) — {video_name} on {device}")
@@ -168,7 +170,7 @@ def main(video_name):
     n_fish = int(frags["fish_id"].nunique())
     frag_range = {i: (int(r["frame_start"]), int(r["frame_end"])) for i, r in frags.iterrows()}
 
-    feats, crop_frag = load_crop_features(run_dir, frags, cfg["backbone"], device)
+    feats, crop_frag = load_crop_features(run_dir, frags, backbone_name, device)
     head = train(feats, crop_frag, frag_range, cfg, device)
 
     # ---------- evaluate: learned embeddings -> cluster (SAME protocol as the frozen baseline) ----------
@@ -181,11 +183,10 @@ def main(video_name):
 
     out_dir = os.path.join(run_dir, "stitch")
     plot_fragment_clusters(frags, fps, os.path.join(out_dir, "fragment_clusters_contrastive.png"))
-    frags.to_csv(os.path.join(out_dir, "fragments_contrastive.csv"), index=False)
     torch.save({"head_state": head.state_dict(), "in_dim": feats.shape[1],
-                "hidden_dim": cfg["hidden_dim"], "out_dim": cfg["out_dim"], "backbone": cfg["backbone"]},
+                "hidden_dim": cfg["hidden_dim"], "out_dim": cfg["out_dim"], "backbone": backbone_name},
                os.path.join(out_dir, "contrastive_head.pt"))
-    logger.info(f"saved plot + fragments + head -> {out_dir}")
+    logger.info(f"saved plot + head -> {out_dir}")
     banner("VERDICT")
     logger.info(f"silhouette {sil:.3f} vs frozen 0.213 · read the contingency: near block-diagonal = fish now separate.")
     logger.info("lifted a lot -> contrastive cracked it (build piece 4 render). flat/mush -> escalate: unfreeze backbone, or it's a single-session DATA limit.")
@@ -194,7 +195,7 @@ def main(video_name):
 if __name__ == "__main__":
     setup_logging()
     with open("config.yaml") as f:
-        default_video = yaml.safe_load(f)["contrastive_reid"]["video"]
+        default_video = yaml.safe_load(f)["tracker_crop_parquet"]["default"]
     parser = argparse.ArgumentParser(description="Self-supervised contrastive re-ID on fragment pairs")
     parser.add_argument("--video_name", default=default_video)
     args = parser.parse_args()

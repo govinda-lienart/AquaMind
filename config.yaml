@@ -60,18 +60,21 @@ log_artifact_mlflow:
 ml_backend:
   model_path: models:/aquamind-yolo-detector@champion   # registry alias → resolved to native YOLO by scripts.model_registry.load_yolo (was: runs/.../2026_07_20_.../weights/best.pt)
 
+
+
+
 # tracker_script (tracker.py)
 tracker:
-  input_video_path:  videos/IMG_1839.MOV
+  input_video_path:  videos/IMG_2349.MOV
   model_path:        models:/aquamind-yolo-detector@champion   # was: runs/.../2026_07_21_.../weights/best.pt — now resolved via scripts.model_registry.load_yolo
-  output_video_path: output_fish_tracker/tracker_IMG_1839_appearance   # a dated '_basic_<timestamp>' folder is created per run
+  output_video_path: output_fish_tracker/tracker_IMG_2349   # a '_basic_<timestamp>' or '_appearance_<timestamp>' folder is auto-created per run, tagged by the `appearance` flag below
   start_seconds:     0    # start video
-  end_seconds:       30   # end video, choose 'null' for the whole video
-  num_fish:          5
+  end_seconds:       null   # end video, choose 'null' for the whole video
+  num_fish:          4
   calibration_secs:  5    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match
   merge_fix:         true   # hold IDs through a detector MERGE crossing: freeze velocity through a blob (don't let the merged centroid bend the trajectory) + coast lost fish on their clean momentum (frame-capped). false = plain geometry. Toggle off if it destabilises.
-  appearance:          true          # fuse DINOv2 appearance into matching (helps hold IDs at crossings); false = geometry only
+  appearance:          false          # fuse DINOv2 appearance into matching (helps hold IDs at crossings); false = geometry only
   appearance_weight:   100            # px per unit cosine-distance — how strongly appearance can tip an ambiguous match (only when appearance: true)
   appearance_min_sep:  150            # only refresh a fish's appearance memory when it is this far (px) from ALL others — stops overlap crops poisoning it
   appearance_gate:                     # VETO threshold — OFF. Tried 0.30 (data-tuned) and it caused long ghost frames (fish boxless ~10s): a refused fish drifts past geometry's reach while ghosting, then can't re-acquire. Veto-at-a-crossing is not worth the ghost spiral. Leave blank.
@@ -80,7 +83,15 @@ tracker:
   appearance_audit:  true              # POST-CROSSING SWAP AUDIT: after a fish exits a crossing, cross-check its look vs its OWN pre-crossing memory vs other fish's -> flags "?SWAP N" + logs appearance_swap_flag. FLAG only (doesn't act); measure precision, then decide on auto-correct.
   appearance_audit_margin: 0.03        # flag when the exit is this-much MORE similar (cosine) to another fish's memory than its own. Higher = fewer/more-confident flags.
   appearance_backbone: dinov2_vits14  # embedder used when NO head is given (raw DINOv2 — weak cosine)
-  appearance_head:     output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/stitch/contrastive_head.pt   # CONTRASTIVE projection head -> discriminative short-range identity metric; blank = raw DINOv2
+  appearance_head:     # eg. output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/stitch/contrastive_head.pt   # CONTRASTIVE projection head -> discriminative short-range identity metric; blank = raw DINOv2
+
+# typically available after running tracker - config is read by stitch_ids.py and contrastive_reid.py
+tracker_crop_parquet:
+  default: IMG_1839
+  videos:
+    IMG_1839:
+      run_dir:  output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202
+      backbone: dinov2_vits14
 
 # analyse_behaviour_script and analyse_chasing_script
 analyse_behaviour:
@@ -120,19 +131,6 @@ extract_crossing_frames:
   start_frame:    7791  # skip crossings at/below this frame (first ~2 min already labeled from the 2026_07_06 run); set 0 to extract from the start
 
 #_______________________________________________________
-# train_reid_script - Stage 6 per-video re-ID head (DINOv2 backbone + trained classifier head)
-train_reid:
-  video: IMG_1839
-  videos:
-    IMG_1839:
-      crops_run:     output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202   # tracker run whose curated_crops feed the classifier
-      stretches:     ["04"]    # each stretch is trained + evaluated SEPARATELY (one MLflow run each) — never pooled, since cross-stretch fish IDs aren't verified
-      backbone:      dinov2_vits14   # which pretrained model makes the 384-d fingerprints (feats from a different backbone are NOT comparable)
-      num_epochs:    100             # frozen feats -> head trains fast, so we can afford many epochs
-      lr:            0.001           # Adam step size
-      batch_size:    32              # feats-per-batch for the head
-
-#_______________________________________________________
 # finetune_reid_script - Stage 6.4 UNFREEZE DINOv2 + train end-to-end (backbone learns; runs in the loop, no cache)
 finetune_reid:
   video: IMG_1839
@@ -151,10 +149,8 @@ finetune_reid:
 # contrastive_reid_script - Stage 6.5 SELF-SUPERVISED contrastive projection (idtracker.ai 2025 method)
 # Learns identity features WITHOUT global labels: positives = same fragment (guaranteed same fish),
 # negatives = COEXISTING fragments (different fish — can't be two places at once). Trains a projection
-# head on cached frozen DINOv2 feats (fast, low overfit risk). Reads run_dir from train_reid.videos.
+# head on cached frozen DINOv2 feats (fast, low overfit risk). Reads run_dir + backbone from tracker_crop_parquet.videos.
 contrastive_reid:
-  video: IMG_1839
-  backbone:        dinov2_vits14   # must match the run used to build fragments (feats not comparable across backbones)
   out_dim:         64              # projection dimension (idtracker uses ~8; 64 clusters fine, tune down if it helps)
   temperature:     0.1             # SupCon softmax temperature (lower = sharper contrast)
   lr:              0.001           # Adam step size for the projection head

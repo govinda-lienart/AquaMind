@@ -155,8 +155,8 @@ def plot_fragment_clusters(frags, fps, out_path):
 
 def main(video_name):
     with open("config.yaml") as f:
-        cfg = yaml.safe_load(f)["train_reid"]             # reuse train_reid's run dir (has tracks.parquet + crops)
-    run_dir = cfg["videos"][video_name]["crops_run"]
+        cfg = yaml.safe_load(f)["tracker_crop_parquet"]   # tracker run dir (has tracks.parquet + crops)
+    run_dir = cfg["videos"][video_name]["run_dir"]
 
     banner(f"STITCH — piece 1: FRAGMENT BUILDER  ({video_name})")
     tracks = pd.read_parquet(os.path.join(run_dir, "tracks.parquet"))
@@ -213,8 +213,8 @@ def main(video_name):
 if __name__ == "__main__":
     setup_logging()
     with open("config.yaml") as f:
-        default_video = yaml.safe_load(f)["train_reid"]["video"]
+        default_video = yaml.safe_load(f)["tracker_crop_parquet"]["default"]
     parser = argparse.ArgumentParser(description="Identity stitcher — piece 1: build fragments from tracks.parquet")
-    parser.add_argument("--video_name", default=default_video, help="key under train_reid.videos in config.yaml")
+    parser.add_argument("--video_name", default=default_video, help="key under tracker_crop_parquet.videos in config.yaml")
     args = parser.parse_args()
     main(args.video_name)
