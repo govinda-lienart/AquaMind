@@ -27,6 +27,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from scripts.reid_features import build_features
+from scripts.contrastive_reid import Projection
 from scripts.console import banner
 from scripts.logger import setup_logging
 
@@ -57,9 +58,8 @@ def main(video_name, stretch):
 
     # contrastive projection
     ck = torch.load(os.path.join(run_dir, "stitch", "contrastive_head.pt"), map_location="cpu")
-    head = torch.nn.Sequential(torch.nn.Linear(ck["in_dim"], ck["hidden_dim"]), torch.nn.ReLU(),
-                               torch.nn.Linear(ck["hidden_dim"], ck["out_dim"]))
-    head.load_state_dict({k.replace("net.", ""): v for k, v in ck["head_state"].items()}); head.eval()
+    head = Projection(ck["in_dim"], ck["hidden_dim"], ck["out_dim"])
+    head.load_state_dict(ck["head_state"]); head.eval()
     with torch.no_grad():
         con = head(feats)
 
