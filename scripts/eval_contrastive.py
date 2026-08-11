@@ -64,8 +64,8 @@ def report(name, emb, labels, slot_to_fish):
 def main(video_name, stretch):
     with open("config.yaml") as f:
         full = yaml.safe_load(f)
-    run_dir = full["train_reid"]["videos"][video_name]["crops_run"]
-    backbone = full["contrastive_reid"]["backbone"]
+    run_dir = full["finetune_reid"]["videos"][video_name]["crops_run"]
+    backbone = full["finetune_reid"]["videos"][video_name]["backbone"]
 
     banner(f"CONTRASTIVE vs RAW — trusted-label test on stretch {stretch} ({video_name})")
     feats, labels, frames, label_map = build_features(run_dir, [stretch], backbone)
@@ -118,7 +118,7 @@ def main(video_name, stretch):
 if __name__ == "__main__":
     setup_logging()
     with open("config.yaml") as f:
-        default_video = yaml.safe_load(f)["contrastive_reid"]["video"]
+        default_video = yaml.safe_load(f)["finetune_reid"]["video"]
     parser = argparse.ArgumentParser(description="Trusted-label test: does the contrastive embedding separate fish better than raw?")
     parser.add_argument("--video_name", default=default_video)
     parser.add_argument("--stretch", default="04")

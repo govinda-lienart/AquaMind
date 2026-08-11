@@ -45,8 +45,8 @@ def knn_labels(emb):
 def main(video_name, stretch):
     with open("config.yaml") as f:
         full = yaml.safe_load(f)
-    run_dir = full["train_reid"]["videos"][video_name]["crops_run"]
-    backbone = full["contrastive_reid"]["backbone"]
+    run_dir = full["finetune_reid"]["videos"][video_name]["crops_run"]
+    backbone = full["finetune_reid"]["videos"][video_name]["backbone"]
 
     banner(f"RE-ID QUALITY — contrastive head on trusted stretch {stretch} ({video_name})")
     feats, labels, frames, label_map = build_features(run_dir, [stretch], backbone)
