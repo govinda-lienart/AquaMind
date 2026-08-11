@@ -144,7 +144,7 @@ def main(video_name, stretch):
 if __name__ == "__main__":
     setup_logging()
     with open("config.yaml") as f:
-        dv = yaml.safe_load(f)["contrastive_reid"]["video"]
+        dv = yaml.safe_load(f)["finetune_reid"]["video"]
     p = argparse.ArgumentParser(description="Re-ID quality: individual recognition, hold-time, confusion")
     p.add_argument("--video_name", default=dv)
     p.add_argument("--stretch", default="04")
