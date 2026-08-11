@@ -23,7 +23,7 @@ from scripts.tracker_viz import draw_frame                   # overlay rendering
 from scripts.tracker_diagnostics import (setup_run_logging, print_run_config,       # run logging + startup summary
                                           plot_appearance_timeline, plot_force_diagram, plot_margin_diagram)  # post-run plots
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('scripts.tracker')
 logger.setLevel(logging.INFO)
 
 CONFIG_PATH   = 'config.yaml'
@@ -304,7 +304,10 @@ def main():
     setup_run_logging(log_path)
     logger.info(f"  run folder: {run_dir}")
     print_run_config(input_video_path, model_path, out_path, start, end,
-                     num_fish, calibration_secs, max_distance, REACQUIRE_TAU)
+                     num_fish, calibration_secs, max_distance, REACQUIRE_TAU,
+                     merge_fix=merge_fix, use_appearance=use_appearance, appearance_weight=app_weight,
+                     appearance_head=c.get('appearance_head'), appearance_backbone=c.get('appearance_backbone', 'dinov2_vits14'),
+                     appearance_max_gap_secs=app_max_gap_secs)
 
     model = load_yolo(model_path)
 

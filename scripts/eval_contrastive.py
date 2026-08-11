@@ -3,7 +3,7 @@ eval_contrastive.py — DECISIVE, label-trustworthy test of the contrastive embe
 
 The whole-video silhouette (0.512) is ambiguous: it says "5 tight clusters exist" but the tracker labels
 are too swap-ridden to confirm those clusters are the 5 FISH. So test on a stretch where identity IS
-known: stretch04 is one clean continuous stretch → its per-fish labels are trustworthy (no cross-fragment
+known: stretch04 is one clean continuous stretch → its per-fish labels are trustworthy (no cross-tracklet
 swaps within it). We ask, on TRUE labels: does the contrastive embedding separate the 5 fish BETTER than
 raw frozen DINOv2 — especially the fish3/5 look-alikes raw couldn't split?
 
@@ -14,7 +14,7 @@ Metrics (raw frozen  vs  contrastive), both on the SAME trusted labels:
 Plus a before/after t-SNE coloured by TRUE fish.
 
 CAVEAT: these crops were in the contrastive TRAINING data — but their LABELS were not (training is
-self-supervised on fragment pairs, never on fish labels). So this measures whether the learned features
+self-supervised on tracklet pairs, never on fish labels). So this measures whether the learned features
 separate identity, on labels the model never saw. Not a fully held-out test (no unseen stretch exists),
 but a fair read of representation quality.
 
@@ -79,6 +79,12 @@ def main(video_name, stretch):
     with torch.no_grad():
         contrastive = head(feats)
 
+    out_dir = os.path.join(run_dir, "stitch")
+    log_path = os.path.join(out_dir, f"eval_contrastive_stretch{stretch}.log")
+    file_handler = logging.FileHandler(log_path, mode="w")
+    file_handler.setFormatter(logging.Formatter('%(levelname)s | %(name)s | %(funcName)s | %(message)s'))
+    logging.getLogger().addHandler(file_handler)               # mirrors console output into the run's stitch/ folder
+
     banner_sub("RAW frozen DINOv2  (the baseline)")
     raw_acc, raw_sil = report("raw", feats, labels, slot_to_fish)
     banner_sub("CONTRASTIVE embedding  (the learned features)")
@@ -86,8 +92,8 @@ def main(video_name, stretch):
 
     # ---------- before/after t-SNE coloured by TRUE fish ----------
     fig, axes = plt.subplots(1, 2, figsize=(15, 6))
-    for ax, emb, title in [(axes[0], feats, f"RAW frozen (kNN {raw_acc:.2f})"),
-                           (axes[1], contrastive, f"CONTRASTIVE (kNN {con_acc:.2f})")]:
+    for ax, emb, title in [(axes[0], feats, f"RAW frozen (kNN {raw_acc:.2f}, silhouette {raw_sil:.3f})"),
+                           (axes[1], contrastive, f"CONTRASTIVE (kNN {con_acc:.2f}, silhouette {con_sil:.3f})")]:
         xy = TSNE(n_components=2, init="pca", perplexity=30, random_state=0).fit_transform(F.normalize(emb, dim=1).numpy())
         for k, slot in enumerate(sorted(labels.unique().tolist())):
             m = (labels == slot).numpy()
@@ -95,15 +101,18 @@ def main(video_name, stretch):
         ax.set_title(title); ax.legend(markerscale=2, fontsize=8); ax.set_xticks([]); ax.set_yticks([])
     fig.suptitle(f"stretch {stretch}, coloured by TRUE fish — LEFT raw | RIGHT contrastive (clean islands incl. fish3/5 = it worked)")
     fig.tight_layout()
-    out = os.path.join(run_dir, "stitch", f"eval_contrastive_stretch{stretch}.png")
+    out = os.path.join(out_dir, f"eval_contrastive_stretch{stretch}.png")
     fig.savefig(out, dpi=130); plt.close(fig)
 
     banner("VERDICT")
     logger.info(f"kNN identity acc:  raw {raw_acc:.3f}  ->  contrastive {con_acc:.3f}   (higher = fish better separated)")
     logger.info(f"silhouette(true):  raw {raw_sil:.3f}  ->  contrastive {con_sil:.3f}")
     logger.info(f"saved before/after t-SNE -> {out}")
+    logger.info(f"saved run log -> {log_path}")
     logger.info("big rise + fish3/5 acc up -> contrastive learned IDENTITY (whole-video 0.512 was real). "
                 "flat -> the 0.512 was nuisance structure -> escalate (unfreeze backbone) or single-session data limit.")
+    logging.getLogger().removeHandler(file_handler)
+    file_handler.close()
 
 
 if __name__ == "__main__":

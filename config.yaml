@@ -92,6 +92,9 @@ tracker_crop_parquet:
     IMG_1839:
       run_dir:  output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202
       backbone: dinov2_vits14
+    IMG_2349:
+      run_dir:  output_fish_tracker/tracker_IMG_2349_basic_2026_08_10_1555
+      backbone: dinov2_vits14
 
 # analyse_behaviour_script and analyse_chasing_script
 analyse_behaviour:
@@ -147,13 +150,13 @@ finetune_reid:
 
 #_______________________________________________________
 # contrastive_reid_script - Stage 6.5 SELF-SUPERVISED contrastive projection (idtracker.ai 2025 method)
-# Learns identity features WITHOUT global labels: positives = same fragment (guaranteed same fish),
-# negatives = COEXISTING fragments (different fish — can't be two places at once). Trains a projection
+# Learns identity features WITHOUT global labels: positives = same tracklet (guaranteed same fish),
+# negatives = COEXISTING tracklets (different fish — can't be two places at once). Trains a projection
 # head on cached frozen DINOv2 feats (fast, low overfit risk). Reads run_dir + backbone from tracker_crop_parquet.videos.
 contrastive_reid:
-  out_dim:         64              # projection dimension (idtracker uses ~8; 64 clusters fine, tune down if it helps)
-  temperature:     0.1             # SupCon softmax temperature (lower = sharper contrast)
-  lr:              0.001           # Adam step size for the projection head
-  steps:           3000            # training steps (each = one coexisting group; cheap on cached feats)
-  crops_per_frag:  6               # crops sampled per fragment per batch (needs >=2 for positives)
-  hidden_dim:      256             # projection MLP hidden width (384 -> hidden -> out_dim)
+  out_dim:            64           # projection dimension (idtracker uses ~8; 64 clusters fine, tune down if it helps)
+  temperature:        0.1          # SupCon softmax temperature (lower = sharper contrast)
+  lr:                 0.001        # Adam step size for the projection head
+  steps:               3000        # training steps (each = one coexisting group; cheap on cached feats)
+  crops_per_tracklet:  6           # crops sampled per tracklet per batch (needs >=2 for positives)
+  hidden_dim:          256         # projection MLP hidden width (384 -> hidden -> out_dim)

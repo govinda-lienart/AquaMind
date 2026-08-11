@@ -45,6 +45,7 @@ output_video_zebratracker/
 output_fish_tracker/ground_truth_review/~$*
 # Local-only learning/visualization lab (not tracked)
 learning_lab/
+workshop/
 kaggle/upload/
 kaggle/*.zip
 scripts/archive/
