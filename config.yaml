@@ -71,10 +71,10 @@ tracker:
   start_seconds:     0    # start video
   end_seconds:       null   # end video, choose 'null' for the whole video
   num_fish:          4
-  calibration_secs:  5    # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
+  calibration_secs:  10   # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match
   merge_fix:         true   # hold IDs through a detector MERGE crossing: freeze velocity through a blob (don't let the merged centroid bend the trajectory) + coast lost fish on their clean momentum (frame-capped). false = plain geometry. Toggle off if it destabilises.
-  appearance:          false          # fuse DINOv2 appearance into matching (helps hold IDs at crossings); false = geometry only
+  appearance:          true          # fuse DINOv2 appearance into matching (helps hold IDs at crossings); false = geometry only
   appearance_weight:   100            # px per unit cosine-distance — how strongly appearance can tip an ambiguous match (only when appearance: true)
   appearance_min_sep:  150            # only refresh a fish's appearance memory when it is this far (px) from ALL others — stops overlap crops poisoning it
   appearance_gate:                     # VETO threshold — OFF. Tried 0.30 (data-tuned) and it caused long ghost frames (fish boxless ~10s): a refused fish drifts past geometry's reach while ghosting, then can't re-acquire. Veto-at-a-crossing is not worth the ghost spiral. Leave blank.
@@ -106,7 +106,7 @@ analyse_behaviour:
       tank_width_cm: 48.5  # inner wall to inner wall, remeasured 2026-07-19 (was wrongly 35)
       surface_y_px: 273    # front-waterline y in video pixels (depth 0%); measured with throwaway/pixel_measure.py
       bottom_y_px: 971     # tank-bottom y in video pixels (depth 100%); measured with throwaway/pixel_measure.py
-      calibration_secs: 10 # skip tracker warm-up window (matches fish_tracker confi
+      calibration_secs: 10 # skip tracker warm-up window (matches fish_tracker config
     IMG_2349_7min: 
         parquet_path: output_fish_tracker/stage5_tracker_IMG_2349__ann_5r_8c_9r_10r_11c_2026_07_20_1107/tracks.parquet
         tank_width_px: 1815
