@@ -49,6 +49,12 @@ def main(video_name, stretch):
     run_dir = full["finetune_reid"]["videos"][video_name]["crops_run"]
     backbone = full["finetune_reid"]["videos"][video_name]["backbone"]
 
+    out_dir = os.path.join(run_dir, "stitch")
+    log_path = os.path.join(out_dir, f"reid_quality_stretch{stretch}.log")
+    file_handler = logging.FileHandler(log_path, mode="w")
+    file_handler.setFormatter(logging.Formatter('%(levelname)s | %(name)s | %(funcName)s | %(message)s'))
+    logging.getLogger().addHandler(file_handler)               # persists this run's log next to the report PNG
+
     banner(f"RE-ID QUALITY — contrastive head on trusted stretch {stretch} ({video_name})")
     feats, labels, frames, label_map = build_features(run_dir, [stretch], backbone)
     slot_to_fish = {s: f for f, s in label_map.items()}
@@ -126,7 +132,7 @@ def main(video_name, stretch):
 
     fig.suptitle(f"Developed re-ID quality — contrastive head, stretch {stretch} (trusted labels, {span:.0f}s span)")
     fig.tight_layout()
-    out = os.path.join(run_dir, "stitch", f"reid_quality_stretch{stretch}.png")
+    out = os.path.join(out_dir, f"reid_quality_stretch{stretch}.png")
     fig.savefig(out, dpi=130); plt.close(fig)
 
     banner("SUMMARY")
@@ -139,6 +145,9 @@ def main(video_name, stretch):
     logger.info(f"WEAKEST LINK: fish{worst} at ~{per_fish_h[worst]}s (the look-alike that fails first). "
                 f"Beyond ~{H}s, don't trust identity from appearance alone.")
     logger.info(f"saved report -> {out}")
+    logger.info(f"saved run log -> {log_path}")
+    logging.getLogger().removeHandler(file_handler)
+    file_handler.close()
 
 
 if __name__ == "__main__":
@@ -148,4 +157,5 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Re-ID quality: individual recognition, hold-time, confusion")
     p.add_argument("--video_name", default=dv)
     p.add_argument("--stretch", default="04")
-    main(p.parse_args().video_name, p.parse_args().stretch)
+    args = p.parse_args()
+    main(args.video_name, args.stretch)

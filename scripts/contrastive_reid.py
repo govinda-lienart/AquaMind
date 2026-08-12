@@ -36,13 +36,18 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from PIL import Image
+from sklearn.metrics import silhouette_score
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
-from scripts.reid_features import load_backbone, transform
+from scripts.reid_features import load_backbone, transform, build_features
 from scripts.stitch_ids import flag_clean, cluster_tracklets, plot_tracklet_clusters, MIN_SEPARATION_PX
 from scripts.console import banner, banner_sub
 from scripts.logger import setup_logging
 
 logger = logging.getLogger(__name__)
+CHECK_EVERY = 500   # how often (in steps) to log train loss + validation metrics
 
 
 # ── frozen features for every clean crop, tagged with its tracklet (cached — backbone pass runs once) ──
@@ -108,14 +113,34 @@ def supcon_loss(z, labels, temp):
     return loss.mean() if valid.any() else None
 
 
-def train(feats, crop_tracklet, tracklet_range, cfg, device):
-    """Train the projection head on coexisting-group batches. Returns the trained head."""
+def validate(head, val_feats, val_labels, device):
+    """Project the TRUSTED-stretch validation crops through the head AS IT IS RIGHT NOW mid-training.
+    Returns (kNN identity accuracy, silhouette on true labels) — the metric-learning equivalent of a
+    val loss curve. Does not touch training state (head returns to train mode before we leave)."""
+    head.eval()
+    with torch.no_grad():
+        z = head(val_feats.to(device)).cpu()
+    head.train()
+    emb = F.normalize(z, dim=1)
+    sim = emb @ emb.T
+    sim.fill_diagonal_(-1.0)
+    nn_idx = sim.argmax(dim=1)
+    acc = (val_labels[nn_idx] == val_labels).float().mean().item()
+    sil = silhouette_score(emb.numpy(), val_labels.numpy()) if len(set(val_labels.tolist())) > 1 else float("nan")
+    return acc, sil
+
+
+def train(feats, crop_tracklet, tracklet_range, cfg, device, val_feats=None, val_labels=None):
+    """Train the projection head on coexisting-group batches.
+    Returns (trained head, history) where history has 'steps', 'train_loss', and — if a trusted
+    validation set was passed — 'val_knn'/'val_sil' too, logged every CHECK_EVERY steps."""
     tracklet_to_idx = {f: np.where(crop_tracklet == f)[0] for f in tracklet_range if (crop_tracklet == f).sum() >= 2}
     tracklet_ids = list(tracklet_to_idx)
     head = Projection(feats.shape[1], cfg["hidden_dim"], cfg["out_dim"]).to(device)
     opt = torch.optim.Adam(head.parameters(), lr=cfg["lr"])
     rng = np.random.default_rng(0)
     feats = feats.to(device)
+    history = {"steps": [], "train_loss": [], "val_knn": [], "val_sil": []}
 
     banner_sub(f"training projection head ({cfg['steps']} steps, out_dim={cfg['out_dim']})")
     running, n = 0.0, 0
@@ -137,10 +162,37 @@ def train(feats, crop_tracklet, tracklet_range, cfg, device):
             continue
         opt.zero_grad(); loss.backward(); opt.step()
         running += loss.item(); n += 1
-        if step % 500 == 0:
-            logger.info(f"step {step}/{cfg['steps']}  avg loss {running / max(n, 1):.4f}")
+        if step % CHECK_EVERY == 0:
+            avg_loss = running / max(n, 1)
+            history["steps"].append(step)
+            history["train_loss"].append(avg_loss)
+            msg = f"step {step}/{cfg['steps']}  avg loss {avg_loss:.4f}"
+            if val_feats is not None:
+                acc, sil = validate(head, val_feats, val_labels, device)
+                history["val_knn"].append(acc)
+                history["val_sil"].append(sil)
+                msg += f"  |  trusted-stretch kNN {acc:.3f}  silhouette {sil:.3f}"
+            logger.info(msg)
             running, n = 0.0, 0
-    return head
+    return head, history
+
+
+def plot_training_curve(history, out_path):
+    """Loss + validation curves vs step — the metric-learning equivalent of YOLO's results.png."""
+    has_val = len(history["val_knn"]) > 0
+    fig, axes = plt.subplots(1, 3 if has_val else 1, figsize=(15 if has_val else 5.5, 4.5))
+    axes = np.atleast_1d(axes)
+    axes[0].plot(history["steps"], history["train_loss"], "o-", color="tab:blue")
+    axes[0].set_title("train/supcon_loss"); axes[0].set_xlabel("step"); axes[0].grid(alpha=.3)
+    if has_val:
+        axes[1].plot(history["steps"], history["val_knn"], "o-", color="tab:green")
+        axes[1].set_title("val/kNN accuracy (trusted stretch)"); axes[1].set_xlabel("step")
+        axes[1].set_ylim(0, 1.02); axes[1].grid(alpha=.3)
+        axes[2].plot(history["steps"], history["val_sil"], "o-", color="tab:orange")
+        axes[2].set_title("val/silhouette (trusted stretch)"); axes[2].set_xlabel("step"); axes[2].grid(alpha=.3)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=130); plt.close(fig)
+    logger.info(f"saved training curve -> {out_path}")
 
 
 def embed_tracklets(head, feats, crop_tracklet, n_tracklets, device):
@@ -156,7 +208,7 @@ def embed_tracklets(head, feats, crop_tracklet, n_tracklets, device):
     return np.stack(fps).astype("float32")
 
 
-def main(video_name):
+def main(video_name, stretch="04"):
     with open("config.yaml") as f:
         full = yaml.safe_load(f)
     cfg = full["contrastive_reid"]
@@ -165,13 +217,30 @@ def main(video_name):
     backbone_name = run_info["backbone"]
     device = "mps" if torch.backends.mps.is_available() else "cpu"
 
+    out_dir = os.path.join(run_dir, "stitch")
+    log_path = os.path.join(out_dir, "contrastive_training.log")
+    file_handler = logging.FileHandler(log_path, mode="w")
+    file_handler.setFormatter(logging.Formatter('%(levelname)s | %(name)s | %(funcName)s | %(message)s'))
+    logging.getLogger().addHandler(file_handler)               # persists this run's log next to the head/plots
+
     banner(f"CONTRASTIVE re-ID (self-supervised, tracklet pairs) — {video_name} on {device}")
     tracklets = pd.read_csv(os.path.join(run_dir, "stitch", "tracklets.csv"))
     n_fish = int(tracklets["fish_id"].nunique())
     tracklet_range = {i: (int(r["frame_start"]), int(r["frame_end"])) for i, r in tracklets.iterrows()}
 
     feats, crop_tracklet = load_crop_features(run_dir, tracklets, backbone_name, device)
-    head = train(feats, crop_tracklet, tracklet_range, cfg, device)
+
+    # ---------- trusted-stretch validation set, checked periodically DURING training (not just at the end) ----------
+    val_feats, val_labels = None, None
+    try:
+        crops_run = full["finetune_reid"]["videos"][video_name]["crops_run"]
+        val_feats, val_labels, _, _ = build_features(crops_run, [stretch], backbone_name)
+        logger.info(f"validation set: {len(val_feats)} crops from trusted stretch {stretch}")
+    except (KeyError, FileNotFoundError, RuntimeError) as e:
+        logger.warning(f"no trusted-stretch validation set available ({e}) — training curve will show loss only")
+
+    head, history = train(feats, crop_tracklet, tracklet_range, cfg, device, val_feats, val_labels)
+    plot_training_curve(history, os.path.join(out_dir, "contrastive_training_curve.png"))
 
     # ---------- evaluate: learned embeddings -> cluster (SAME protocol as the frozen baseline) ----------
     banner_sub("evaluate — cluster the LEARNED tracklet embeddings into n_fish")
@@ -181,7 +250,6 @@ def main(video_name):
     logger.info("cluster vs tracker label (tracklet counts):\n" +
                 pd.crosstab(tracklets["fish_id"], tracklets["cluster"]).to_string())
 
-    out_dir = os.path.join(run_dir, "stitch")
     plot_tracklet_clusters(tracklets, fps, os.path.join(out_dir, "tracklet_clusters_contrastive.png"))
     torch.save({"head_state": head.state_dict(), "in_dim": feats.shape[1],
                 "hidden_dim": cfg["hidden_dim"], "out_dim": cfg["out_dim"], "backbone": backbone_name},
@@ -190,6 +258,8 @@ def main(video_name):
     banner("VERDICT")
     logger.info(f"silhouette {sil:.3f} vs frozen 0.213 · read the contingency: near block-diagonal = fish now separate.")
     logger.info("lifted a lot -> contrastive cracked it (build piece 4 render). flat/mush -> escalate: unfreeze backbone, or it's a single-session DATA limit.")
+    logging.getLogger().removeHandler(file_handler)
+    file_handler.close()
 
 
 if __name__ == "__main__":
@@ -198,5 +268,6 @@ if __name__ == "__main__":
         default_video = yaml.safe_load(f)["tracker_crop_parquet"]["default"]
     parser = argparse.ArgumentParser(description="Self-supervised contrastive re-ID on tracklet pairs")
     parser.add_argument("--video_name", default=default_video)
+    parser.add_argument("--stretch", default="04", help="trusted stretch used as a periodic validation set during training")
     args = parser.parse_args()
-    main(args.video_name)
+    main(args.video_name, args.stretch)
