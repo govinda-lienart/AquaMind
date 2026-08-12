@@ -23,9 +23,26 @@ tracklet as the label, computed per coexisting group.
 Evaluate the SAME way as the frozen baseline (stitch_ids piece 3): average each tracklet's learned
 embeddings -> k-means into n_fish -> silhouette + contingency + t-SNE. Compare against raw's 0.213.
 
-Usage:  python -m scripts.contrastive_reid --video_name IMG_1839
+USAGE
+
+reads config.yaml -> 
+------------------
+contrastive_reid:
+  out_dim:            64           # projection dimension (idtracker uses ~8; 64 clusters fine, tune down if it helps)
+  temperature:        0.1          # SupCon softmax temperature (lower = sharper contrast)
+  lr:                 0.001        # Adam step size for the projection head
+  steps:               3000        # training steps (each = one coexisting group; cheap on cached feats)
+  crops_per_tracklet:  6           # crops sampled per tracklet per batch (needs >=2 for positives)
+  hidden_dim:          256         # projection MLP hidden width (384 -> hidden -> out_dim)
+
+and takes in an argparse to read parquet file and crops as follows: 
+
+python -m scripts.contrastive_reid --video_name IMG_2349
+
 """
 import os
+
+
 import argparse
 import logging
 
