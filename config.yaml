@@ -60,9 +60,6 @@ log_artifact_mlflow:
 ml_backend:
   model_path: models:/aquamind-yolo-detector@champion   # registry alias → resolved to native YOLO by scripts.model_registry.load_yolo (was: runs/.../2026_07_20_.../weights/best.pt)
 
-
-
-
 # tracker_script (tracker.py)
 tracker:
   input_video_path:  videos/IMG_2349.MOV
@@ -83,7 +80,7 @@ tracker:
   appearance_audit:  true              # POST-CROSSING SWAP AUDIT: after a fish exits a crossing, cross-check its look vs its OWN pre-crossing memory vs other fish's -> flags "?SWAP N" + logs appearance_swap_flag. FLAG only (doesn't act); measure precision, then decide on auto-correct.
   appearance_audit_margin: 0.03        # flag when the exit is this-much MORE similar (cosine) to another fish's memory than its own. Higher = fewer/more-confident flags.
   appearance_backbone: dinov2_vits14  # embedder used when NO head is given (raw DINOv2 — weak cosine)
-  appearance_head:     # eg. output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/stitch/contrastive_head.pt   # CONTRASTIVE projection head -> discriminative short-range identity metric; blank = raw DINOv2
+  appearance_head: output_fish_tracker/tracker_IMG_2349_basic_2026_08_10_1555/stitch/contrastive_head.pt     # eg. output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/stitch/contrastive_head.pt   # CONTRASTIVE projection head -> discriminative short-range identity metric; blank = raw DINOv2
 
 # typically available after running tracker - config is read by stitch_ids.py and contrastive_reid.py
 tracker_crop_parquet:
@@ -115,14 +112,12 @@ analyse_behaviour:
         bottom_y_px: 971     # tank-bottom y in video pixels (depth 100%); measured with throwaway/pixel_measure.py
         calibration_secs: 10 # skip tracker warm-up window (matches fish_tracker config
     IMG_2349_new: 
-        parquet_path: ####
-        tank_width_px: 1815
+        parquet_path: output_fish_tracker/tracker_IMG_2349_appearance_2026_08_12_1926/tracks.parquet
         tank_width_cm: 48.5  # inner wall to inner wall, remeasured 2026-07-19 (was wrongly 35)
         surface_y_px: 273    # front-waterline y in video pixels (depth 0%); measured with throwaway/pixel_measure.py
         bottom_y_px: 971     # tank-bottom y in video pixels (depth 100%); measured with throwaway/pixel_measure.py
         calibration_secs: 10 # skip tracker warm-up window (matches fish_tracker config
     
-#_______________________________________________________
 # extract_ghost_frames_script - hard negative mining by GHOSTING (active learning: mine where the tracker LOST a fish = YOLO failed)
 extract_ghost_frames:
   log_path:   output_fish_tracker/tracker_IMG_1839_appearance_2026_08_04_0728/tracker_IMG_1839_appearance_2026_08_04_0728.log   # the tracker run to MINE
@@ -130,7 +125,6 @@ extract_ghost_frames:
   output_dir: frames                # a ghost_frames_<video>_<stamp> folder is created here
   per_burst:  3                     # frames sampled per ghosting burst (evenly spaced) — cuts redundancy; 0 = every ghosting frame (~765)
 
-#_______________________________________________________
 # extract_crossing_frames_script - hard negative mining
 extract_crossing_frames:
   video_path: videos/IMG_2349.MOV
@@ -140,7 +134,6 @@ extract_crossing_frames:
   dedup_window:   5     # minimum frames between two crossing events to treat them as separate
   start_frame:    7791  # skip crossings at/below this frame (first ~2 min already labeled from the 2026_07_06 run); set 0 to extract from the start
 
-#_______________________________________________________
 # finetune_reid_script - Stage 6.4 UNFREEZE DINOv2 + train end-to-end (backbone learns; runs in the loop, no cache)
 finetune_reid:
   video: IMG_1839
@@ -154,6 +147,9 @@ finetune_reid:
       backbone_lr:     0.00001         # 1e-5 — SMALL, so we nudge (not wreck) DINOv2's pretrained weights
       batch_size:      32
       unfreeze_blocks: 2               # unfreeze the last N transformer blocks (fewer = less overfit on small data)
+    IMG_2349:
+      crops_run:       output_fish_tracker/tracker_IMG_2349_basic_2026_08_10_1555
+      backbone:        dinov2_vits14   # only field reid_quality.py needs beyond crops_run; not used for training here
 
 #_______________________________________________________
 # contrastive_reid_script - Stage 6.5 SELF-SUPERVISED contrastive projection (idtracker.ai 2025 method)

@@ -18,7 +18,7 @@ import torch
 from PIL import Image
 from scipy.optimize import linear_sum_assignment
 from scripts.reid_features import load_backbone, transform   # shared DINOv2 embedder (appearance only)
-from scripts.model_registry import load_yolo                 # path OR models:/...@champion → native YOLO
+from scripts.model_registry import load_yolo, resolve_ref     # path OR models:/...@champion → native YOLO
 from scripts.tracker_viz import draw_frame                   # overlay rendering (boxes, status panel, swap-audit arrows)
 from scripts.tracker_diagnostics import (setup_run_logging, print_run_config,       # run logging + startup summary
                                           plot_appearance_timeline, plot_force_diagram, plot_margin_diagram)  # post-run plots
@@ -294,8 +294,12 @@ def main():
     out_path = os.path.join(run_dir, f'{run_name}.mp4')
     log_path = os.path.join(run_dir, f'{run_name}.log')
 
-    # freeze this run's exact config (+ the git commit it ran at) next to the outputs,
-    # so a later ground-truth/crop review knows which model & params produced this folder
+    # freeze this run's exact config (+ the git commit and concrete model version it ran at) next to
+    # the outputs, so a later ground-truth/crop review knows which model & params produced this folder.
+    # model_path may be a mutable alias ('...@champion') — resolve it now so the sidecar can't go stale
+    # if the alias gets repointed to a new version later.
+    c['model_path_resolved'] = resolve_ref(model_path)
+    c['output_video_path'] = run_dir      # overwrite the config's base path with the actual timestamped run folder
     c['git_commit'] = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode().strip()
     with open(os.path.join(run_dir, f'{run_name}_config.yaml'), 'w') as f:
         yaml.dump(c, f)
