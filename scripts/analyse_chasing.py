@@ -78,11 +78,13 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     banner_sub('SORTING PAIRS BY PAIR AND FRAME')
     pairs = pairs.sort_values(['fish_id_a', 'fish_id_b', 'frame_number'])
     logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm']].head(10).to_string())
-    banner_sub('CLOSING SPEED BY PAIR')
+    banner_sub('CLOSING SPEED BY PAIR - OBJECT ')
     grouped_pairs = pairs.groupby(['fish_id_a', 'fish_id_b']) # doesnt compute yet..just spliting the data in groups - one bucket per distinc pair  # object - lazily group by
     banner_sub('DELTA DISTANCE - How much the gap between the two fish changed from the previous frame to this one')
-    pairs['delta_distance'] = grouped_pairs ['distance_cm'].diff() # diff => for each row, subtract the value in the row immediately above it (in whatever order the data currently sits in
-
+    pairs['delta_distance_cm'] = grouped_pairs ['distance_cm'].diff() # diff => for each row, subtract the value in the row immediately above it (in whatever order the data currently sits in
+    logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm', 'delta_distance_cm']].head(10).to_string())
+    pairs['delta_timestamp'] = grouped_pairs ['timestamp_a'].diff()  #  the time elapsed between those same two frames,
+    logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'delta_distance_cm', 'delta_timestamp']].head(10).to_string())
 
 
 
