@@ -78,6 +78,10 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     banner_sub('SORTING PAIRS BY PAIR AND FRAME')
     pairs = pairs.sort_values(['fish_id_a', 'fish_id_b', 'frame_number'])
     logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm']].head(10).to_string())
+    banner_sub('CLOSING SPEED BY PAIR')
+    grouped_pairs = pairs.groupby(['fish_id_a', 'fish_id_b']) # doesnt compute yet..just spliting the data in groups - one bucket per distinc pair  # object - lazily group by
+    banner_sub('DELTA DISTANCE - How much the gap between the two fish changed from the previous frame to this one')
+    pairs['delta_distance'] = grouped_pairs ['distance_cm'].diff() # diff => for each row, subtract the value in the row immediately above it (in whatever order the data currently sits in
 
 
 
@@ -89,28 +93,6 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
 
 
 
-
-
-
-
-
-
-
-
-# APPENDIX 
-
-"""                 fish A (x_a, y_a)
-                         *
-                         |\
-                         | \
-              dy = y_a-y_b \   <- straight-line distance
-                         |   \     = hypotenuse
-                         |    \
-                         |     \
-                         *------* 
-                                 fish B    (x_a, y_b)  <- imaginary corner point
-                    (x_b, y_b)
-                       dx = x_a - x_b"""
 
 
 
@@ -130,3 +112,19 @@ if __name__ == "__main__":
     main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_px)
 
  
+# APPENDIX 
+
+"""                 fish A (x_a, y_a)
+                         *
+                         |\
+                         | \
+              dy = y_a-y_b \   <- straight-line distance
+                         |   \     = hypotenuse
+                         |    \
+                         |     \
+                         *------* 
+                                 fish B    (x_a, y_b)  <- imaginary corner point
+                    (x_b, y_b)
+                       dx = x_a - x_b"""
+
+
