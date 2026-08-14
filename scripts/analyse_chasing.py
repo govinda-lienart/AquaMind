@@ -80,15 +80,29 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm']].head(10).to_string())
     banner_sub('CLOSING DISTANCE BY PAIR - OBJECT ')
     grouped_pairs = pairs.groupby(['fish_id_a', 'fish_id_b']) # doesnt compute yet..just spliting the data in groups - one bucket per distinc pair  # object - lazily group by
+    banner_sub('SMOOTHING DISTANCE (rolling average, reduces tracker jitter before differencing)')
+    pairs['distance_cm_smooth'] = grouped_pairs['distance_cm'].transform(lambda s: s.rolling(5, min_periods=1, center=True).mean())
+    # wider window, kept ONLY to compare noise levels against the window=5 version above —
+    # not yet decided which one becomes the "real" distance_cm_smooth going forward
+    pairs['distance_cm_smooth_w15'] = grouped_pairs['distance_cm'].transform(lambda s: s.rolling(15, min_periods=1, center=True).mean())
     banner_sub('DELTA DISTANCE - How much the gap between the two fish changed from the previous frame to this one')
-    pairs['delta_distance_cm'] = grouped_pairs ['distance_cm'].diff() # diff => for each row, subtract the value in the row immediately above it (in whatever order the data currently sits in
-    logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm', 'delta_distance_cm']].head(10).to_string())
+    # raw (no smoothing at all) — kept here ONLY so the closing-speed comparison plot can show
+    # the full before/after evolution: raw -> window=5 -> window=15
+    pairs['delta_distance_cm_raw'] = grouped_pairs['distance_cm'].diff()
+    pairs['delta_distance_cm'] = grouped_pairs['distance_cm_smooth'].diff()
+    pairs['delta_distance_cm_w15'] = grouped_pairs['distance_cm_smooth_w15'].diff()
+    logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm', 'distance_cm_smooth', 'delta_distance_cm']].head(10).to_string())
     pairs['delta_timestamp'] = grouped_pairs ['timestamp_a'].diff()  #  the time elapsed between those same two frames,
     logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'delta_distance_cm', 'delta_timestamp']].head(10).to_string())
     banner_sub('CLOSING SPEED')
+    pairs['closing_speed_cm_s_raw'] = -pairs['delta_distance_cm_raw'] / pairs['delta_timestamp']
     pairs['closing_speed_cm_s'] = -pairs['delta_distance_cm'] / pairs['delta_timestamp'] # see appendix below - when fish get closer, distance goes from 10 (previous frame) to 8 (this frame) = -2, so delta_distance_cm is negative. Flipping the sign makes closing_speed positive when fish are approaching — more intuitive to read.
-    logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm', 'delta_distance_cm', 'closing_speed_cm_s']].head(10).to_string())
+    pairs['closing_speed_cm_s_w15'] = -pairs['delta_distance_cm_w15'] / pairs['delta_timestamp']
+    logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm', 'delta_distance_cm', 'closing_speed_cm_s', 'closing_speed_cm_s_w15']].head(10).to_string())
     
+
+
+
     banner('OUTPUT GRAPHS')
     output_folder = os.path.dirname(parquet_path) # parquet_path = 'output_fish_tracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1853/tracks.parquet' # dirname() strips the filename off, leaving just the folder:# output_folder = 'output_fish_tracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1853'
     figure_dir = os.path.join(output_folder, "output_analyse_chasing")
@@ -96,20 +110,34 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
 
     banner('DISTANCE + CLOSING SPEED OVER TIME PER PAIR')
     for (fish_a, fish_b), pair_rows in pairs.groupby(['fish_id_a', 'fish_id_b']):
-        fig, (ax_top, ax_bottom) = plt.subplots(
-            2, 1, sharex=True, figsize=(14, 6),
-            gridspec_kw={'height_ratios': [2, 1]})
+        fig, (ax_top, ax_raw, ax_mid, ax_bottom) = plt.subplots(
+            4, 1, sharex=True, figsize=(14, 11),
+            gridspec_kw={'height_ratios': [2, 1, 1, 1]})
 
-        ax_top.plot(pair_rows['timestamp_a'], pair_rows['distance_cm'], linewidth=0.8, color='#1f4e79')
+        ax_top.plot(pair_rows['timestamp_a'], pair_rows['distance_cm_smooth'], linewidth=0.8, color='#1f4e79')
         ax_top.set_ylabel("distance (cm)")
-        ax_top.set_title(f"Pairwise distance + closing speed over time — fish {fish_a}-{fish_b}")
+        ax_top.set_title(f"Pairwise distance + closing speed, raw vs window=5 vs window=15 — fish {fish_a}-{fish_b}")
 
-        ax_bottom.plot(pair_rows['timestamp_a'], pair_rows['closing_speed_cm_s'], linewidth=0.8, color='#c46210')
+        # raw (no smoothing) — its own autoscaled range, since its spikes (+/-500-700) dwarf
+        # the smoothed versions; this panel is what shows the "starting point" of the noise problem
+        ax_raw.plot(pair_rows['timestamp_a'], pair_rows['closing_speed_cm_s_raw'], linewidth=0.8, color='#a83232')
+        ax_raw.axhline(0, color='grey', linestyle='--', linewidth=0.8)
+        ax_raw.set_ylabel("closing speed\nraw (cm/s)")
+
+        # window=5 kept on a fixed +/-100 scale, matching its own known noise range
+        ax_mid.plot(pair_rows['timestamp_a'], pair_rows['closing_speed_cm_s'], linewidth=0.8, color='#c46210')
+        ax_mid.axhline(0, color='grey', linestyle='--', linewidth=0.8)
+        ax_mid.set_ylabel("closing speed\nwindow=5 (cm/s)")
+        ax_mid.set_ylim(-100, 100)
+
+        # window=15 left on its own autoscaled range (NOT matched to window=5 anymore) so its
+        # smaller spikes stretch to fill the panel and are easier to read individually
+        ax_bottom.plot(pair_rows['timestamp_a'], pair_rows['closing_speed_cm_s_w15'], linewidth=0.8, color='#2e8b57')
         ax_bottom.axhline(0, color='grey', linestyle='--', linewidth=0.8)
-        ax_bottom.set_ylabel("closing speed\n(cm/s)")
+        ax_bottom.set_ylabel("closing speed\nwindow=15 (cm/s)")
         ax_bottom.set_xlabel("time (s)")
 
-        path_plot = os.path.join(figure_dir, f"pairwise_distance_closingspeed_{fish_a}_{fish_b}.png")
+        path_plot = os.path.join(figure_dir, f"pairwise_distance_closingspeed_window_compare_{fish_a}_{fish_b}.png")
         fig.savefig(path_plot, dpi=150, bbox_inches='tight')
         plt.close(fig)
     logger.info(f"\n**pairwise distance + closing speed plots saved in {figure_dir}**\n")
