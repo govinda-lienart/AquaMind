@@ -89,16 +89,30 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     pairs['closing_speed_cm_s'] = -pairs['delta_distance_cm'] / pairs['delta_timestamp'] # see appendix below - when fish get closer, distance goes from 10 (previous frame) to 8 (this frame) = -2, so delta_distance_cm is negative. Flipping the sign makes closing_speed positive when fish are approaching — more intuitive to read.
     logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm', 'delta_distance_cm', 'closing_speed_cm_s']].head(10).to_string())
     
-    banner('OUTPUT FOLDER')
+    banner('OUTPUT GRAPHS')
     output_folder = os.path.dirname(parquet_path) # parquet_path = 'output_fish_tracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1853/tracks.parquet' # dirname() strips the filename off, leaving just the folder:# output_folder = 'output_fish_tracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1853'
     figure_dir = os.path.join(output_folder, "output_analyse_chasing")
     os.makedirs(figure_dir, exist_ok=True)
 
+    banner('DISTANCE + CLOSING SPEED OVER TIME PER PAIR')
+    for (fish_a, fish_b), pair_rows in pairs.groupby(['fish_id_a', 'fish_id_b']):
+        fig, (ax_top, ax_bottom) = plt.subplots(
+            2, 1, sharex=True, figsize=(14, 6),
+            gridspec_kw={'height_ratios': [2, 1]})
 
+        ax_top.plot(pair_rows['timestamp_a'], pair_rows['distance_cm'], linewidth=0.8, color='#1f4e79')
+        ax_top.set_ylabel("distance (cm)")
+        ax_top.set_title(f"Pairwise distance + closing speed over time — fish {fish_a}-{fish_b}")
 
+        ax_bottom.plot(pair_rows['timestamp_a'], pair_rows['closing_speed_cm_s'], linewidth=0.8, color='#c46210')
+        ax_bottom.axhline(0, color='grey', linestyle='--', linewidth=0.8)
+        ax_bottom.set_ylabel("closing speed\n(cm/s)")
+        ax_bottom.set_xlabel("time (s)")
 
-
-
+        path_plot = os.path.join(figure_dir, f"pairwise_distance_closingspeed_{fish_a}_{fish_b}.png")
+        fig.savefig(path_plot, dpi=150, bbox_inches='tight')
+        plt.close(fig)
+    logger.info(f"\n**pairwise distance + closing speed plots saved in {figure_dir}**\n")
 
 
 
