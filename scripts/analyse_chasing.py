@@ -73,7 +73,44 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     banner_sub('PAIRS - SHAPE AFTER FILTER')
     logger.info(pairs.shape)
     banner_sub('DISTANCE BETWEEN PAIRS')
-    pairs['distance_cm'] = np.hypot (pairs[])
+    pairs['distance_cm'] = np.hypot(pairs['x_a'] - pairs['x_b'], pairs['y_a'] - pairs['y_b']) / pixels_per_cm  # see drawing under script
+    logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm']].head(6).to_string())
+    banner_sub('SORTING PAIRS BY PAIR AND FRAME')
+    pairs = pairs.sort_values(['fish_id_a', 'fish_id_b', 'frame_number'])
+    logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm']].head(10).to_string())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# APPENDIX 
+
+"""                 fish A (x_a, y_a)
+                         *
+                         |\
+                         | \
+              dy = y_a-y_b \   <- straight-line distance
+                         |   \     = hypotenuse
+                         |    \
+                         |     \
+                         *------* 
+                                 fish B    (x_a, y_b)  <- imaginary corner point
+                    (x_b, y_b)
+                       dx = x_a - x_b"""
 
 
 
