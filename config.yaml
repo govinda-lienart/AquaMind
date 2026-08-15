@@ -118,6 +118,7 @@ analyse_behaviour:
         surface_y_px: 273    # front-waterline y in video pixels (depth 0%); measured with throwaway/pixel_measure.py
         bottom_y_px: 971     # tank-bottom y in video pixels (depth 100%); measured with throwaway/pixel_measure.py
         calibration_secs: 10 # skip tracker warm-up window (matches fish_tracker config
+        frame_number_end: 14491 # cuts the video off here (~4:01 @ 60fps) - for this video, this is where food gets introduced; feeding-driven movement is a different behavior than aggressive chasing so it's excluded from chasing labels. optional, blank/omit to use the whole video.
 
 # extract_ghost_frames_script - hard negative mining by GHOSTING (active learning: mine where the tracker LOST a fish = YOLO failed)
 extract_ghost_frames:
