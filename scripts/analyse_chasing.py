@@ -56,8 +56,10 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     df = pd.read_parquet(parquet_path)
     banner_sub('LOADING PARQUET FILE')
     logger.info(f'{df.head().to_string()}')
+    
     banner_sub('EXAMPLE FILTER SELECT ABOVE CALIBRATION')
     print((df['timestamp'] >= calibration_secs).head())
+    
     banner_sub('APPLYING FILTER WITH MASK')
     df = df[df['timestamp'] >= calibration_secs]
     logger.info(f'{df.head().to_string()}')
@@ -68,22 +70,26 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
         banner_sub(f'CUTTING VIDEO AT frame_number_end = {frame_number_end}')
         df = df[df['frame_number'] < frame_number_end]
         logger.info(df.shape)
+    
     banner_sub('SELF-MERGE ON FRAME_NUMBER — combine every fish with every other fish, per frame')
     pairs = df.merge(df, on='frame_number', suffixes=('_a', '_b')) #  every row with frame_number == 600 from the left copy gets paired with every row with frame_number == 600 from the right copy, one at a time.
     logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b']].head(16).to_string())
     banner_sub('PAIRS - SHAPE')
     logger.info(pairs.shape)
+    
     banner_sub('PAIRS - COLUMNS')
     logger.info(pairs.columns) 
     pairs = pairs[pairs['fish_id_a'] < pairs['fish_id_b']] #  Row (1,1) → 1 < 1 → False # Row (1,2) → 1 < 2 → True #Row (2,3) → 2 < 3 → True
     banner_sub('PAIRS - SHAPE AFTER FILTER')
     logger.info(pairs.shape)
+    
     banner_sub('DISTANCE BETWEEN PAIRS')
     pairs['distance_cm'] = np.hypot(pairs['x_a'] - pairs['x_b'], pairs['y_a'] - pairs['y_b']) / pixels_per_cm  # see drawing under script
     logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm']].head(6).to_string())
     banner_sub('SORTING PAIRS BY PAIR AND FRAME')
     pairs = pairs.sort_values(['fish_id_a', 'fish_id_b', 'frame_number'])
     logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm']].head(10).to_string())
+    
     banner_sub('CLOSING DISTANCE BY PAIR - OBJECT ')
     grouped_pairs = pairs.groupby(['fish_id_a', 'fish_id_b']) # doesnt compute yet..just spliting the data in groups - one bucket per distinc pair  # object - lazily group by
     banner_sub('SMOOTHING DISTANCE (rolling average, reduces tracker jitter before differencing)')
@@ -91,6 +97,7 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     # wider window, kept ONLY to compare noise levels against the window=5 version above —
     # not yet decided which one becomes the "real" distance_cm_smooth going forward
     pairs['distance_cm_smooth_w15'] = grouped_pairs['distance_cm'].transform(lambda s: s.rolling(15, min_periods=1, center=True).mean())
+    
     banner_sub('DELTA DISTANCE - How much the gap between the two fish changed from the previous frame to this one')
     # raw (no smoothing at all) — kept here ONLY so the closing-speed comparison plot can show
     # the full before/after evolution: raw -> window=5 -> window=15
@@ -100,47 +107,12 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm', 'distance_cm_smooth', 'delta_distance_cm']].head(10).to_string())
     pairs['delta_timestamp'] = grouped_pairs ['timestamp_a'].diff()  #  the time elapsed between those same two frames,
     logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'delta_distance_cm', 'delta_timestamp']].head(10).to_string())
+    
     banner_sub('CLOSING SPEED')
     pairs['closing_speed_cm_s_raw'] = -pairs['delta_distance_cm_raw'] / pairs['delta_timestamp']
     pairs['closing_speed_cm_s'] = -pairs['delta_distance_cm'] / pairs['delta_timestamp'] # see appendix below - when fish get closer, distance goes from 10 (previous frame) to 8 (this frame) = -2, so delta_distance_cm is negative. Flipping the sign makes closing_speed positive when fish are approaching — more intuitive to read.
     pairs['closing_speed_cm_s_w15'] = -pairs['delta_distance_cm_w15'] / pairs['delta_timestamp']
     logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm', 'delta_distance_cm', 'closing_speed_cm_s', 'closing_speed_cm_s_w15']].head(10).to_string())
-
-    #-------------------
-    # TCPA - time to closest point of approach
-    #-------------------
-    banner('TCPA (time to closest point of approach)')
-
-    # a single fast frame is noise; sustained approach is signal. average closing_speed
-    # over a ~0.5s window (30 frames @ 60fps) before using it in TCPA
-    pairs['closing_speed_sustained'] = grouped_pairs['closing_speed_cm_s_w15'].transform(
-        lambda s: s.rolling(30, min_periods=1, center=True).mean())
-
-    # TCPA = distance / closing_speed -> "seconds until these two meet, AT THE CURRENT RATE"
-    # only meaningful while actually approaching (closing_speed_sustained > 0); separating or
-    # near-zero closing speed gives a meaningless (huge or negative) TCPA, so those become NaN
-    pairs['TCPA'] = np.where(
-        pairs['closing_speed_sustained'] > 0.5,
-        pairs['distance_cm_smooth_w15'] / pairs['closing_speed_sustained'],
-        np.nan)
-
-    # flag: about to meet very soon (low TCPA) AND actually moving with some real intent —
-    # TCPA alone collapses to "small" whenever distance is small, even at a weak, barely-above-
-    # drifting speed (e.g. 2cm / 3cm/s = 0.67s), so a minimum speed floor is required too,
-    # otherwise slow drifting-together near 0cm gets flagged as a "chase" just from the arithmetic
-    TCPA_THRESHOLD_SEC = 1.0
-    SUSTAINED_SPEED_FLOOR_CM_S = 10
-    pairs['chase_candidate'] = (
-        (pairs['TCPA'] < TCPA_THRESHOLD_SEC) &
-        (pairs['closing_speed_sustained'] > SUSTAINED_SPEED_FLOOR_CM_S))
-
-    n_flagged = pairs['chase_candidate'].sum()
-    banner_sub('TCPA - FLAGGED FRAMES')
-    logger.info(f'{n_flagged} frames flagged out of {len(pairs)} total (TCPA < {TCPA_THRESHOLD_SEC}s)')
-    logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm_smooth_w15', 'closing_speed_sustained', 'TCPA', 'chase_candidate']].head(15).to_string())
-
-
-
 
     banner('OUTPUT GRAPHS')
     output_folder = os.path.dirname(parquet_path) # parquet_path = 'output_fish_tracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1853/tracks.parquet' # dirname() strips the filename off, leaving just the folder:# output_folder = 'output_fish_tracker/stage5_tracker_IMG_2349_as_3r_4r_5r_8c_2026_07_06_1853'
@@ -149,18 +121,13 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
 
     banner('DISTANCE + CLOSING SPEED OVER TIME PER PAIR')
     for (fish_a, fish_b), pair_rows in pairs.groupby(['fish_id_a', 'fish_id_b']):
-        fig, (ax_top, ax_raw, ax_mid, ax_bottom, ax_sustained, ax_tcpa) = plt.subplots(
-            6, 1, sharex=True, figsize=(14, 15),
-            gridspec_kw={'height_ratios': [2, 1, 1, 1, 1, 1]})
+        fig, (ax_top, ax_raw, ax_mid, ax_bottom) = plt.subplots(
+            4, 1, sharex=True, figsize=(14, 11),
+            gridspec_kw={'height_ratios': [2, 1, 1, 1]})
 
         ax_top.plot(pair_rows['timestamp_a'], pair_rows['distance_cm_smooth'], linewidth=0.8, color='#1f4e79')
-        # star every flagged chase-candidate frame (TCPA < threshold) directly on the distance line
-        flagged = pair_rows[pair_rows['chase_candidate']]
-        ax_top.scatter(flagged['timestamp_a'], flagged['distance_cm_smooth'], marker='*', s=80, color='gold', edgecolor='black', linewidth=0.5, zorder=5, label='chase candidate')
         ax_top.set_ylabel("distance (cm)")
         ax_top.set_title(f"Pairwise distance + closing speed, raw vs window=5 vs window=15 — fish {fish_a}-{fish_b}")
-        if len(flagged) > 0:
-            ax_top.legend(loc='upper right', fontsize=8)
 
         # raw (no smoothing) — its own autoscaled range, since its spikes (+/-500-700) dwarf
         # the smoothed versions; this panel is what shows the "starting point" of the noise problem
@@ -179,22 +146,7 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
         ax_bottom.plot(pair_rows['timestamp_a'], pair_rows['closing_speed_cm_s_w15'], linewidth=0.8, color='#2e8b57')
         ax_bottom.axhline(0, color='grey', linestyle='--', linewidth=0.8)
         ax_bottom.set_ylabel("closing speed\nwindow=15 (cm/s)")
-
-        # sustained closing speed panel — the speed floor that TCPA alone was missing, shown
-        # separately so it's clear which flagged moments are "fast AND close" vs "close" alone
-        ax_sustained.plot(pair_rows['timestamp_a'], pair_rows['closing_speed_sustained'], linewidth=0.8, color='#1f77b4')
-        ax_sustained.axhline(0, color='grey', linestyle='--', linewidth=0.8)
-        ax_sustained.axhline(SUSTAINED_SPEED_FLOOR_CM_S, color='gold', linestyle='--', linewidth=1.0, label=f'speed floor ({SUSTAINED_SPEED_FLOOR_CM_S} cm/s)')
-        ax_sustained.set_ylabel("sustained closing\nspeed (cm/s)")
-        ax_sustained.legend(loc='upper right', fontsize=8)
-
-        # TCPA panel — "seconds until these two meet at the current rate" (only defined while
-        # actually approaching; capped at 5s for readability, since it blows up as closing_speed -> 0)
-        ax_tcpa.plot(pair_rows['timestamp_a'], pair_rows['TCPA'].clip(upper=5), linewidth=0.8, color='#7b2d8e')
-        ax_tcpa.axhline(TCPA_THRESHOLD_SEC, color='gold', linestyle='--', linewidth=1.0, label=f'flag threshold ({TCPA_THRESHOLD_SEC}s)')
-        ax_tcpa.set_ylabel("TCPA (s)")
-        ax_tcpa.set_xlabel("time (s)")
-        ax_tcpa.legend(loc='upper right', fontsize=8)
+        ax_bottom.set_xlabel("time (s)")
 
         path_plot = os.path.join(figure_dir, f"pairwise_distance_closingspeed_window_compare_{fish_a}_{fish_b}.png")
         fig.savefig(path_plot, dpi=150, bbox_inches='tight')
