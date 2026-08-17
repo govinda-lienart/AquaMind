@@ -181,7 +181,8 @@ logger.info(f'test_df: {test_df.shape[0]} windows ({(test_df["label"]==1).sum()}
 # STEP 13 - save train_df/test_df to disk, next to this video's tracks.parquet, so Phase E
 # can load them directly instead of rebuilding this whole pipeline every time
 banner('STEP 13 - SAVE train_df / test_df')
-output_folder = os.path.dirname(parquet_path)  # same folder tracks.parquet lives in, for this tracker run
+output_folder = os.path.join(os.path.dirname(parquet_path), 'chase_train_test')  # dedicated subfolder, same pattern as analyse_chasing.py's output_analyse_chasing/
+os.makedirs(output_folder, exist_ok=True)
 train_path = os.path.join(output_folder, 'train_df.parquet')
 test_path = os.path.join(output_folder, 'test_df.parquet')
 train_df.to_parquet(train_path, index=False)
