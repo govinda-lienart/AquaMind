@@ -47,16 +47,24 @@ logger.info(f'window_2 {event_two_window_2.shape}')
 
 
 # looping 
-windows = [] # is a list of dataframes
-window_start = 1011
 
-while window_start + WINDOW_SIZE_FRAMES <= 1274:
-    window = event_two[(event_two['frame_number'] >= window_start) & (event_two['frame_number'] < window_start + WINDOW_SIZE_FRAMES)]
-    windows.append(window)
-    window_start += STRIDE_FRAMES
-banner('windows loop in one of the events')
-logger.info(f'built {len(windows)} windows for event 2')
-logger.info(windows[0][['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm', 'closing_speed_cm_s']].to_string())
+
+def slice_windows(fish_id_a, fish_id_b):
+    event_two = pairs[(pairs['fish_id_a'] == fish_id_a) & (pairs['fish_id_b'] == fish_id_b) & (pairs['frame_number'] >= 1011) & (pairs['frame_number'] < 1274)]
+    windows = [] # is a list of dataframes
+    window_start = 1011
+    while window_start + WINDOW_SIZE_FRAMES <= 1274:
+        window = event_two[(event_two['frame_number'] >= window_start) & (event_two['frame_number'] < window_start + WINDOW_SIZE_FRAMES)]
+        windows.append(window)
+        window_start += STRIDE_FRAMES
+    banner('windows loop in one of the events')
+    logger.info(f'built {len(windows)} windows for event 2')
+    logger.info(windows[0][['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm', 'closing_speed_cm_s']].to_string())
+    return windows
+
+results = slice_windows(1,4) # list of dataframes
+logger.info(f'number of dataframes(windows) in the list {len(results)}')
+
 
 
 
