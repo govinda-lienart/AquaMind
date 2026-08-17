@@ -4,8 +4,10 @@ hardcoded path to curated labels chasing"""
 
 # IMPORTS
 
+import os
 import random
 import pandas as pd
+from sklearn.model_selection import train_test_split
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -145,3 +147,44 @@ for window in all_windows:
 windows_df = pd.DataFrame(summary_rows)  # list of dicts -> one row per dict, keys become columns
 logger.info(f'\nwindows_df shape: {windows_df.shape}')
 logger.info(windows_df.head(10).to_string())
+
+# STEP 10 - get one row per unique EVENT (not per window) with its label - this is what
+# gets split into train/test, never windows_df directly, or windows would leak across the split
+banner('STEP 10 - UNIQUE EVENTS (for event-level train/test split)')
+events_with_labels = windows_df[['event_id', 'label']].drop_duplicates()
+logger.info(f'{events_with_labels.shape[0]} unique events')
+logger.info(events_with_labels.to_string())
+
+# STEP 11 - split EVENTS (not windows) into train/test, stratified so both sides get a
+# proportional mix of positive/negative events, seeded for reproducibility
+banner('STEP 11 - EVENT-LEVEL TRAIN/TEST SPLIT')
+train_events, test_events = train_test_split( #sklearn function
+    events_with_labels,
+    test_size=0.3, # fraction of your data to hold back for testing usually .2 is 20 percent
+    stratify=events_with_labels['label'],
+    random_state=RANDOM_SEED,
+)
+logger.info(f'{train_events.shape[0]} train events, {test_events.shape[0]} test events')
+
+# STEP 12 -  split windows_df itself, by whichever side each window's event_id landed on
+train_df = windows_df[windows_df['event_id'].isin(train_events['event_id'])]
+test_df = windows_df[windows_df['event_id'].isin(test_events['event_id'])]
+logger.info(f'train_df: {train_df.shape[0]} windows ({(train_df["label"]==1).sum()} positive, {(train_df["label"]==0).sum()} negative)')
+logger.info(f'test_df: {test_df.shape[0]} windows ({(test_df["label"]==1).sum()} positive, {(test_df["label"]==0).sum()} negative)')
+
+# first prodcued with 0.2->  train_df is 84 positive / 61 negative (balanced-ish), while test_df is 5 positive / 16 negative (heavily skewed negative).
+# problem has zero knowledge or control over how many windows each event produces
+# by changing test size to 0.3 (30% test / 70% train), pulled in more test events (13 vs 9),
+# which reduced the chance of an unlucky all-short-events draw - improved test balance
+# from severely skewed (5 pos/16 neg) to mildly skewed (16 pos/24 neg), still not exact 1:1
+
+# STEP 13 - save train_df/test_df to disk, next to this video's tracks.parquet, so Phase E
+# can load them directly instead of rebuilding this whole pipeline every time
+banner('STEP 13 - SAVE train_df / test_df')
+output_folder = os.path.dirname(parquet_path)  # same folder tracks.parquet lives in, for this tracker run
+train_path = os.path.join(output_folder, 'train_df.parquet')
+test_path = os.path.join(output_folder, 'test_df.parquet')
+train_df.to_parquet(train_path, index=False)
+test_df.to_parquet(test_path, index=False)
+logger.info(f'saved train_df -> {train_path}')
+logger.info(f'saved test_df -> {test_path}')
