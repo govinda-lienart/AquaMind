@@ -125,3 +125,23 @@ mean_distance = one_positive_window['distance_cm'].mean()
 min_distance = one_positive_window['distance_cm'].min()
 max_closing_speed = one_positive_window['closing_speed_cm_s'].max()
 logger.info(f'mean_distance={mean_distance}, min_distance={min_distance}, max_closing_speed={max_closing_speed}')
+
+# STEP 9 - generalize STEP 8: summarize EVERY window into one row, building the final dataset for Phase E
+banner('STEP 9 - SUMMARIZE ALL WINDOWS INTO ONE DATAFRAME')
+summary_rows = []
+
+for window in all_windows:
+    summary_rows.append({
+        'event_id': window['event_id'].iloc[0],
+        'label': window['label'].iloc[0],
+        'mean_distance_cm': window['distance_cm'].mean(),
+        'min_distance_cm': window['distance_cm'].min(),
+        'max_distance_cm': window['distance_cm'].max(),
+        'mean_closing_speed_cm_s': window['closing_speed_cm_s'].mean(),
+        'min_closing_speed_cm_s': window['closing_speed_cm_s'].min(),
+        'max_closing_speed_cm_s': window['closing_speed_cm_s'].max(),
+    })
+
+windows_df = pd.DataFrame(summary_rows)  # list of dicts -> one row per dict, keys become columns
+logger.info(f'\nwindows_df shape: {windows_df.shape}')
+logger.info(windows_df.head(10).to_string())
