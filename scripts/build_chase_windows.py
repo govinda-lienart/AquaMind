@@ -37,4 +37,10 @@ pairs = build_pairs(df, pixels_per_cm)
 logger.info(pairs[['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm', 'closing_speed_cm_s']].head().to_string())
 
 # sanity check - filtering one single event
-event_row = pairs[(pairs['fish_id_a'] == 1) & (pairs['fish_id_b'] == 4) & (pairs['frame_number'] >= 1011) & (pairs['frame_number'] < 1274)]
+banner('sanity check filtering windows for training/val')
+event_two = pairs[(pairs['fish_id_a'] == 1) & (pairs['fish_id_b'] == 4) & (pairs['frame_number'] >= 1011) & (pairs['frame_number'] < 1274)] # selecting event 2
+logger.info(event_two.shape) 
+event_two_window_1 = event_two[(event_two['frame_number'] >= 1011) & (event_two['frame_number'] < 1011 + 35)] # selecting first window of event 2
+logger.info(f'window_1 {event_two_window_1.shape}') 
+event_two_window_2 = event_two[(event_two['frame_number'] >= 1011+17) & (event_two['frame_number'] < 1011 + 17 + 35)] # sliding to second window...overlapping of 17 frames
+logger.info(f'window_2 {event_two_window_2.shape}') 
