@@ -119,5 +119,9 @@ n_positive_windows = sum(1 for w in all_windows if w['label'].iloc[0] == 1)
 n_negative_windows = sum(1 for w in all_windows if w['label'].iloc[0] == 0)
 logger.info(f'\n{len(all_windows)} total windows ({n_positive_windows} positive, {n_negative_windows} negative)')
 
-
-
+# STEP 8 - sanity check: summarize ONE window (35 raw rows) into fixed columns (a handful of numbers)
+banner('STEP 8 - SANITY CHECK: summarize one window into fixed columns')
+mean_distance = one_positive_window['distance_cm'].mean()
+min_distance = one_positive_window['distance_cm'].min()
+max_closing_speed = one_positive_window['closing_speed_cm_s'].max()
+logger.info(f'mean_distance={mean_distance}, min_distance={min_distance}, max_closing_speed={max_closing_speed}')
