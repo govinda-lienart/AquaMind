@@ -4,6 +4,7 @@ hardcoded path to curated labels chasing"""
 
 # IMPORTS
 
+import random
 import pandas as pd
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -17,6 +18,8 @@ from scripts.chasing_features import grab_video_name, trim_to_calibration, build
 WINDOW_SIZE_FRAMES = 35  # fits shortest labeled event (39 frames), >30-frame sustained-speed precedent
 STRIDE_FRAMES = 17  # ~50% overlap - more windows per event, but they're correlated, not independent
 LABELS_XLS_PATH = 'output_fish_tracker/chase_labels.xlsx'
+MAX_WINDOWS_PER_NEGATIVE_EVENT = 3  # caps negatives so they don't swamp the (fewer) positive windows
+RANDOM_SEED = 42  # fixed seed - same pair gets sampled for each negative event every time this runs
 
 # MAIN
 
@@ -76,6 +79,26 @@ logger.info(f'\n printing first df of the windows list: \n {all_windows[0].head(
 banner('STEP 5 - AVAILABLE PAIRS (for negative-event sampling)')
 unique_pairs = pairs[['fish_id_a', 'fish_id_b']].drop_duplicates()
 logger.info(unique_pairs.to_string())
+
+# STEP 6 turning unique_pairs (a dataframe) into a plain list of (fish_id_a, fish_id_b) tuples,
+# since random.choice() needs a plain list to pick from, not a dataframe
+pair_list = list(unique_pairs.itertuples(index=False, name=None)) # itertuples(...)  through unique_pairs row by row, handing back one tuple-like object per row.
+logger.info(f'pair_list: {pair_list}')
+
+# STEP 7 - build windows for every NEGATIVE labeled event (fish_id_a/fish_id_b are NaN for these
+# rows - a negative label doesn't say which pair - so sample one pair per event instead)
+banner('STEP 7 - BUILD WINDOWS FOR ALL NEGATIVE EVENTS')
+random.seed(RANDOM_SEED)
+negative_labels = labels[labels['label'] == 0]
+
+for row in negative_labels.itertuples():
+    sampled_fish_id_a, sampled_fish_id_b = random.choice(pair_list)
+    event_windows = slice_windows(sampled_fish_id_a, sampled_fish_id_b, row.framenumber_start, row.framenumber_end)
+    capped_windows = event_windows[:MAX_WINDOWS_PER_NEGATIVE_EVENT]  # only take the first few - avoids negatives outnumbering positives
+    logger.info(f'event {row.event_id}: sampled pair ({sampled_fish_id_a}, {sampled_fish_id_b}), {len(event_windows)} possible windows, {len(capped_windows)} kept')
+    all_windows.extend(capped_windows) # add to the existing windows list
+
+logger.info(f'\n{len(all_windows)} total windows (positive + negative combined)')
 
 
 
