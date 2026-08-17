@@ -5,45 +5,17 @@
 #---------------
 
 import os
-import yaml
 import pandas as pd
 import argparse
 
 import matplotlib
 matplotlib.use('Agg') # avoids popup windows of poduced plots
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
 from scripts.console import banner, banner_sub
-from scripts.chasing_features import build_pairs
+from scripts.chasing_features import grab_video_name, trim_to_calibration, build_pairs
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger=logging.getLogger(__name__)
-
-#---------------
-# CONFIGS
-#---------------
-
-# loading tank related data
-with open('config.yaml') as f:
-    cfg = yaml.safe_load(f)['analyse_behaviour']
-
-#---------------
-# HELPER FUNCTIONS 
-#---------------
-
-def grab_video_name(video_name):
-    "grabs arguments from user and pulls out the related parameters from config.yaml"
-    video_cfg = cfg['videos'][video_name]
-    parquet_path = video_cfg['parquet_path']
-    tank_width_px = video_cfg['tank_width_px']
-    tank_width_cm = video_cfg['tank_width_cm']
-    calibration_secs = video_cfg['calibration_secs']
-    surface_y_px = video_cfg['surface_y_px']
-    bottom_y_px = video_cfg['bottom_y_px']
-    frame_number_end = video_cfg.get('frame_number_end')  # optional - .get() returns None if not set, instead of KeyError
-    pixels_per_cm = tank_width_px / tank_width_cm
-    banner('LOADING CONFIGURATION')
-    logger.info(f'loaded cfg: video_cfg = {video_cfg}, tank_width_px = {tank_width_px}, tank_width_cm = {tank_width_cm},  pixels_per_cm = {pixels_per_cm}, calibration_secs = {calibration_secs}, surface_y_px = {surface_y_px}, bottom_y_px = {bottom_y_px}, frame_number_end = {frame_number_end}')
-    return parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_px, frame_number_end
 
 #---------------
 # MAIN FUNCTION
@@ -56,21 +28,8 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     df = pd.read_parquet(parquet_path)
     banner_sub('LOADING PARQUET FILE')
     logger.info(f'{df.head().to_string()}')
-    
-    banner_sub('EXAMPLE FILTER SELECT ABOVE CALIBRATION')
-    print((df['timestamp'] >= calibration_secs).head())
-    
-    banner_sub('APPLYING FILTER WITH MASK')
-    df = df[df['timestamp'] >= calibration_secs]
-    logger.info(f'{df.head().to_string()}')
-    banner_sub('DATAFRAME - AFTER CALIBRATION TRIM')
-    logger.info(df.shape)
 
-    if frame_number_end is not None:
-        banner_sub(f'CUTTING VIDEO AT frame_number_end = {frame_number_end}')
-        df = df[df['frame_number'] < frame_number_end]
-        logger.info(df.shape)
-    
+    df = trim_to_calibration(df, calibration_secs, frame_number_end)
     pairs = build_pairs(df, pixels_per_cm)
 
     banner('OUTPUT GRAPHS')
