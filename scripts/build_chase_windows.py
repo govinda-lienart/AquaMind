@@ -18,7 +18,7 @@ from scripts.chasing_features import grab_video_name, trim_to_calibration, build
 WINDOW_SIZE_FRAMES = 35  # fits shortest labeled event (39 frames), >30-frame sustained-speed precedent
 STRIDE_FRAMES = 17  # ~50% overlap - more windows per event, but they're correlated, not independent
 LABELS_XLS_PATH = 'output_fish_tracker/chase_labels.xlsx'
-MAX_WINDOWS_PER_NEGATIVE_EVENT = 3  # caps negatives so they don't swamp the (fewer) positive windows
+MAX_WINDOWS_PER_NEGATIVE_EVENT = 4  # caps negatives so they don't swamp the (fewer) positive windows
 RANDOM_SEED = 42  # fixed seed - same pair gets sampled for each negative event every time this runs
 
 # MAIN
@@ -62,11 +62,16 @@ banner('STEP 4 - BUILD WINDOWS FOR ALL POSITIVE EVENTS')
 positive_labels = labels[labels['label'] == 1] # boolean mask - creating a dataframe with all the positive labels (label = 1)
 logger.info(positive_labels.head().to_string())
 print()
+
 all_windows = [] # one flat list, each dfN being one 35-frame window's worth of data.
 
 for row in positive_labels.itertuples(): # itertuple is a tuple but allows to grab a value by its name rather than by its position...example row.fish_id
     logger.info(f'row: {row}')
     event_windows = slice_windows(row.fish_id_a, row.fish_id_b, row.framenumber_start, row.framenumber_end) # for the current event (one row), pull its fish IDs and frame range, and feed them into slice_windows() to build that one event's windows.
+    for window in event_windows: # this inner loop adds 2 additonal columns so i know in the all_windows list which will contain all the windows which one is neg or positve
+        window['label'] = 1
+        window['event_id'] = row.event_id 
+    
     all_windows.extend(event_windows)  # extend, not append - flattens each event's window-list into one big list
                                         # my_list is now [1, 2, 3, [4, 5]]   <- the [4, 5] is nested inside as ONE item
                                         # my_list is now [1, 2, 3, 4, 5]   <- 4 and 5 got added separately, flattened in
@@ -95,14 +100,24 @@ for row in negative_labels.itertuples():
     sampled_fish_id_a, sampled_fish_id_b = random.choice(pair_list)
     event_windows = slice_windows(sampled_fish_id_a, sampled_fish_id_b, row.framenumber_start, row.framenumber_end)
     capped_windows = event_windows[:MAX_WINDOWS_PER_NEGATIVE_EVENT]  # only take the first few - avoids negatives outnumbering positives
+    for window in capped_windows:
+        window['label'] = 0
+        window['event_id'] = row.event_id
     logger.info(f'event {row.event_id}: sampled pair ({sampled_fish_id_a}, {sampled_fish_id_b}), {len(event_windows)} possible windows, {len(capped_windows)} kept')
     all_windows.extend(capped_windows) # add to the existing windows list
 
-logger.info(f'\n{len(all_windows)} total windows (positive + negative combined)')
 
+# eyeball one real positive window and one real negative window side by side
+display_cols = ['frame_number', 'fish_id_a', 'fish_id_b', 'distance_cm', 'closing_speed_cm_s', 'label', 'event_id']
+one_positive_window = next(w for w in all_windows if w['label'].iloc[0] == 1)
+one_negative_window = next(w for w in all_windows if w['label'].iloc[0] == 0)
+logger.info(f'\none POSITIVE window (event_id={one_positive_window["event_id"].iloc[0]}):\n{one_positive_window[display_cols].to_string()}') # next(...)  walks through until it finds one match, grabs it, and stops immediately — it never even looks at the rest of the list.
+logger.info(f'\none NEGATIVE window (event_id={one_negative_window["event_id"].iloc[0]}):\n{one_negative_window[display_cols].to_string()}') 
 
-
-
+# total pos/neg
+n_positive_windows = sum(1 for w in all_windows if w['label'].iloc[0] == 1)
+n_negative_windows = sum(1 for w in all_windows if w['label'].iloc[0] == 0)
+logger.info(f'\n{len(all_windows)} total windows ({n_positive_windows} positive, {n_negative_windows} negative)')
 
 
 
