@@ -7,6 +7,10 @@ hardcoded path to train_df/test_df built by build_chase_windows.py"""
 import os
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
+import matplotlib
+matplotlib.use('Agg')  # avoids popup windows of produced plots
+import matplotlib.pyplot as plt
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -43,6 +47,24 @@ logger.info(f'X_test: {X_test.shape}, y_test: {y_test.shape}')
 # STEP 3 - train the baseline model on the training set only
 banner('STEP 3 - TRAIN LogisticRegression')
 model = LogisticRegression()
-model.fit(X_train, y_train)
+model.fit(X_train, y_train)  # trains
 logger.info('model trained')
+
+# STEP 4 - predict on the held-out test set and score against the real labels
+banner('STEP 4 - PREDICT + SCORE on X_test')
+y_pred = model.predict(X_test) # exam time - test
+logger.info(f'\n{classification_report(y_test, y_pred, target_names=["not_chase", "chase"])}') # text version of the same confusion matrix, but broken into the standard metrics instead of just raw counts.
+
+# STEP 5 - confusion matrix plot, saved next to the train/test split
+banner('STEP 5 - CONFUSION MATRIX PLOT')
+output_folder = os.path.join(split_folder, 'output_train_chase_classifier')
+os.makedirs(output_folder, exist_ok=True)
+
+cm = confusion_matrix(y_test, y_pred) # png
+fig, ax = plt.subplots(figsize=(5, 5))
+ConfusionMatrixDisplay(cm, display_labels=['not_chase', 'chase']).plot(ax=ax) # grading
+path_plot = os.path.join(output_folder, 'confusion_matrix.png')
+fig.savefig(path_plot, dpi=150, bbox_inches='tight')
+plt.close(fig)
+logger.info(f'saved confusion matrix -> {path_plot}')
 
