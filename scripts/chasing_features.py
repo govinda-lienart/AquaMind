@@ -51,6 +51,15 @@ def trim_to_calibration(df, calibration_secs, frame_number_end):
 def build_pairs(df, pixels_per_cm):
     "self-merges df into every fish-pair-per-frame, then computes distance_cm + closing_speed_cm_s (raw/w5/w15)"
 
+    banner_sub('STEP 2a2 - INDIVIDUAL SPEED: per-fish speed, computed BEFORE the merge so it becomes speed_cm_s_a/speed_cm_s_b after')
+    df = df.sort_values(['fish_id', 'frame_number'])
+    grouped_fish = df.groupby('fish_id')
+    delta_x = grouped_fish['x'].diff()
+    delta_y = grouped_fish['y'].diff()
+    delta_distance_cm = np.hypot(delta_x, delta_y) / pixels_per_cm
+    delta_timestamp = grouped_fish['timestamp'].diff()
+    df['speed_cm_s'] = delta_distance_cm / delta_timestamp
+
     banner_sub('STEP 2b - SELF-MERGE: pair every fish with every other fish, per frame')
     pairs = df.merge(df, on='frame_number', suffixes=('_a', '_b')) #  every row with frame_number == 600 from the left copy gets paired with every row with frame_number == 600 from the right copy, one at a time.
     pairs = pairs[pairs['fish_id_a'] < pairs['fish_id_b']] #  Row (1,1) → 1 < 1 → False # Row (1,2) → 1 < 2 → True #Row (2,3) → 2 < 3 → True
@@ -78,5 +87,9 @@ def build_pairs(df, pixels_per_cm):
     pairs['closing_speed_cm_s'] = -pairs['delta_distance_cm'] / pairs['delta_timestamp'] # see appendix in analyse_chasing.py for the sign-convention walkthrough
     pairs['closing_speed_cm_s_w15'] = -pairs['delta_distance_cm_w15'] / pairs['delta_timestamp']
     logger.info(f'{pairs.shape[0]} rows, columns: distance_cm, closing_speed_cm_s (+ raw/w15 variants)')
+
+    banner_sub('STEP 2f - BURST: each fish\'s own acceleration (diff of its own speed_cm_s, raw for now - same jitter risk closing_speed_cm_s_raw had, may need smoothing later)')
+    pairs['burst_a'] = grouped_pairs['speed_cm_s_a'].diff()
+    pairs['burst_b'] = grouped_pairs['speed_cm_s_b'].diff()
 
     return pairs
