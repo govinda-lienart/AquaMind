@@ -5,6 +5,7 @@ hardcoded path to train_df/test_df built by build_chase_windows.py"""
 # IMPORTS
 
 import os
+from datetime import datetime
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -80,7 +81,8 @@ y_test = test_df['label'] # label of test
 logger.info(f'X_train: {X_train.shape}, y_train: {y_train.shape}')
 logger.info(f'X_test: {X_test.shape}, y_test: {y_test.shape}')
 
-output_folder = os.path.join(split_folder, 'output_train_chase_classifier')
+stamp = datetime.now().strftime('%Y_%m_%d_%H%M')  # fresh timestamped folder every run - old runs' plots stay around for comparison
+output_folder = os.path.join(split_folder, 'output_train_chase_classifier', stamp)
 os.makedirs(output_folder, exist_ok=True)
 
 # STEP 3 - MODEL A: LogisticRegression (baseline #1)

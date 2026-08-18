@@ -72,11 +72,6 @@ def main(parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_p
     logger.info(f"\n**pairwise distance + closing speed plots saved in {figure_dir}**\n")
 
 
-
-
-
-
-
 #---------------
 # ENTRY POINT
 #---------------

@@ -60,6 +60,9 @@ def build_pairs(df, pixels_per_cm):
     delta_timestamp = grouped_fish['timestamp'].diff()
     df['speed_cm_s'] = delta_distance_cm / delta_timestamp
 
+    banner_sub('STEP 2a3 - HEADING: which direction each fish is currently moving (reuses delta_x/delta_y from speed above). Raw for now - angles can\'t be rolling-averaged the naive way (359 and 1 degrees are neighbors, not far apart), so no smoothing fix like speed/distance got yet')
+    df['heading_deg'] = np.degrees(np.arctan2(delta_y, delta_x))
+
     banner_sub('STEP 2b - SELF-MERGE: pair every fish with every other fish, per frame')
     pairs = df.merge(df, on='frame_number', suffixes=('_a', '_b')) #  every row with frame_number == 600 from the left copy gets paired with every row with frame_number == 600 from the right copy, one at a time.
     pairs = pairs[pairs['fish_id_a'] < pairs['fish_id_b']] #  Row (1,1) → 1 < 1 → False # Row (1,2) → 1 < 2 → True #Row (2,3) → 2 < 3 → True
@@ -68,6 +71,14 @@ def build_pairs(df, pixels_per_cm):
     banner_sub('STEP 2c - DISTANCE: np.hypot(dx, dy) / pixels_per_cm (see drawing under analyse_chasing.py)')
     pairs['distance_cm'] = np.hypot(pairs['x_a'] - pairs['x_b'], pairs['y_a'] - pairs['y_b']) / pixels_per_cm
     pairs = pairs.sort_values(['fish_id_a', 'fish_id_b', 'frame_number'])
+
+    banner_sub('STEP 2c2 - BEARING + ALIGNMENT: is fish A\'s heading pointed at fish B ("aiming a gun"), and vice versa - same frame, no time involved')
+    bearing_a_to_b_deg = np.degrees(np.arctan2(pairs['y_b'] - pairs['y_a'], pairs['x_b'] - pairs['x_a']))
+    bearing_b_to_a_deg = np.degrees(np.arctan2(pairs['y_a'] - pairs['y_b'], pairs['x_a'] - pairs['x_b']))
+    # smallest angular difference, handling the 359°/1° wraparound: shift into (-180, 180] before taking abs
+    pairs['alignment_a_deg'] = ((pairs['heading_deg_a'] - bearing_a_to_b_deg + 180) % 360 - 180).abs()  # 0 = fish A aimed straight at B, 180 = aimed straight away
+    pairs['alignment_b_deg'] = ((pairs['heading_deg_b'] - bearing_b_to_a_deg + 180) % 360 - 180).abs()
+    pairs['min_alignment_either_deg'] = pairs[['alignment_a_deg', 'alignment_b_deg']].min(axis=1)  # order-invariant - whichever fish is aiming tighter, not a fixed side
 
     banner_sub('STEP 2d - SMOOTHING: rolling mean of distance_cm (reduces tracker jitter before differencing)')
     grouped_pairs = pairs.groupby(['fish_id_a', 'fish_id_b']) # object - lazily groups rows into one bucket per distinct pair, nothing computed yet
@@ -88,8 +99,16 @@ def build_pairs(df, pixels_per_cm):
     pairs['closing_speed_cm_s_w15'] = -pairs['delta_distance_cm_w15'] / pairs['delta_timestamp']
     logger.info(f'{pairs.shape[0]} rows, columns: distance_cm, closing_speed_cm_s (+ raw/w15 variants)')
 
-    banner_sub('STEP 2f - BURST: each fish\'s own acceleration (diff of its own speed_cm_s, raw for now - same jitter risk closing_speed_cm_s_raw had, may need smoothing later)')
-    pairs['burst_a'] = grouped_pairs['speed_cm_s_a'].diff()
-    pairs['burst_b'] = grouped_pairs['speed_cm_s_b'].diff()
+    banner_sub('STEP 2f - SMOOTH SPEED: same rolling-mean fix as distance_cm_smooth, applied to speed_cm_s before differencing into burst')
+    pairs['speed_cm_s_a_smooth'] = grouped_pairs['speed_cm_s_a'].transform(lambda s: s.rolling(5, min_periods=1, center=True).mean())
+    pairs['speed_cm_s_b_smooth'] = grouped_pairs['speed_cm_s_b'].transform(lambda s: s.rolling(5, min_periods=1, center=True).mean())
+
+    banner_sub('STEP 2g - BURST: each fish\'s own acceleration (diff of its own SMOOTHED speed_cm_s, to avoid tracker-jitter spikes closing_speed_cm_s_raw had before smoothing fixed it)')
+    pairs['burst_a'] = grouped_pairs['speed_cm_s_a_smooth'].diff()
+    pairs['burst_b'] = grouped_pairs['speed_cm_s_b_smooth'].diff()
+
+    banner_sub('STEP 2h - ORDER-INVARIANT: fish_id_a/b is just "lower ID first", not attacker/victim - so take whichever of the pair burst/moved hardest, not a fixed side')
+    pairs['max_speed_either'] = pairs[['speed_cm_s_a_smooth', 'speed_cm_s_b_smooth']].max(axis=1)
+    pairs['max_burst_either'] = pairs[['burst_a', 'burst_b']].max(axis=1)
 
     return pairs

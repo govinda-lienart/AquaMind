@@ -149,6 +149,11 @@ for window in all_windows:
         'mean_closing_speed_cm_s': window['closing_speed_cm_s'].mean(),
         'min_closing_speed_cm_s': window['closing_speed_cm_s'].min(),
         'max_closing_speed_cm_s': window['closing_speed_cm_s'].max(),
+        'mean_speed_either_cm_s': window['max_speed_either'].mean(),  # order-invariant - whichever fish moved faster each frame
+        'max_speed_either_cm_s': window['max_speed_either'].max(),
+        'mean_burst_either': window['max_burst_either'].mean(),  # order-invariant - whichever fish accelerated harder each frame
+        'max_burst_either': window['max_burst_either'].max(),
+        'min_alignment_either_deg': window['min_alignment_either_deg'].min(),  # 0deg = perfectly aimed - take the TIGHTEST aim reached during the window, not mean/max
     })
 
 windows_df = pd.DataFrame(summary_rows)  # list of dicts -> one row per dict, keys become columns
