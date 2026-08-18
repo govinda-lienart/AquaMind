@@ -23,6 +23,7 @@ from scripts.chasing_features import grab_video_name
 
 VIDEO_RUN_NAME = 'IMG_2349_appearance_2026_08_12_1926'
 RANDOM_SEED = 42
+LABELS_XLS_PATH = 'output_fish_tracker/chase_labels.xlsx'  # same file build_chase_windows.py reads - has frame ranges per event_id
 
 # HELPERS - shared between every model tried below, so each model's block is just 3 calls
 
@@ -112,3 +113,15 @@ plot_feature_importance(
     'importance (higher = model relied on this feature more, no direction)',
     output_folder,
 )
+
+# STEP 5 - pull out the misclassified test windows (LR and RF agreed on the same 3 mistage cases) for manual video review
+banner('STEP 5 - MISCLASSIFIED WINDOWS (for manual video review)')
+y_pred_rf = rf_model.predict(X_test)  # same as logreg_model's predictions on this run - both models agreed
+mismatches = test_df[y_test.values != y_pred_rf].copy()
+mismatches['predicted_label'] = y_pred_rf[y_test.values != y_pred_rf]
+logger.info(f'{mismatches.shape[0]} misclassified windows out of {test_df.shape[0]} test windows')
+
+labels = pd.read_excel(LABELS_XLS_PATH)  # has framenumber_start/framenumber_end (+ fish ids for positives) per event_id
+mismatches_with_frames = mismatches.merge(labels, on='event_id', how='left', suffixes=('', '_labels'))
+review_cols = ['event_id', 'label', 'predicted_label', 'fish_id_a', 'fish_id_b', 'framenumber_start', 'framenumber_end']
+logger.info(f'\n{mismatches_with_frames[review_cols].to_string()}')
