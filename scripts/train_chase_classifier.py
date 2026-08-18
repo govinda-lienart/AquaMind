@@ -23,7 +23,6 @@ from scripts.chasing_features import grab_video_name
 
 VIDEO_RUN_NAME = 'IMG_2349_appearance_2026_08_12_1926'
 RANDOM_SEED = 42
-LABELS_XLS_PATH = 'output_fish_tracker/chase_labels.xlsx'  # same file build_chase_windows.py reads - has frame ranges per event_id
 
 # HELPERS - shared between every model tried below, so each model's block is just 3 calls
 
@@ -71,7 +70,7 @@ logger.info(f'train_df: {train_df.shape}, test_df: {test_df.shape}')
 
 # STEP 2 - split each X (features) and y (label) - no need to keep event_id
 banner('STEP 2 - SPLIT X / y')
-feature_cols = [c for c in train_df.columns if c not in ('event_id', 'label')] # builds a list of column names to use as features ( but doesnt use event_id and label) - acutally i could have added the column manually in the menu but this way cleaner but advantage is that it autoadjust...i dont need to change in case i add more feautures
+feature_cols = [c for c in train_df.columns if c not in ('event_id', 'label', 'fish_id_a', 'fish_id_b', 'chaser_id', 'window_frame_start', 'window_frame_end')] # builds a list of column names to use as features ( but doesnt use event_id, label, or the identifier/bookkeeping columns) - acutally i could have added the column manually in the menu but this way cleaner but advantage is that it autoadjust...i dont need to change in case i add more feautures
 logger.info(f'feature_cols: {feature_cols}')
 
 X_train = train_df[feature_cols] # features of train
@@ -121,7 +120,13 @@ mismatches = test_df[y_test.values != y_pred_rf].copy()
 mismatches['predicted_label'] = y_pred_rf[y_test.values != y_pred_rf]
 logger.info(f'{mismatches.shape[0]} misclassified windows out of {test_df.shape[0]} test windows')
 
-labels = pd.read_excel(LABELS_XLS_PATH)  # has framenumber_start/framenumber_end (+ fish ids for positives) per event_id
-mismatches_with_frames = mismatches.merge(labels, on='event_id', how='left', suffixes=('', '_labels'))
-review_cols = ['event_id', 'label', 'predicted_label', 'fish_id_a', 'fish_id_b', 'framenumber_start', 'framenumber_end']
-logger.info(f'\n{mismatches_with_frames[review_cols].to_string()}')
+review_cols = ['event_id', 'label', 'predicted_label', 'fish_id_a', 'fish_id_b', 'chaser_id', 'window_frame_start', 'window_frame_end']
+logger.info(f'\n{mismatches[review_cols].to_string()}')
+
+""" 3 misclassified windows out of 40 test windows
+    event_id  label  predicted_label  fish_id_a  fish_id_b  window_frame_start  window_frame_end
+0          0      1                0          1          3                 631               665 # checked the video - that is defineitly a chasing event
+18        27      0                1          1          4                4084              4118 # here the fish is heading towards the supervicia as a burst and going near another fish but this is not an attack...actually the other fish does burst escape but it could look like a chasing.
+19        27      0                1          1          4                4101              4135
+
+"""

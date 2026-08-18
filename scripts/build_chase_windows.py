@@ -72,7 +72,8 @@ for row in positive_labels.itertuples(): # itertuple is a tuple but allows to gr
     event_windows = slice_windows(row.fish_id_a, row.fish_id_b, row.framenumber_start, row.framenumber_end) # for the current event (one row), pull its fish IDs and frame range, and feed them into slice_windows() to build that one event's windows.
     for window in event_windows: # this inner loop adds 2 additonal columns so i know in the all_windows list which will contain all the windows which one is neg or positve
         window['label'] = 1
-        window['event_id'] = row.event_id 
+        window['event_id'] = row.event_id
+        window['chaser_id'] = row.chaser_id  # untrusted metadata (per chase_labels.csv schema notes) but useful for manual review
     
     all_windows.extend(event_windows)  # extend, not append - flattens each event's window-list into one big list
                                         # my_list is now [1, 2, 3, [4, 5]]   <- the [4, 5] is nested inside as ONE item
@@ -105,6 +106,7 @@ for row in negative_labels.itertuples():
     for window in capped_windows:
         window['label'] = 0
         window['event_id'] = row.event_id
+        window['chaser_id'] = row.chaser_id  # always NaN for negatives - no chaser
     logger.info(f'event {row.event_id}: sampled pair ({sampled_fish_id_a}, {sampled_fish_id_b}), {len(event_windows)} possible windows, {len(capped_windows)} kept')
     all_windows.extend(capped_windows) # add to the existing windows list
 
@@ -136,6 +138,11 @@ for window in all_windows:
     summary_rows.append({
         'event_id': window['event_id'].iloc[0],
         'label': window['label'].iloc[0],
+        'fish_id_a': window['fish_id_a'].iloc[0],  # already on window (sliced from pairs) - true for positives AND sampled negatives alike
+        'fish_id_b': window['fish_id_b'].iloc[0],
+        'chaser_id': window['chaser_id'].iloc[0],  # NaN for negatives - no chaser
+        'window_frame_start': window['frame_number'].min(),  # this window's own 35-frame slice, NOT the whole event's range
+        'window_frame_end': window['frame_number'].max(),
         'mean_distance_cm': window['distance_cm'].mean(),
         'min_distance_cm': window['distance_cm'].min(),
         'max_distance_cm': window['distance_cm'].max(),
