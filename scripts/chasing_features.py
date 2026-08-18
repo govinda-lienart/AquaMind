@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 with open('config.yaml') as f:
     cfg = yaml.safe_load(f)['analyse_behaviour']
 
+BURST_THRESHOLD_CM_S = 2.0  # ~95th percentile of |burst| in IMG_2349 - only trust heading/alignment at the moment a fish is actually accelerating, not during ordinary swimming
+
+MIN_SPEED_FOR_HEADING_CM_S = 10  # below this, frame-to-frame direction is mostly tracker-jitter noise, not real movement (same speed-floor fix the TCPA chase-candidate detector used)
+
 #---------------
 # HELPER FUNCTIONS
 #---------------
@@ -78,7 +82,7 @@ def build_pairs(df, pixels_per_cm):
     # smallest angular difference, handling the 359°/1° wraparound: shift into (-180, 180] before taking abs
     pairs['alignment_a_deg'] = ((pairs['heading_deg_a'] - bearing_a_to_b_deg + 180) % 360 - 180).abs()  # 0 = fish A aimed straight at B, 180 = aimed straight away
     pairs['alignment_b_deg'] = ((pairs['heading_deg_b'] - bearing_b_to_a_deg + 180) % 360 - 180).abs()
-    pairs['min_alignment_either_deg'] = pairs[['alignment_a_deg', 'alignment_b_deg']].min(axis=1)  # order-invariant - whichever fish is aiming tighter, not a fixed side
+    # min_alignment_either_deg (order-invariant) built further down, AFTER burst - alignment only trusted at the moment of a burst
 
     banner_sub('STEP 2d - SMOOTHING: rolling mean of distance_cm (reduces tracker jitter before differencing)')
     grouped_pairs = pairs.groupby(['fish_id_a', 'fish_id_b']) # object - lazily groups rows into one bucket per distinct pair, nothing computed yet
@@ -110,5 +114,10 @@ def build_pairs(df, pixels_per_cm):
     banner_sub('STEP 2h - ORDER-INVARIANT: fish_id_a/b is just "lower ID first", not attacker/victim - so take whichever of the pair burst/moved hardest, not a fixed side')
     pairs['max_speed_either'] = pairs[['speed_cm_s_a_smooth', 'speed_cm_s_b_smooth']].max(axis=1)
     pairs['max_burst_either'] = pairs[['burst_a', 'burst_b']].max(axis=1)
+
+    banner_sub(f'STEP 2i - BURST-GATED ALIGNMENT: only trust a fish\'s heading/alignment on frames where IT is bursting (burst >= {BURST_THRESHOLD_CM_S} cm/s) - "aiming" only means something at the moment of commitment, not during ordinary swimming')
+    pairs['alignment_a_deg_gated'] = pairs['alignment_a_deg'].where(pairs['burst_a'] >= BURST_THRESHOLD_CM_S)  # .where() keeps the value if True, else NaN
+    pairs['alignment_b_deg_gated'] = pairs['alignment_b_deg'].where(pairs['burst_b'] >= BURST_THRESHOLD_CM_S)
+    pairs['min_alignment_either_deg'] = pairs[['alignment_a_deg_gated', 'alignment_b_deg_gated']].min(axis=1)  # NaN on frames where neither fish bursts - ignored by pandas .min() later
 
     return pairs

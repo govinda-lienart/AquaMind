@@ -153,7 +153,7 @@ for window in all_windows:
         'max_speed_either_cm_s': window['max_speed_either'].max(),
         'mean_burst_either': window['max_burst_either'].mean(),  # order-invariant - whichever fish accelerated harder each frame
         'max_burst_either': window['max_burst_either'].max(),
-        'min_alignment_either_deg': window['min_alignment_either_deg'].min(),  # 0deg = perfectly aimed - take the TIGHTEST aim reached during the window, not mean/max
+        'min_alignment_either_deg': window['min_alignment_either_deg'].min(skipna=True) if window['min_alignment_either_deg'].notna().any() else 180,  # NaN when NEITHER fish burst in this window at all - sentinel 180deg = "no aim to report" (worst possible), since sklearn can't handle NaN
     })
 
 windows_df = pd.DataFrame(summary_rows)  # list of dicts -> one row per dict, keys become columns
