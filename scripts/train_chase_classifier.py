@@ -6,6 +6,7 @@ hardcoded path to train_df/test_df built by build_chase_windows.py"""
 
 import os
 import pandas as pd
+from sklearn.linear_model import LogisticRegression
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -27,5 +28,21 @@ train_df = pd.read_parquet(os.path.join(split_folder, 'train_df.parquet'))
 test_df = pd.read_parquet(os.path.join(split_folder, 'test_df.parquet'))
 logger.info(f'train_df: {train_df.shape}, test_df: {test_df.shape}')
 
+# STEP 2 - split each X (features) and y (label) - no need to keep event_id
+banner('STEP 2 - SPLIT X / y')
+feature_cols = [c for c in train_df.columns if c not in ('event_id', 'label')] # builds a list of column names to use as features ( but doesnt use event_id and label) - acutally i could have added the column manually in the menu but this way cleaner but advantage is that it autoadjust...i dont need to change in case i add more feautures
+logger.info(f'feature_cols: {feature_cols}')
 
+X_train = train_df[feature_cols] # features of train 
+y_train = train_df['label'] # label of train
+X_test = test_df[feature_cols] # features of test
+y_test = test_df['label'] # label of test
+logger.info(f'X_train: {X_train.shape}, y_train: {y_train.shape}')
+logger.info(f'X_test: {X_test.shape}, y_test: {y_test.shape}')
+
+# STEP 3 - train the baseline model on the training set only
+banner('STEP 3 - TRAIN LogisticRegression')
+model = LogisticRegression()
+model.fit(X_train, y_train)
+logger.info('model trained')
 
