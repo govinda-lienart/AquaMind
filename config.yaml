@@ -124,16 +124,16 @@ analyse_behaviour:
 # build_chase_windows.py computes ALL of these into train_df/test_df regardless; this just selects which columns train_chase_classifier.py trains on. flip a flag, rerun train_chase_classifier.py - no need to rerun build_chase_windows.py.
 train_chase_classifier:
   features:
-    mean_distance_cm: true
+    mean_distance_cm: false
     min_distance_cm: true
-    max_distance_cm: true
-    mean_closing_speed_cm_s: true
-    min_closing_speed_cm_s: true
-    max_closing_speed_cm_s: true
+    max_distance_cm: false
+    mean_closing_speed_cm_s: false
+    min_closing_speed_cm_s: false
+    max_closing_speed_cm_s: false
     mean_speed_either_cm_s: true
     max_speed_either_cm_s: true
-    mean_burst_either: true
-    max_burst_either: true
+    mean_burst_either: false
+    max_burst_either: false
     min_alignment_either_deg: true
 
 # extract_ghost_frames_script - hard negative mining by GHOSTING (active learning: mine where the tracker LOST a fish = YOLO failed)
