@@ -120,6 +120,22 @@ analyse_behaviour:
         calibration_secs: 10 # skip tracker warm-up window (matches fish_tracker config
         frame_number_end: 14491 # cuts the video off here (~4:01 @ 60fps) - for this video, this is where food gets introduced; feeding-driven movement is a different behavior than aggressive chasing so it's excluded from chasing labels. optional, blank/omit to use the whole video.
 
+# train_chase_classifier - toggle which engineered features go into X, without touching code or rebuilding train/test windows.
+# build_chase_windows.py computes ALL of these into train_df/test_df regardless; this just selects which columns train_chase_classifier.py trains on. flip a flag, rerun train_chase_classifier.py - no need to rerun build_chase_windows.py.
+train_chase_classifier:
+  features:
+    mean_distance_cm: true
+    min_distance_cm: true
+    max_distance_cm: true
+    mean_closing_speed_cm_s: true
+    min_closing_speed_cm_s: true
+    max_closing_speed_cm_s: true
+    mean_speed_either_cm_s: true
+    max_speed_either_cm_s: true
+    mean_burst_either: true
+    max_burst_either: true
+    min_alignment_either_deg: true
+
 # extract_ghost_frames_script - hard negative mining by GHOSTING (active learning: mine where the tracker LOST a fish = YOLO failed)
 extract_ghost_frames:
   log_path:   output_fish_tracker/tracker_IMG_1839_appearance_2026_08_04_0728/tracker_IMG_1839_appearance_2026_08_04_0728.log   # the tracker run to MINE

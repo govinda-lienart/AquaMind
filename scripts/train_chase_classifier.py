@@ -6,9 +6,11 @@ hardcoded path to train_df/test_df built by build_chase_windows.py"""
 
 import os
 from datetime import datetime
+import yaml
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
 from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
 import matplotlib
 matplotlib.use('Agg')  # avoids popup windows of produced plots
@@ -24,6 +26,9 @@ from scripts.chasing_features import grab_video_name
 
 VIDEO_RUN_NAME = 'IMG_2349_appearance_2026_08_12_1926'
 RANDOM_SEED = 42
+
+with open('config.yaml') as f:
+    FEATURE_TOGGLES = yaml.safe_load(f)['train_chase_classifier']['features']
 
 # HELPERS - shared between every model tried below, so each model's block is just 3 calls
 
@@ -69,10 +74,10 @@ train_df = pd.read_parquet(os.path.join(split_folder, 'train_df.parquet'))
 test_df = pd.read_parquet(os.path.join(split_folder, 'test_df.parquet'))
 logger.info(f'train_df: {train_df.shape}, test_df: {test_df.shape}')
 
-# STEP 2 - split each X (features) and y (label) - no need to keep event_id
+# STEP 2 - split each X (features) and y (label) - which columns count as features is driven by config.yaml's train_chase_classifier.features toggles, not hardcoded here
 banner('STEP 2 - SPLIT X / y')
-feature_cols = [c for c in train_df.columns if c not in ('event_id', 'label', 'fish_id_a', 'fish_id_b', 'chaser_id', 'window_frame_start', 'window_frame_end')] # builds a list of column names to use as features ( but doesnt use event_id, label, or the identifier/bookkeeping columns) - acutally i could have added the column manually in the menu but this way cleaner but advantage is that it autoadjust...i dont need to change in case i add more feautures
-logger.info(f'feature_cols: {feature_cols}')
+feature_cols = [c for c, enabled in FEATURE_TOGGLES.items() if enabled]  # only the columns flagged true in config.yaml - flip a flag there to ablate, no code edit needed
+logger.info(f'feature_cols (from config.yaml): {feature_cols}')
 
 X_train = train_df[feature_cols] # features of train
 y_train = train_df['label'] # label of train
@@ -84,6 +89,12 @@ logger.info(f'X_test: {X_test.shape}, y_test: {y_test.shape}')
 stamp = datetime.now().strftime('%Y_%m_%d_%H%M')  # fresh timestamped folder every run - old runs' plots stay around for comparison
 output_folder = os.path.join(split_folder, 'output_train_chase_classifier', stamp)
 os.makedirs(output_folder, exist_ok=True)
+
+banner_sub('SAVE RUN CONFIG - a poor man\'s MLflow: which features/seed produced the plots in this folder')
+run_config = {'video_run_name': VIDEO_RUN_NAME, 'random_seed': RANDOM_SEED, 'feature_toggles': FEATURE_TOGGLES, 'feature_cols_used': feature_cols}
+logger.info(f'run_config:\n{yaml.dump(run_config, sort_keys=False)}')
+with open(os.path.join(output_folder, 'run_config.yaml'), 'w') as f:
+    yaml.dump(run_config, f, sort_keys=False)
 
 # STEP 3 - MODEL A: LogisticRegression (baseline #1)
 banner('STEP 3 - MODEL A: LOGISTIC REGRESSION')
@@ -115,6 +126,21 @@ plot_feature_importance(
     output_folder,
 )
 
+# STEP 5 - MODEL C: XGBoost (baseline #3, the last of the LR/RF/XGBoost trio)
+banner('STEP 5 - MODEL C: XGBOOST')
+banner_sub('XGBOOST - TRAIN')
+xgb_model = XGBClassifier(random_state=RANDOM_SEED)
+xgb_model.fit(X_train, y_train)
+logger.info('model trained')
+
+evaluate_model(xgb_model, 'xgboost', X_test, y_test, output_folder)
+plot_feature_importance(
+    xgb_model.feature_importances_,  # same shape as RF's - always >= 0, no direction
+    feature_cols, 'xgboost',
+    'importance (higher = model relied on this feature more, no direction)',
+    output_folder,
+)
+
 # STEP 5 - pull out the misclassified test windows (LR and RF agreed on the same 3 mistage cases) for manual video review
 banner('STEP 5 - MISCLASSIFIED WINDOWS (for manual video review)')
 y_pred_rf = rf_model.predict(X_test)  # same as logreg_model's predictions on this run - both models agreed
@@ -125,10 +151,11 @@ logger.info(f'{mismatches.shape[0]} misclassified windows out of {test_df.shape[
 review_cols = ['event_id', 'label', 'predicted_label', 'fish_id_a', 'fish_id_b', 'chaser_id', 'window_frame_start', 'window_frame_end']
 logger.info(f'\n{mismatches[review_cols].to_string()}')
 
-""" 3 misclassified windows out of 40 test windows
+""" 3 misclassified windows out of 40 test windows - first attempt with 2 features
     event_id  label  predicted_label  fish_id_a  fish_id_b  window_frame_start  window_frame_end
 0          0      1                0          1          3                 631               665 # checked the video - that is defineitly a chasing event
 18        27      0                1          1          4                4084              4118 # here the fish is heading towards the supervicia as a burst and going near another fish but this is not an attack...actually the other fish does burst escape but it could look like a chasing.
 19        27      0                1          1          4                4101              4135
 
 """
+
