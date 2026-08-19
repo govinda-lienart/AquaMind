@@ -4,6 +4,7 @@
 # IMPORTS
 #---------------
 
+import random
 import yaml
 import numpy as np
 from scripts.console import banner, banner_sub
@@ -121,3 +122,46 @@ def build_pairs(df, pixels_per_cm):
     pairs['min_alignment_either_deg'] = pairs[['alignment_a_deg_gated', 'alignment_b_deg_gated']].min(axis=1)  # NaN on frames where neither fish bursts - ignored by pandas .min() later
 
     return pairs
+
+def slice_event(pairs, fish_id_a, fish_id_b, start_frame, end_frame):
+    "returns the WHOLE labelled event as one variable-length sequence (wrapped in a list of 1, so callers can treat it the same as slice_windows' output)"
+    event_df = pairs[(pairs['fish_id_a'] == fish_id_a) & (pairs['fish_id_b'] == fish_id_b)
+                      & (pairs['frame_number'] >= start_frame) & (pairs['frame_number'] < end_frame)]
+    return [event_df.sort_values('frame_number')]
+
+def slice_windows(pairs, fish_id_a, fish_id_b, start_frame, end_frame, window_size_frames, stride_frames):
+    "slides a fixed-size window (window_size_frames, every stride_frames) across one labelled event's frame range"
+    event_df = pairs[(pairs['fish_id_a'] == fish_id_a) & (pairs['fish_id_b'] == fish_id_b)
+                      & (pairs['frame_number'] >= start_frame) & (pairs['frame_number'] < end_frame)]
+    windows = []
+    window_start = start_frame
+    while window_start + window_size_frames <= end_frame:
+        window = event_df[(event_df['frame_number'] >= window_start) & (event_df['frame_number'] < window_start + window_size_frames)]
+        windows.append(window.sort_values('frame_number'))
+        window_start += stride_frames
+    return windows
+
+def build_sequences(pairs, labels, mode, random_seed, window_size_frames=None, stride_frames=None, max_windows_per_negative_event=None):
+    "for every labelled row: pick a fish pair (given for positives, randomly sampled for negatives), slice per mode ('whole_event' or 'windowed'), return a flat list of {event_id, label, sequence_df} dicts"
+    unique_pairs = pairs[['fish_id_a', 'fish_id_b']].drop_duplicates()
+    pair_list = list(unique_pairs.itertuples(index=False, name=None))
+    random.seed(random_seed)
+
+    all_sequences = []
+    for row in labels.itertuples():
+        if row.label == 1:
+            fish_id_a, fish_id_b = row.fish_id_a, row.fish_id_b
+        else:
+            fish_id_a, fish_id_b = random.choice(pair_list)
+
+        if mode == 'whole_event':
+            sequences = slice_event(pairs, fish_id_a, fish_id_b, row.framenumber_start, row.framenumber_end)
+        else:
+            sequences = slice_windows(pairs, fish_id_a, fish_id_b, row.framenumber_start, row.framenumber_end, window_size_frames, stride_frames)
+            if row.label == 0:
+                sequences = sequences[:max_windows_per_negative_event]
+
+        for sequence_df in sequences:
+            all_sequences.append({'event_id': row.event_id, 'label': row.label, 'sequence_df': sequence_df})
+
+    return all_sequences
