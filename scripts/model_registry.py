@@ -19,6 +19,20 @@ logger = logging.getLogger(__name__)
 TRACKING_URI = 'sqlite:///mlflow.db'     # same store log_artifact_mlflow.py registers into
 
 
+def resolve_ref(ref):
+    """ref -> concrete 'models:/<name>/<version>' if ref is an alias URI (e.g. '...@champion'); else ref unchanged.
+
+    Aliases are mutable (a later promotion can repoint '@champion' at a new version), so a run's
+    sidecar must record the concrete version it actually used, not the alias string.
+    """
+    if ref.startswith('models:/') and '@' in ref:
+        from mlflow.tracking import MlflowClient
+        name, alias = ref[len('models:/'):].split('@', 1)
+        version = MlflowClient(tracking_uri=TRACKING_URI).get_model_version_by_alias(name, alias).version
+        return f'models:/{name}/{version}'
+    return ref
+
+
 def load_yolo(ref):
     """ref → native YOLO. A models:/ or runs:/ URI resolves through the MLflow registry; anything else is a path."""
     if ref.startswith('models:/') or ref.startswith('runs:/'):
