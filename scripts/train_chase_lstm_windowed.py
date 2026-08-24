@@ -36,6 +36,11 @@ HIDDEN_SIZE = 16  # small on purpose - only ~90 training windows, a bigger LSTM 
 NUM_EPOCHS = 60
 LEARNING_RATE = 0.005
 
+# note on FEATURE_COLS
+# distance_cm_smooth_w15 - At this specific frame: the gap between the two fish (in cm), smoothed using a 15-frame rolling window centered on that frame — reduces tracker jitter, but still one value per frame, not a window-wide summary
+# max_speed_either - At this specific frame: comparing the two fish's speeds at that same instant (axis=1 = across the two fish columns, not across time) and keeping whichever is higher — order-invariant, changes frame to frame
+# min_alignment_either_deg = At this specific frame: whichever fish is more precisely "aimed" at the other (0°=dead-on, 180°=facing away), gated so it's only meaningful on frames where that fish is actively bursting — otherwise NaN, later filled with the 180° sentinel
+
 torch.manual_seed(RANDOM_SEED)
 
 
@@ -161,3 +166,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

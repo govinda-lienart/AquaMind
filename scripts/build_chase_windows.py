@@ -143,17 +143,21 @@ for window in all_windows:
         'chaser_id': window['chaser_id'].iloc[0],  # NaN for negatives - no chaser
         'window_frame_start': window['frame_number'].min(),  # this window's own 35-frame slice, NOT the whole event's range
         'window_frame_end': window['frame_number'].max(),
-        'mean_distance_cm': window['distance_cm'].mean(),
-        'min_distance_cm': window['distance_cm'].min(),
-        'max_distance_cm': window['distance_cm'].max(),
-        'mean_closing_speed_cm_s': window['closing_speed_cm_s'].mean(),
-        'min_closing_speed_cm_s': window['closing_speed_cm_s'].min(),
-        'max_closing_speed_cm_s': window['closing_speed_cm_s'].max(),
-        'mean_speed_either_cm_s': window['max_speed_either'].mean(),  # order-invariant - whichever fish moved faster each frame
-        'max_speed_either_cm_s': window['max_speed_either'].max(),
-        'mean_burst_either': window['max_burst_either'].mean(),  # order-invariant - whichever fish accelerated harder each frame
-        'max_burst_either': window['max_burst_either'].max(),
-        'min_alignment_either_deg': window['min_alignment_either_deg'].min(skipna=True) if window['min_alignment_either_deg'].notna().any() else 180,  # NaN when NEITHER fish burst in this window at all - sentinel 180deg = "no aim to report" (worst possible), since sklearn can't handle NaN
+        # every key below is a WINDOW-LEVEL AGGREGATE (one number summarizing all 35 frames) - named
+        # with a _summary suffix specifically because several source columns on `pairs`/`window` share
+        # the SAME base name (e.g. window['max_burst_either'] is itself already a PER-FRAME order-invariant
+        # value) - without the suffix, 'max_burst_either' would mean two different things in two DataFrames
+        'mean_distance_cm_summary': window['distance_cm'].mean(),
+        'min_distance_cm_summary': window['distance_cm'].min(),
+        'max_distance_cm_summary': window['distance_cm'].max(),
+        'mean_closing_speed_cm_s_summary': window['closing_speed_cm_s'].mean(),
+        'min_closing_speed_cm_s_summary': window['closing_speed_cm_s'].min(),
+        'max_closing_speed_cm_s_summary': window['closing_speed_cm_s'].max(),
+        'mean_speed_either_cm_s_summary': window['max_speed_either'].mean(),  # order-invariant - whichever fish moved faster each frame
+        'max_speed_either_cm_s_summary': window['max_speed_either'].max(),
+        'mean_burst_either_summary': window['max_burst_either'].mean(),  # order-invariant - whichever fish accelerated harder each frame
+        'max_burst_either_summary': window['max_burst_either'].max(),
+        'min_alignment_either_deg_summary': window['min_alignment_either_deg'].min(skipna=True) if window['min_alignment_either_deg'].notna().any() else 180,  # NaN when NEITHER fish burst in this window at all - sentinel 180deg = "no aim to report" (worst possible), since sklearn can't handle NaN
     })
 
 windows_df = pd.DataFrame(summary_rows)  # list of dicts -> one row per dict, keys become columns
