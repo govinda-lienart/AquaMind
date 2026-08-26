@@ -33,7 +33,8 @@ def setup_run_logging(log_path):
 def print_run_config(input_video_path, model_path, output_video_path, start_seconds, end_seconds,
                      num_fish, calibration_secs, max_distance, reacquire_tau,
                      merge_fix=False, use_appearance=False, appearance_weight=None,
-                     appearance_head=None, appearance_backbone=None, appearance_max_gap_secs=None):
+                     appearance_head=None, appearance_backbone=None, appearance_max_gap_secs=None,
+                     save_crops_in_appearance_mode=False):
     logger.info("=" * 50)
     logger.info(f"  Video:          {input_video_path}")
     logger.info(f"  Model:          {model_path}")
@@ -50,6 +51,7 @@ def print_run_config(input_video_path, model_path, output_video_path, start_seco
         logger.info(f"    backbone:     {appearance_backbone}")
         logger.info(f"    head:         {appearance_head or '(none — raw DINOv2)'}")
         logger.info(f"    max_gap_secs: {appearance_max_gap_secs}")
+        logger.info(f"    save_crops:   {save_crops_in_appearance_mode}")
     logger.info("=" * 50)
     input("Press Enter to start...")
 

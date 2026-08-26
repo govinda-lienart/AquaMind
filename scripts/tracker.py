@@ -272,6 +272,7 @@ def main():
     start = c.get('start_seconds') or 0
     end   = c.get('end_seconds')
     use_appearance = bool(c.get('appearance', False))                       # fuse DINOv2 appearance into matching?
+    save_crops_in_appearance_mode = bool(c.get('save_crops_in_appearance_mode', False))  # appearance runs normally skip crop-writing (assumes an earlier basic run already has them) - set true when this run's crops are actually needed (e.g. no prior basic-mode crops exist, or they can't be trusted to share fish_id numbering with this run)
     app_weight     = float(c.get('appearance_weight', 100)) if use_appearance else 0.0
     app_min_sep    = float(c.get('appearance_min_sep', 150))                 # only update appearance memory when a fish is this far from all others (px)
     app_gate       = c.get('appearance_gate')                               # VETO: refuse a match whose cosine-dist to memory exceeds this (None = off)
@@ -311,7 +312,7 @@ def main():
                      num_fish, calibration_secs, max_distance, REACQUIRE_TAU,
                      merge_fix=merge_fix, use_appearance=use_appearance, appearance_weight=app_weight,
                      appearance_head=c.get('appearance_head'), appearance_backbone=c.get('appearance_backbone', 'dinov2_vits14'),
-                     appearance_max_gap_secs=app_max_gap_secs)
+                     appearance_max_gap_secs=app_max_gap_secs, save_crops_in_appearance_mode=save_crops_in_appearance_mode)
 
     model = load_yolo(model_path)
 
@@ -476,9 +477,11 @@ def main():
             })
 
             # cropping out the fish bbox to save it on disk and use later for fish RE-ID Machine learning
-            # basic (geometry-only) runs generate this re-ID training data; appearance runs already
-            # have it from the basic run that trained their head, so skip the redundant write
-            if use_appearance:
+            # basic (geometry-only) runs generate this re-ID training data; appearance runs normally
+            # skip the redundant write (already have it from the basic run that trained their head) -
+            # unless save_crops_in_appearance_mode overrides that, when THIS run's own crops are needed
+            # (e.g. no prior basic-mode crops exist, or their fish_id can't be trusted to match this run's)
+            if use_appearance and not save_crops_in_appearance_mode:
                 continue
             if t.missing > 0:
                 continue # here if for example the frame is a ghost...skip no need to grab it for RE_ID as we dont want to crop a ghost

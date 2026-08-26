@@ -81,6 +81,7 @@ tracker:
   appearance_audit_margin: 0.03        # flag when the exit is this-much MORE similar (cosine) to another fish's memory than its own. Higher = fewer/more-confident flags.
   appearance_backbone: dinov2_vits14  # embedder used when NO head is given (raw DINOv2 — weak cosine)
   appearance_head: output_fish_tracker/tracker_IMG_2349_basic_2026_08_10_1555/stitch/contrastive_head.pt     # eg. output_fish_tracker/tracker_IMG_1839_basic_2026_07_23_1202/stitch/contrastive_head.pt   # CONTRASTIVE projection head -> discriminative short-range identity metric; blank = raw DINOv2
+  save_crops_in_appearance_mode: true  # 2026-08-25, Stage 7 Part 2 (feeding strike): need THIS run's own crops, matched 1:1 to its own tracks.parquet/fish_id - not the earlier basic run's crops, which aren't guaranteed to share fish_id numbering at crossings (Stage 5: ~3.9% ID-switch rate)
 
 # typically available after running tracker - config is read by stitch_ids.py and contrastive_reid.py
 tracker_crop_parquet:
