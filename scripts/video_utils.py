@@ -36,7 +36,7 @@ def grab_video_name(video_name):
     bottom_y_px = video_cfg['bottom_y_px']
     frame_number_end = video_cfg.get('frame_number_end')  # optional - .get() returns None if not set, instead of KeyError
     pixels_per_cm = tank_width_px / tank_width_cm
-    banner('LOADING CONFIGURATION')
+    banner_sub('LOADING CONFIGURATION')
     logger.info(f'loaded cfg: video_cfg = {video_cfg}, tank_width_px = {tank_width_px}, tank_width_cm = {tank_width_cm},  pixels_per_cm = {pixels_per_cm}, calibration_secs = {calibration_secs}, surface_y_px = {surface_y_px}, bottom_y_px = {bottom_y_px}, frame_number_end = {frame_number_end}')
     return parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_px, frame_number_end
 

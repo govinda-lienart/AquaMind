@@ -5,12 +5,13 @@ import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 from scripts.console import banner, banner_sub
-
+from scripts.video_utils import grab_video_name, trim_to_calibration
 
 
 # CONSTANTS
 
 LINK_POS_LABELS = 'output_fish_tracker/feeding_labels.xlsx'
+VIDEO_RUN_NAME = 'IMG_2349_appearance_2026_08_12_1926'
 
 # MAIN
 
@@ -43,5 +44,12 @@ logger.info(pos_labels.head().to_string())
 logger.info(f'\n data frame contains {pos_labels.shape[0]} valid labeled rows of strikes across {pos_labels.shape[1]} columns')
 
 #  STEP 2 LOAD TRACKER OUTPUT
+banner("STEP 2: LOAD TRACKER OUPUT")
+parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_px, frame_number_end = grab_video_name(VIDEO_RUN_NAME )
+tracks = pd.read_parquet(parquet_path)
+tracks = tracks[tracks['timestamp'] >= calibration_secs]
 
+logger.info(tracks.head().to_string())
+logger.info(f'\n data frame contains {tracks.shape[0]} records with {tracks.shape[1]} columns')
 
+#  STEP 3 LOAD TRACKER OUTPUT
