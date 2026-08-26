@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 from scripts.console import banner, banner_sub
-from scripts.chasing_features import grab_video_name
+from scripts.video_utils import grab_video_name
 
 # CONSTANTS
 

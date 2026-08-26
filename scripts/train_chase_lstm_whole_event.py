@@ -20,7 +20,8 @@ import matplotlib
 matplotlib.use('Agg')  # avoids popup windows of produced plots
 import matplotlib.pyplot as plt
 from scripts.console import banner, banner_sub
-from scripts.chasing_features import grab_video_name, trim_to_calibration, build_pairs, build_sequences
+from scripts.video_utils import grab_video_name, trim_to_calibration
+from scripts.chasing_features import build_pairs, build_sequences
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
