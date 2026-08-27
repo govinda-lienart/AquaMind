@@ -9,12 +9,17 @@ logger = logging.getLogger(__name__)
 from scripts.console import banner, banner_sub
 from scripts.video_utils import grab_video_name, trim_to_calibration
 import matplotlib.pyplot as plt
+import random
 
 # CONSTANTS
 
 LINK_POS_LABELS = 'output_fish_tracker/feeding_labels.xlsx'
 VIDEO_RUN_NAME = 'IMG_2349_appearance_2026_08_12_1926'
 WINDOW_SIZE_FRAMES = 45  # the fixed window length you've been using throughout - was calculated based on minumum size of one feeding strike
+SAND_START_FRAME = 7505 # prefeeding fase - start control
+SAND_END_FRAME = 14340 # prefeeding fase - end control
+RANDOM_SEED = 42
+
 
 # MAIN
 
@@ -100,7 +105,7 @@ test_window = slice_window(1, 1000) # the first number is fish_id, the second is
 logger.info(test_window["frame_number"].head().to_string())
 logger.info(f'test window shape: {test_window.shape}')
 
-# STEP 6 
+# STEP 6 BUILD POSITIVE WINDOWS
 banner_sub("STEP 5: BUILD POSITIVE WINDOWS")
 all_windows = []
 for row in pos_labels.itertuples(): #Iterating directly over a DataFrame like this loops over its column names (strings like "event_id", "fish_id", etc.), not its rows! You need .itertuples() to loop over actual rows
@@ -113,3 +118,26 @@ for row in pos_labels.itertuples(): #Iterating directly over a DataFrame like th
 logger.info(f'in total {len(all_windows)} positive labels processed as windows')
 logger.info(f'first window shape: {all_windows[0].shape}')
 logger.info(f'first window label: {all_windows[0]["label"].iloc[0]}, event_id: {all_windows[0]["event_id"].iloc[0]}')
+
+# STEP 7: BUILD NEGATIVE WINDOWS
+banner_sub("build candidate negative windows (non-overlapping, sand segment, random fish_id)") # : cheaply collect every possible candidate center point across all fish , just numbers, (fish_id, center_frame) pairs, no actual data slicing yet, so it's fast even if there are hundreds of candidates.
+fish_ids = sorted(tracks["fish_id"].unique()) # [1, 2, 3, 4]
+candidate_windows= []
+for fish_id in fish_ids:
+    window_start = SAND_START_FRAME
+    while window_start + WINDOW_SIZE_FRAMES <= SAND_END_FRAME: # inner loop will loop for e.g fish_id = 1 and do many loops on in to collect center numbers, and once finished, will go back to outer loop to trigger the next fish_id
+        candidate_center = window_start + WINDOW_SIZE_FRAMES // 2
+        candidate_windows.append((fish_id, candidate_center))
+        window_start += WINDOW_SIZE_FRAMES
+logger.info(f'{len(candidate_windows)} candidate negative windows across {len(fish_ids)} fish')
+
+banner_sub("sample negatives to match positive count")
+random.seed(RANDOM_SEED)
+sampled_negatives = random.sample(candidate_windows, k=min(len(all_windows), len(candidate_windows))) # all windows currently only holds the positive labels
+logger.info(f'{len(sampled_negatives)} negatives sampled') # sampled negative candidate_center
+
+banner_sub("build negative windows from sampled candidates")
+next_negative_event = int(pos_labels["event_id"].max()+1)
+logger.info(f'the event_id for next_negative_event should start from {next_negative_event}') # sampled negative candidate_center
+
+
