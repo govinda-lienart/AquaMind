@@ -139,5 +139,14 @@ logger.info(f'{len(sampled_negatives)} negatives sampled') # sampled negative ca
 banner_sub("build negative windows from sampled candidates")
 next_negative_event = int(pos_labels["event_id"].max()+1)
 logger.info(f'the event_id for next_negative_event should start from {next_negative_event}') # sampled negative candidate_center
+for fish_id, center_frame in sampled_negatives:
+    window = slice_window(fish_id, center_frame) # filters tracks
+    window = window.copy() # makes independent copies
+    window["label"] = 0 
+    window["event_id"] = next_negative_event
+    next_negative_event += 1
+    all_windows.append(window)
 
+logger.info(f'in total {len(windows)} negative windows built')
+logger.info(f'total labels positive and negative is  {len(all_windows)}')
 
