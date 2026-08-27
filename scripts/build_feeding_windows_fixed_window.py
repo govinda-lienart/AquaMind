@@ -100,4 +100,16 @@ test_window = slice_window(1, 1000) # the first number is fish_id, the second is
 logger.info(test_window["frame_number"].head().to_string())
 logger.info(f'test window shape: {test_window.shape}')
 
-# STEP 5: BUILD POSITIVE WINDOWS
+# STEP 6 
+banner_sub("STEP 5: BUILD POSITIVE WINDOWS")
+all_windows = []
+for row in pos_labels.itertuples(): #Iterating directly over a DataFrame like this loops over its column names (strings like "event_id", "fish_id", etc.), not its rows! You need .itertuples() to loop over actual rows
+    center_frame = (row.framenumber_start + row.framenumber_end) / 2
+    window = slice_window(row.fish_id, center_frame)
+    window = window.copy() #  it creates a completely independent, brand-new DataFrame with its own memory, fully separate from tracks
+    window["label"] = 1
+    window["event_id"] = row.event_id
+    all_windows.append(window)
+logger.info(f'in total {len(all_windows)} positive labels processed as windows')
+logger.info(f'first window shape: {all_windows[0].shape}')
+logger.info(f'first window label: {all_windows[0]["label"].iloc[0]}, event_id: {all_windows[0]["event_id"].iloc[0]}')
