@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 from scripts.console import banner, banner_sub
 from scripts.video_utils import grab_video_name, trim_to_calibration
 import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
 import random
 
 # CONSTANTS
@@ -90,8 +91,7 @@ banner_sub("burst - acceleration")
 tracks["burst"] = grouped_fish["speed_cm_s_smooth"].transform(lambda s: s.diff()) # how much the speed changed from one frame to the next
 logger.info(tracks[["distance", "delta_timestamp", "speed_cm_s", "speed_cm_s_smooth", "burst"]].head().to_string())
 
-# STEP 4  — the window slicer function 
-
+banner("STEP 4  — the window slicer function ")
 def slice_window(fish_id, center_frame): # here with a fiven frame number(center frame) selecting a fixed sized 45 frame window cut from tracks
     window_start = center_frame - WINDOW_SIZE_FRAMES // 2 
     window_end = window_start + WINDOW_SIZE_FRAMES 
@@ -106,7 +106,7 @@ logger.info(test_window["frame_number"].head().to_string())
 logger.info(f'test window shape: {test_window.shape}')
 
 # STEP 6 BUILD POSITIVE WINDOWS
-banner_sub("STEP 5: BUILD POSITIVE WINDOWS")
+banner("STEP 5: BUILD POSITIVE WINDOWS")
 all_windows = []
 for row in pos_labels.itertuples(): #Iterating directly over a DataFrame like this loops over its column names (strings like "event_id", "fish_id", etc.), not its rows! You need .itertuples() to loop over actual rows
     center_frame = (row.framenumber_start + row.framenumber_end) / 2
@@ -120,6 +120,7 @@ logger.info(f'first window shape: {all_windows[0].shape}')
 logger.info(f'first window label: {all_windows[0]["label"].iloc[0]}, event_id: {all_windows[0]["event_id"].iloc[0]}')
 
 # STEP 7: BUILD NEGATIVE WINDOWS
+banner("STEP 6: BUILD NEGATIVE WINDOWS")
 banner_sub("build candidate negative windows (non-overlapping, sand segment, random fish_id)") # : cheaply collect every possible candidate center point across all fish , just numbers, (fish_id, center_frame) pairs, no actual data slicing yet, so it's fast even if there are hundreds of candidates.
 fish_ids = sorted(tracks["fish_id"].unique()) # [1, 2, 3, 4]
 candidate_windows= []
@@ -147,6 +148,33 @@ for fish_id, center_frame in sampled_negatives:
     next_negative_event += 1
     all_windows.append(window)
 
-logger.info(f'in total {len(windows)} negative windows built')
-logger.info(f'total labels positive and negative is  {len(all_windows)}')
+logger.info(f'total labels positive and negative is {len(all_windows)}')
+
+banner("STEP 7: SUMMARIZE WINDOWS INTO ONE DATAFRAME")
+summary_rows = []
+for window in all_windows: # for each loop we exract data from each window and convert it into a dictionary , with some data like speed summarized for this window as for example average.
+    summary_rows.append({
+        "event_id": window["event_id"].iloc[0],
+        "label": window["label"].iloc[0],
+        "fish_id": window["fish_id"].iloc[0],
+        "mean_speed_cm_s": window["speed_cm_s"].mean(),
+        "max_speed_cm_s": window["speed_cm_s"].max(),
+        "mean_burst": window["burst"].mean(),
+        "max_burst": window["burst"].max(),
+    })
+window_df = pd.DataFrame(summary_rows) # converting the list of dictionary into a proper dataframe
+logger.info(f"the shape of the window_df is {window_df.shape}")
+logger.info(f"the total number of positive labeled rows is {(window_df['label']==1).sum()} and the total number of negative rows is {(window_df['label']==0).sum()}")
+logger.info(window_df.head().to_string())
+
+banner("STEP 8 TRAIN/TEST SPLIT")
+train_df, test_df = train_test_split(
+    window_df,
+    test_size=0.2,
+    stratify=window_df["label"], # windows_df is roughly 50/50 positive/negative (118/118), stratify=window_df["label"] guarantees both train_df and test_df each end up close to that same 50/50 ratio too
+    random_state=RANDOM_SEED 
+)
+
+logger.info(f"train_df: {train_df.shape[0]} windows of which {(train_df['label']==1).sum()} positive and {(train_df['label']==0).sum()} negative")
+logger.info(f"test_df: {test_df.shape[0]} windows of which {(test_df['label']==1).sum()} positive and {(test_df['label']==0).sum()} negative")
 
