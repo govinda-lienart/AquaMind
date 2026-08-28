@@ -190,9 +190,7 @@ logger.info(f"test_df: {test_df.shape[0]} windows of which {(test_df['label']==1
 
 
 # STEP 9: SAVE TRAIN/TEST ON DISK
-output_folder = os.path.dirname(parquet_path)
-feeding_train_test_path = os.path.join(output_folder, "feeding_train_test")
-os.makedirs(feeding_train_test_path, exist_ok=True)
+g
 
 train_parquet_path = os.path.join(feeding_train_test_path, "train_df.parquet")
 test_parquet_path = os.path.join(feeding_train_test_path, "test_df.parquet")
