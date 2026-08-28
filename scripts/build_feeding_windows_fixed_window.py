@@ -1,3 +1,13 @@
+"""
+usage: python -m scripts.build_feeding_windows_fixed_window
+
+- Loads 118 manually-labeled feeding strikes from feeding_labels.xlsx
+- Builds matched fixed-size (45-frame) negative windows from the sand-injection segment
+- Summarizes both into one windows_df (speed/burst stats per window). 
+- Splits into train/test (stratified by label) 
+- Saves both as parquet files in feeding_train_test/.
+"""
+
 # IMPORTS
 
 import pandas as pd
@@ -192,3 +202,9 @@ test_df.to_parquet(test_parquet_path)
 
 logger.info(f'saved train_df -> {train_parquet_path}')
 logger.info(f'saved test_df -> {test_parquet_path}')
+
+
+
+
+
+
