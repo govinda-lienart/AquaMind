@@ -55,7 +55,6 @@ logger.info(f'\n data frame contains {pos_labels.shape[0]} valid labeled rows of
 #  STEP 2 LOAD TRACKER OUTPUT
 banner("STEP 2: LOAD TRACKER OUPUT")
 parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_px, frame_number_end = grab_video_name(VIDEO_RUN_NAME )
-output_folder = os.path.dirname(parquet_path)
 tracks = pd.read_parquet(parquet_path)
 tracks = tracks[tracks['timestamp'] >= calibration_secs]
 
@@ -150,6 +149,7 @@ for fish_id, center_frame in sampled_negatives:
 
 logger.info(f'total labels positive and negative is {len(all_windows)}')
 
+# STEP 7:SUMMARIZE WINDOWS INTO ONE DATAFRAME
 banner("STEP 7: SUMMARIZE WINDOWS INTO ONE DATAFRAME")
 summary_rows = []
 for window in all_windows: # for each loop we exract data from each window and convert it into a dictionary , with some data like speed summarized for this window as for example average.
@@ -167,6 +167,7 @@ logger.info(f"the shape of the window_df is {window_df.shape}")
 logger.info(f"the total number of positive labeled rows is {(window_df['label']==1).sum()} and the total number of negative rows is {(window_df['label']==0).sum()}")
 logger.info(window_df.head().to_string())
 
+# STEP 8:STEP 8 TRAIN/TEST SPLIT
 banner("STEP 8 TRAIN/TEST SPLIT")
 train_df, test_df = train_test_split(
     window_df,
@@ -178,3 +179,17 @@ train_df, test_df = train_test_split(
 logger.info(f"train_df: {train_df.shape[0]} windows of which {(train_df['label']==1).sum()} positive and {(train_df['label']==0).sum()} negative")
 logger.info(f"test_df: {test_df.shape[0]} windows of which {(test_df['label']==1).sum()} positive and {(test_df['label']==0).sum()} negative")
 
+
+# STEP 9: SAVE TRAIN/TEST ON DISK
+output_folder = os.path.dirname(parquet_path)
+feeding_train_test_path = os.path.join(output_folder, "feeding_train_test")
+os.makedirs(feeding_train_test_path, exist_ok=True)
+
+train_parquet_path = os.path.join(feeding_train_test_path, "train_df.parquet")
+test_parquet_path = os.path.join(feeding_train_test_path, "test_df.parquet")
+
+train_df.to_parquet(train_parquet_path)
+test_df.to_parquet(test_parquet_path)
+
+logger.info(f'saved train_df -> {train_parquet_path}')
+logger.info(f'saved test_df -> {test_parquet_path}')
