@@ -31,7 +31,6 @@ banner("STEP 1: loading xls file and cleaning dataframe positive labels")
 pos_labels = pd.read_excel(LINK_POS_LABELS)
 logger.info(pos_labels.head().to_string())
 
-
     # drop the junk Unnamed columns
 banner_sub("drop the junk Unnamed columns") 
 pos_labels = pos_labels.drop(columns=["Unnamed: 5","Unnamed: 6"])
