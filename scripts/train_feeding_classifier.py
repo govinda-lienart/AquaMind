@@ -1,4 +1,12 @@
-"usage: "
+"""
+- Trains classifiers: LogisticRegression, RandomForest, XGBoost
+- Uses windows built by build_feeding_windows_fixed_window.py
+- Saves a confusion matrix + feature-importance plot per model
+
+usage:
+    conda activate aquamind
+    python -m scripts.train_feeding_classifier
+"""
 
 # IMPORTS
 
@@ -10,10 +18,10 @@ from scripts.video_utils import grab_video_name, trim_to_calibration
 from scripts.console import banner, banner_sub
 import matplotlib.pyplot as plt
 
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
 
 from datetime import datetime
 
@@ -23,162 +31,95 @@ logger = logging.getLogger(__name__)
 
 # CONSTANTS
 VIDEO_RUN_NAME = 'IMG_2349_appearance_2026_08_12_1926'
+FEATURE_COLS = ["mean_speed_cm_s", "max_speed_cm_s", "mean_burst", "max_burst"]
+CLASS_NAMES = ["not_feeding", "feeding"]
+
+# HELPERS
+
+def evaluate_model(model, model_name, X_train, y_train, X_test, y_test, output_folder):
+    # creates confusion matrix
+    y_pred = model.predict(X_test)
+    train_pred = model.predict(X_train)
+
+    logger.info(f'\n{classification_report(y_test, y_pred, target_names=CLASS_NAMES)}')
+    logger.info(
+        f'train accuracy: {(train_pred == y_train).mean():.2f}, '
+        f'test accuracy: {(y_pred == y_test).mean():.2f}'
+    )
+
+    cm = confusion_matrix(y_test, y_pred)
+    fig, ax = plt.subplots(figsize=(5, 5))
+    ConfusionMatrixDisplay(cm, display_labels=CLASS_NAMES).plot(ax=ax)
+    ax.set_title(model_name)
+    cm_path = os.path.join(output_folder, f"{model_name}_confusion_matrix.png")
+    fig.savefig(cm_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    logger.info(f'saved confusion matrix -> {cm_path}')
+
+    return y_pred
+
+def plot_importance(values, model_name, xlabel, output_folder, draw_zero_line=False):
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.barh(FEATURE_COLS, values)
+    ax.set_xlabel(xlabel)
+    if draw_zero_line:
+        ax.axvline(0, color="black", linewidth=0.8)
+    importance_path = os.path.join(output_folder, f"{model_name}_feature_importance.png")
+    fig.savefig(importance_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    logger.info(f'saved feature importance -> {importance_path}')
 
 # MAIN
 
 # Step 1 — Load train_df/test_df
 banner("Step 1 — Load train_df/test_df")
-parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_px, frame_number_end = grab_video_name(VIDEO_RUN_NAME )
+parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_px, frame_number_end = grab_video_name(VIDEO_RUN_NAME)
 output_folder = os.path.dirname(parquet_path)
 feeding_train_test_path = os.path.join(output_folder, "feeding_train_test")
-train_parquet_path = os.path.join(feeding_train_test_path, "train_df.parquet")
-test_parquet_path = os.path.join(feeding_train_test_path, "test_df.parquet")
-train_df = pd.read_parquet(train_parquet_path)
-test_df = pd.read_parquet(test_parquet_path)
+train_df = pd.read_parquet(os.path.join(feeding_train_test_path, "train_df.parquet"))
+test_df = pd.read_parquet(os.path.join(feeding_train_test_path, "test_df.parquet"))
 logger.info(f'train_df: {train_df.shape}, test_df: {test_df.shape}')
 
 # Step 2 — split into X (features) / y (label)
 banner("Step 2 — split into X (features) / y (label)")
-FEATURE_COLS = ["mean_speed_cm_s", "max_speed_cm_s", "mean_burst", "max_burst"]
-
 X_train = train_df[FEATURE_COLS]
 y_train = train_df["label"]
 X_test = test_df[FEATURE_COLS]
 y_test = test_df["label"]
-logger.info(f"Xtrain: {X_train.shape[0]},y_train: {y_train.shape[0]}")
-logger.info(f"Xtest: {X_test.shape[0]},y_test: {y_test.shape[0]}")
+logger.info(f"X_train: {X_train.shape}, y_train: {y_train.shape}")
+logger.info(f"X_test: {X_test.shape}, y_test: {y_test.shape}")
 
-# STEP 3— LOGISTIC REGRESSION
-banner("STEP 3 - LogisticRegression")
-
-    # set up a dedicated, timestamped output folder for this script's plots
+# dedicated, timestamped output folder for this run's plots
 stamp = datetime.now().strftime('%Y_%m_%d_%H%M')
 classifier_output_folder = os.path.join(feeding_train_test_path, "output_train_feeding_classifier", stamp)
 os.makedirs(classifier_output_folder, exist_ok=True)
 
-    # training
-model_name = "logistic_regression"
-logreg_model = LogisticRegression()
+# Step 3 — MODEL A: LogisticRegression (one linear boundary)
+banner("Step 3 — LogisticRegression")
+logreg_model = LogisticRegression().fit(X_train, y_train)
+evaluate_model(logreg_model, "logistic_regression", X_train, y_train, X_test, y_test, classifier_output_folder)
+plot_importance(
+    logreg_model.coef_[0], "logistic_regression",
+    "coefficient (pushes toward feeding if positive, not_feeding if negative)",
+    classifier_output_folder, draw_zero_line=True,
+)
 
-    # training step - learn from data - uses y_train (labels) directly to adjust the model's internal weights
-logreg_model.fit(X_train, y_train)
-logger.info('model trained')
+# Step 4 — MODEL B: RandomForest (100 parallel trees, majority vote)
+banner("Step 4 — RandomForest")
+rf_model = RandomForestClassifier(random_state=42).fit(X_train, y_train)
+evaluate_model(rf_model, "random_forest", X_train, y_train, X_test, y_test, classifier_output_folder)
+plot_importance(
+    rf_model.feature_importances_, "random_forest",
+    "feature importance (higher = model relies on it more)",
+    classifier_output_folder,
+)
 
-    # testing generalization - asking the trained model to guess the label for data it has never seen before
-y_pred = logreg_model.predict(X_test)
-
-    # predicting on the same rows it was trained on, to compare against y_pred and catch overfitting
-train_pred = logreg_model.predict(X_train)
-logger.info(f'\n{classification_report(y_test, y_pred, target_names=["not_feeding", "feeding"])}')
-            # Precision: out of every window the model predicted as feeding, what fraction actually were.
-            # Recall: out of every window that was actually feeding, what fraction the model caught.
-
-logger.info(f'train accuracy: {(train_pred == y_train).mean():.2f}, test accuracy: {(y_pred == y_test).mean():.2f}') #train accuracy: 0.57, test accuracy: 0.62 # overfitting definitely isn't happening — if the model were memorizing training data, train accuracy would be inflated above test, not below it.
-
-    # confusion matrix
-cm = confusion_matrix(y_test, y_pred) # Compares your real test labels (y_test) against the model's predictions (y_pre
-fig, ax = plt.subplots(figsize=(5, 5)) # fig is the whole image/canvas, ax is the actual plotting area #  5×5 inch square - good for gridss
-ConfusionMatrixDisplay(cm, display_labels=["not_feeding", "feeding"]).plot(ax=ax) 
-                                       # Takes the raw cm numbers and actually draws them as a colored grid 
-                                       # Display_labels tells it what to write as the row/column labels 
-                                       # .plot(ax=ax) draws it onto the ax
-ax.set_title(model_name)
-cm_path = os.path.join(classifier_output_folder, f"{model_name}_confusion_matrix.png")
-fig.savefig(cm_path, dpi=150, bbox_inches="tight") # dpi=150 controls resolution/sharpness (higher = crisper but bigger file). bbox_inches="tight" trims excess white space around the plot 
-plt.close(fig)
-logger.info(f'saved confusion matrix -> {cm_path}')
-
-    # feature importance plot / coefficient plot 
-fig, ax = plt.subplots(figsize=(6, 4))
-ax.barh(FEATURE_COLS, logreg_model.coef_[0])
-            #barh() draws a horizontal bar chart (bars extending left-right, not up-down) 
-            # — FEATURE_COLS (your list of 4 feature names) becomes the labels on the y-axis, one per bar
-            # and logreg_model.coef_[0] provides each bar's length/value. .coef_ is where sklearn stores the model's learned weights after training — it's technically a 2D array (shape (1, 4) here, since this is binary classification), so [0] grabs the single row of 4 actual coefficient numbers out of it.
-ax.set_xlabel("coefficient (pushes toward feeding if positive, not_feeding if negative)") # Labels the x-axis 
-ax.axvline(0, color="black", linewidth=0.8) # # Draws a vertical black line at x=0 
-importance_path = os.path.join(classifier_output_folder, f"{model_name}_feature_importance.png")
-fig.savefig(importance_path, dpi=150, bbox_inches="tight")
-plt.close(fig)
-logger.info(f'saved feature importance -> {importance_path}')
-
-# STEP 4 — RANDOM FOREST
-banner("STEP 4 — RANDOM FOREST")
-model_name = 'random_forest'
-rf_model = RandomForestClassifier(random_state=42)
-rf_model.fit(X_train, y_train)
-logger.info('model trained')
-
-y_pred = rf_model.predict(X_test)
-train_pred = rf_model.predict(X_train)
-logger.info(f'\n{classification_report(y_test, y_pred, target_names=["not_feeding", "feeding"])}')
-    # y_test — what the answers should be (truth)
-    # y_pred — what the model said (guesses)
-"""
-    window   y_test   y_pred   match?
-  1        1        1       ✓
-  2        0        1       ✗  (model over-predicted feeding)
-  3        1        0       ✗  (model missed a real strike)
-  4        0        0       ✓
-"""
-
-# precision = "when the model says X, how often is it right?" → denominator is the model's predictions
-# recall = "of all the real X, how many did the model find?" → denominator is the truth
-logger.info(f'train accuracy: {(train_pred == y_train).mean():.2f}, test accuracy: {(y_pred == y_test).mean():.2f}')
-
-  # confusion matrix RANDOM FOREST
-cm = confusion_matrix(y_test, y_pred) # Compares your real test labels (y_test) against the model's predictions (y_pre
-fig, ax = plt.subplots(figsize=(5, 5)) # fig is the whole image/canvas, ax is the actual plotting area #  5×5 inch square - good for gridss
-ConfusionMatrixDisplay(cm, display_labels=["not_feeding", "feeding"]).plot(ax=ax) 
-                                       # Takes the raw cm numbers and actually draws them as a colored grid 
-                                       # Display_labels tells it what to write as the row/column labels 
-                                       # .plot(ax=ax) draws it onto the ax
-ax.set_title(model_name)
-cm_path = os.path.join(classifier_output_folder, f"{model_name}_confusion_matrix.png")
-fig.savefig(cm_path, dpi=150, bbox_inches="tight") # dpi=150 controls resolution/sharpness (higher = crisper but bigger file). bbox_inches="tight" trims excess white space around the plot 
-plt.close(fig)
-logger.info(f'saved confusion matrix -> {cm_path}')
-
-    # feature importance plot  RANDOM FOREST
-fig, ax = plt.subplots(figsize=(6, 4))
-ax.barh(FEATURE_COLS, rf_model.feature_importances_)
-ax.set_xlabel("feature importance (higher = model relies on it more)")
-importance_path = os.path.join(classifier_output_folder, f"{model_name}_feature_importance.png")
-fig.savefig(importance_path, dpi=150, bbox_inches="tight")
-plt.close(fig)
-logger.info(f'saved feature importance -> {importance_path}')
-
-# STEP 5 — XGBOOST
-banner("STEP 5 — XGBOOST")
-model_name = 'xgboost'
-xgb_model = XGBClassifier(random_state=42)
-xgb_model.fit(X_train, y_train)
-logger.info('model trained')
-
-y_pred = xgb_model.predict(X_test)
-train_pred = xgb_model.predict(X_train)
-logger.info(f'\n{classification_report(y_test, y_pred, target_names=["not_feeding", "feeding"])}')
-logger.info(f'train accuracy: {(train_pred == y_train).mean():.2f}, test accuracy: {(y_pred == y_test).mean():.2f}')
-
-  # confusion matrix xgboost
-cm = confusion_matrix(y_test, y_pred) # Compares your real test labels (y_test) against the model's predictions (y_pre
-fig, ax = plt.subplots(figsize=(5, 5)) # fig is the whole image/canvas, ax is the actual plotting area #  5×5 inch square - good for gridss
-ConfusionMatrixDisplay(cm, display_labels=["not_feeding", "feeding"]).plot(ax=ax) 
-                                       # Takes the raw cm numbers and actually draws them as a colored grid 
-                                       # Display_labels tells it what to write as the row/column labels 
-                                       # .plot(ax=ax) draws it onto the ax
-ax.set_title(model_name)
-cm_path = os.path.join(classifier_output_folder, f"{model_name}_confusion_matrix.png")
-fig.savefig(cm_path, dpi=150, bbox_inches="tight") # dpi=150 controls resolution/sharpness (higher = crisper but bigger file). bbox_inches="tight" trims excess white space around the plot 
-plt.close(fig)
-logger.info(f'saved confusion matrix -> {cm_path}')
-
- # feature importance plot XGBOOST
-fig, ax = plt.subplots(figsize=(6, 4))
-ax.barh(FEATURE_COLS, xgb_model.feature_importances_)
-ax.set_xlabel("feature importance (higher = model relies on it more)")
-importance_path = os.path.join(classifier_output_folder, f"{model_name}_feature_importance.png")
-fig.savefig(importance_path, dpi=150, bbox_inches="tight")
-plt.close(fig)
-logger.info(f'saved feature importance -> {importance_path}')
-
-
+# Step 5 — MODEL C: XGBoost (sequential boosted trees, each fixes the last one's errors)
+banner("Step 5 — XGBoost")
+xgb_model = XGBClassifier(random_state=42).fit(X_train, y_train)
+evaluate_model(xgb_model, "xgboost", X_train, y_train, X_test, y_test, classifier_output_folder)
+plot_importance(
+    xgb_model.feature_importances_, "xgboost",
+    "feature importance (higher = model relies on it more)",
+    classifier_output_folder,
+)
