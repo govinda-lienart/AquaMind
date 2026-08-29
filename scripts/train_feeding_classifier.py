@@ -5,12 +5,18 @@
 import pandas as pd
 import numpy as np
 import os
+
 from scripts.video_utils import grab_video_name, trim_to_calibration
 from scripts.console import banner, banner_sub
 import matplotlib.pyplot as plt
+
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
+from xgboost import XGBClassifier
+
 from datetime import datetime
+
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -94,3 +100,85 @@ importance_path = os.path.join(classifier_output_folder, f"{model_name}_feature_
 fig.savefig(importance_path, dpi=150, bbox_inches="tight")
 plt.close(fig)
 logger.info(f'saved feature importance -> {importance_path}')
+
+# STEP 4 — RANDOM FOREST
+banner("STEP 4 — RANDOM FOREST")
+model_name = 'random_forest'
+rf_model = RandomForestClassifier(random_state=42)
+rf_model.fit(X_train, y_train)
+logger.info('model trained')
+
+y_pred = rf_model.predict(X_test)
+train_pred = rf_model.predict(X_train)
+logger.info(f'\n{classification_report(y_test, y_pred, target_names=["not_feeding", "feeding"])}')
+    # y_test — what the answers should be (truth)
+    # y_pred — what the model said (guesses)
+"""
+    window   y_test   y_pred   match?
+  1        1        1       ✓
+  2        0        1       ✗  (model over-predicted feeding)
+  3        1        0       ✗  (model missed a real strike)
+  4        0        0       ✓
+"""
+
+# precision = "when the model says X, how often is it right?" → denominator is the model's predictions
+# recall = "of all the real X, how many did the model find?" → denominator is the truth
+logger.info(f'train accuracy: {(train_pred == y_train).mean():.2f}, test accuracy: {(y_pred == y_test).mean():.2f}')
+
+  # confusion matrix RANDOM FOREST
+cm = confusion_matrix(y_test, y_pred) # Compares your real test labels (y_test) against the model's predictions (y_pre
+fig, ax = plt.subplots(figsize=(5, 5)) # fig is the whole image/canvas, ax is the actual plotting area #  5×5 inch square - good for gridss
+ConfusionMatrixDisplay(cm, display_labels=["not_feeding", "feeding"]).plot(ax=ax) 
+                                       # Takes the raw cm numbers and actually draws them as a colored grid 
+                                       # Display_labels tells it what to write as the row/column labels 
+                                       # .plot(ax=ax) draws it onto the ax
+ax.set_title(model_name)
+cm_path = os.path.join(classifier_output_folder, f"{model_name}_confusion_matrix.png")
+fig.savefig(cm_path, dpi=150, bbox_inches="tight") # dpi=150 controls resolution/sharpness (higher = crisper but bigger file). bbox_inches="tight" trims excess white space around the plot 
+plt.close(fig)
+logger.info(f'saved confusion matrix -> {cm_path}')
+
+    # feature importance plot  RANDOM FOREST
+fig, ax = plt.subplots(figsize=(6, 4))
+ax.barh(FEATURE_COLS, rf_model.feature_importances_)
+ax.set_xlabel("feature importance (higher = model relies on it more)")
+importance_path = os.path.join(classifier_output_folder, f"{model_name}_feature_importance.png")
+fig.savefig(importance_path, dpi=150, bbox_inches="tight")
+plt.close(fig)
+logger.info(f'saved feature importance -> {importance_path}')
+
+# STEP 5 — XGBOOST
+banner("STEP 5 — XGBOOST")
+model_name = 'xgboost'
+xgb_model = XGBClassifier(random_state=42)
+xgb_model.fit(X_train, y_train)
+logger.info('model trained')
+
+y_pred = xgb_model.predict(X_test)
+train_pred = xgb_model.predict(X_train)
+logger.info(f'\n{classification_report(y_test, y_pred, target_names=["not_feeding", "feeding"])}')
+logger.info(f'train accuracy: {(train_pred == y_train).mean():.2f}, test accuracy: {(y_pred == y_test).mean():.2f}')
+
+  # confusion matrix xgboost
+cm = confusion_matrix(y_test, y_pred) # Compares your real test labels (y_test) against the model's predictions (y_pre
+fig, ax = plt.subplots(figsize=(5, 5)) # fig is the whole image/canvas, ax is the actual plotting area #  5×5 inch square - good for gridss
+ConfusionMatrixDisplay(cm, display_labels=["not_feeding", "feeding"]).plot(ax=ax) 
+                                       # Takes the raw cm numbers and actually draws them as a colored grid 
+                                       # Display_labels tells it what to write as the row/column labels 
+                                       # .plot(ax=ax) draws it onto the ax
+ax.set_title(model_name)
+cm_path = os.path.join(classifier_output_folder, f"{model_name}_confusion_matrix.png")
+fig.savefig(cm_path, dpi=150, bbox_inches="tight") # dpi=150 controls resolution/sharpness (higher = crisper but bigger file). bbox_inches="tight" trims excess white space around the plot 
+plt.close(fig)
+logger.info(f'saved confusion matrix -> {cm_path}')
+
+ # feature importance plot XGBOOST
+fig, ax = plt.subplots(figsize=(6, 4))
+ax.barh(FEATURE_COLS, xgb_model.feature_importances_)
+ax.set_xlabel("feature importance (higher = model relies on it more)")
+importance_path = os.path.join(classifier_output_folder, f"{model_name}_feature_importance.png")
+fig.savefig(importance_path, dpi=150, bbox_inches="tight")
+plt.close(fig)
+logger.info(f'saved feature importance -> {importance_path}')
+
+
