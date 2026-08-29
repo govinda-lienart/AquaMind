@@ -170,9 +170,22 @@ for window in all_windows: # for each loop we exract data from each window and c
         "max_speed_cm_s": window["speed_cm_s"].max(),
         "mean_burst": window["burst"].mean(),
         "max_burst": window["burst"].max(),
+        "window_frame_start": window["frame_number"].min(),
+        "window_frame_end":   window["frame_number"].max(),
+        "occluded_frame_count": window["occluded"].sum(),   # frames where the tracker flagged the fish occluded
+        "window_row_count": window.shape[0],                # < WINDOW_SIZE_FRAMES => fish had no tracked row at all for some frame
     })
 window_df = pd.DataFrame(summary_rows) # converting the list of dictionary into a proper dataframe
 logger.info(f"the shape of the window_df is {window_df.shape}")
+
+# drop windows with any occlusion or missing frame - the CNN+LSTM pipeline needs a complete 45-frame
+# crop sequence per window, and train_df/test_df must be the single source of truth for which windows
+# are valid (so the geometry baseline and the CNN pipeline compare on the exact same window set)
+window_df["has_gap"] = (window_df["occluded_frame_count"] > 0) | (window_df["window_row_count"] < WINDOW_SIZE_FRAMES)
+before = len(window_df)
+window_df = window_df[~window_df["has_gap"]].drop(columns="has_gap").copy()
+logger.info(f"dropped {before - len(window_df)} windows with occlusion/gaps, {len(window_df)} remain "
+            f"({(window_df['label']==1).sum()} positive, {(window_df['label']==0).sum()} negative)")
 logger.info(f"the total number of positive labeled rows is {(window_df['label']==1).sum()} and the total number of negative rows is {(window_df['label']==0).sum()}")
 logger.info(window_df.head().to_string())
 
@@ -190,7 +203,9 @@ logger.info(f"test_df: {test_df.shape[0]} windows of which {(test_df['label']==1
 
 
 # STEP 9: SAVE TRAIN/TEST ON DISK
-g
+run_dir = os.path.dirname(parquet_path)
+feeding_train_test_path = os.path.join(run_dir, "feeding_train_test")
+os.makedirs(feeding_train_test_path, exist_ok=True)
 
 train_parquet_path = os.path.join(feeding_train_test_path, "train_df.parquet")
 test_parquet_path = os.path.join(feeding_train_test_path, "test_df.parquet")
