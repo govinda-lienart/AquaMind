@@ -45,23 +45,23 @@ logger.info(f"Xtest: {X_test.shape[0]},y_test: {y_test.shape[0]}")
 # STEP 3— LOGISTIC REGRESSION
 banner("STEP 3 - LogisticRegression")
 
-# set up a dedicated, timestamped output folder for this script's plots
+    # set up a dedicated, timestamped output folder for this script's plots
 stamp = datetime.now().strftime('%Y_%m_%d_%H%M')
 classifier_output_folder = os.path.join(feeding_train_test_path, "output_train_feeding_classifier", stamp)
 os.makedirs(classifier_output_folder, exist_ok=True)
 
-# training
+    # training
 model_name = "logistic_regression"
 logreg_model = LogisticRegression()
 
-# training step - learn from data - uses y_train (labels) directly to adjust the model's internal weights
+    # training step - learn from data - uses y_train (labels) directly to adjust the model's internal weights
 logreg_model.fit(X_train, y_train)
 logger.info('model trained')
 
-# testing generalization - asking the trained model to guess the label for data it has never seen before
+    # testing generalization - asking the trained model to guess the label for data it has never seen before
 y_pred = logreg_model.predict(X_test)
 
-# predicting on the same rows it was trained on, to compare against y_pred and catch overfitting
+    # predicting on the same rows it was trained on, to compare against y_pred and catch overfitting
 train_pred = logreg_model.predict(X_train)
 logger.info(f'\n{classification_report(y_test, y_pred, target_names=["not_feeding", "feeding"])}')
             # Precision: out of every window the model predicted as feeding, what fraction actually were.
@@ -69,7 +69,7 @@ logger.info(f'\n{classification_report(y_test, y_pred, target_names=["not_feedin
 
 logger.info(f'train accuracy: {(train_pred == y_train).mean():.2f}, test accuracy: {(y_pred == y_test).mean():.2f}') #train accuracy: 0.57, test accuracy: 0.62 # overfitting definitely isn't happening — if the model were memorizing training data, train accuracy would be inflated above test, not below it.
 
-# confusion matrix
+    # confusion matrix
 cm = confusion_matrix(y_test, y_pred) # Compares your real test labels (y_test) against the model's predictions (y_pre
 fig, ax = plt.subplots(figsize=(5, 5)) # fig is the whole image/canvas, ax is the actual plotting area #  5×5 inch square - good for gridss
 ConfusionMatrixDisplay(cm, display_labels=["not_feeding", "feeding"]).plot(ax=ax) 
@@ -82,12 +82,14 @@ fig.savefig(cm_path, dpi=150, bbox_inches="tight") # dpi=150 controls resolution
 plt.close(fig)
 logger.info(f'saved confusion matrix -> {cm_path}')
 
-# feature importance plot / coefficient plot 
+    # feature importance plot / coefficient plot 
 fig, ax = plt.subplots(figsize=(6, 4))
 ax.barh(FEATURE_COLS, logreg_model.coef_[0])
-ax.set_xlabel("coefficient (pushes toward feeding if positive, not_feeding if negative)")
-ax.axvline(0, color="black", linewidth=0.8)
-ax.set_title(model_name)
+            #barh() draws a horizontal bar chart (bars extending left-right, not up-down) 
+            # — FEATURE_COLS (your list of 4 feature names) becomes the labels on the y-axis, one per bar
+            # and logreg_model.coef_[0] provides each bar's length/value. .coef_ is where sklearn stores the model's learned weights after training — it's technically a 2D array (shape (1, 4) here, since this is binary classification), so [0] grabs the single row of 4 actual coefficient numbers out of it.
+ax.set_xlabel("coefficient (pushes toward feeding if positive, not_feeding if negative)") # Labels the x-axis 
+ax.axvline(0, color="black", linewidth=0.8) # # Draws a vertical black line at x=0 
 importance_path = os.path.join(classifier_output_folder, f"{model_name}_feature_importance.png")
 fig.savefig(importance_path, dpi=150, bbox_inches="tight")
 plt.close(fig)
