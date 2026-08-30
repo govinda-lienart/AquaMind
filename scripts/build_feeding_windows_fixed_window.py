@@ -181,7 +181,8 @@ logger.info(f"the shape of the window_df is {window_df.shape}")
 # drop windows with any occlusion or missing frame - the CNN+LSTM pipeline needs a complete 45-frame
 # crop sequence per window, and train_df/test_df must be the single source of truth for which windows
 # are valid (so the geometry baseline and the CNN pipeline compare on the exact same window set)
-window_df["has_gap"] = (window_df["occluded_frame_count"] > 0) | (window_df["window_row_count"] < WINDOW_SIZE_FRAMES)
+window_df["has_gap"] = (window_df["occluded_frame_count"] > 0) | (window_df["window_row_count"] < WINDOW_SIZE_FRAMES) # | = element-wise OR
+
 before = len(window_df)
 window_df = window_df[~window_df["has_gap"]].drop(columns="has_gap").copy()
 logger.info(f"dropped {before - len(window_df)} windows with occlusion/gaps, {len(window_df)} remain "
