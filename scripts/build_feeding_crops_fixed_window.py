@@ -1,5 +1,12 @@
 """
-- Turns each gap-free window into an ordered sequence of 45 crop-image paths.
+build_feeding_crops_fixed_window.py — Stage 7 Part 2, Phase C.
+
+- Loads the gap-free window parquets (train_df / test_df)
+- Explodes each window row into 45 per-frame rows, each carrying the path to that frame's crop
+  (tracker.py already saved the crop images; this only builds the manifest)
+- Saves the per-frame manifest (train_crops.parquet / test_crops.parquet) so the embeddings step
+  can load each crop and regroup sequences by event_id
+
 usage: python -m scripts.build_feeding_crops_fixed_window
 """
 import os
@@ -24,9 +31,9 @@ test_df = pd.read_parquet(test_df_path)
 banner_sub("train_df") 
 logger.info(train_df.head().to_string())
 
-# STEP 2 — the 45 ordered crop paths for one window
+banner("STEP 2 — the 45 ordered crop paths for one window")
 
-# STEP 2a — take one window (example first row), read its fish_id + frame range 
+banner_sub("STEP 2a — take one window (example first row), read its fish_id + frame range")
 sample = train_df.iloc[0]    # pull out first row of the dataframe
 banner_sub("first row") 
 logger.info(sample.to_string())
@@ -35,7 +42,7 @@ window_frame_start = int(sample["window_frame_start"])
 window_frame_end = int(sample["window_frame_end"])
 logger.info(f"\nfish_id: {fish_id}, window_frame_start: {window_frame_start}, window_frame_end: {window_frame_end}")
 
-# STEP 2b — build the list of 45 file crop paths for the selected window 
+banner_sub("STEP 2b — build the list of 45 file crop paths for the selected window")
 crops_path = os.path.join(output_folder, 'crops')
 fish_dir = os.path.join(crops_path, f"fish_{fish_id}")
 
@@ -50,7 +57,7 @@ logger.info(f"first: {crop_list_paths[0]}")
 logger.info(f"last:  {crop_list_paths[-1]}")
 logger.info(f"first exists: {os.path.exists(crop_list_paths[0])}")
 
-#STEP 2c — wrap it into a function - list of 45 file crop paths for the selected window 
+banner_sub("STEP 2c — wrap it into a function - list of 45 file crop paths for the selected window")
 def crop_paths_for_window(fish_id, window_frame_start, window_frame_end):
     fish_id = int(fish_id) # in parquet is strored as a float
     crops_path = os.path.join(output_folder, 'crops')
@@ -63,8 +70,9 @@ def crop_paths_for_window(fish_id, window_frame_start, window_frame_end):
     return crop_list_paths 
 
  
-# STEP 3 a turns the window table into a frame table (45 frames)
+banner("STEP 3 — explode the window table into a frame table (45 frames per window)")
 
+banner_sub("STEP 3a — FLAT version (learning reference): train_df only")
 rows = []
 missing = []
 
@@ -88,7 +96,7 @@ train_crops = pd.DataFrame(rows)
 logger.info(f"train: {len(train_crops)} rows from {len(train_df)} windows, {len(missing)} missing")
 logger.info(f"\n{train_crops.head().to_string()}")
 
-# STEP 3 b wrapping it into a function (because above only runs on train but we want train_df and test_df as arugments)
+banner_sub("STEP 3b — wrapped into a function (runs on both train_df and test_df)")
 
 def build_crop_sequences(windows_df, split_name):
 
@@ -114,3 +122,21 @@ def build_crop_sequences(windows_df, split_name):
     crops_df = pd.DataFrame(rows)
     logger.info(f"{split_name}: {len(crops_df)} rows from {len(windows_df)} windows, {len(missing)} missing")
     return crops_df
+
+banner("STEP 3b — build crop sequences for train and test")
+train_crops = build_crop_sequences(train_df, "train")
+test_crops  = build_crop_sequences(test_df, "test")
+
+banner("STEP 4 — save crop-sequence manifests")
+
+crop_sequences = os.path.join(feeding_train_test_path, 'crop_sequences')
+os.makedirs(crop_sequences,  exist_ok=True)
+train_crops_path = os.path.join(crop_sequences, 'train_crops.parquet')
+test_crops_path = os.path.join(crop_sequences, 'test_crops.parquet')
+train_crops.to_parquet(train_crops_path, index=False)
+test_crops.to_parquet(test_crops_path, index=False)
+
+logger.info(f"saved -> {train_crops_path}")
+logger.info(f"saved -> {test_crops_path}")
+
+
