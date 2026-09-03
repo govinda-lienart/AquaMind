@@ -35,26 +35,21 @@ logger.info(train_crops.head().to_string())
 banner(f"STEP 2 — load frozen backbone ({BACKBONE_NAME} on {DEVICE})")
 backbone = load_backbone(BACKBONE_NAME, device = DEVICE)
 
-# STEP 3 — embeding one window as test load its 45 crops in frame order, run through backbone as one batch
+# STEP 3 a — flat - embeding one window as test load its 45 crops in frame order, run through backbone as one batch
 banner("STEP 3 — embed one window (flat version)")
-
 sample_event = train_crops["event_id"].iloc[0]
 window_rows = train_crops[train_crops["event_id"] == sample_event]
 window_rows = window_rows.sort_values("frame_position") 
 crop_paths = window_rows["crop_path"].to_list() # throw away the pandas wrapper - converts it into a list
-images = [transform(Image.open(p).convert("RGB")) for p in crop_paths]
-            # comprehension list - creates a list of tensors (transform) - and forced it to split into RGB channels = (3, 244, 244)
+images = [transform(Image.open(p).convert("RGB")) for p in crop_paths]            # [] collects into a list -  list of tensors (transform) - and forced it to split into RGB channels = (3, 244, 244)
+logger.info(f"images: {len(images)} x {tuple(images[0].shape)}") # tuple(...) just makes it print as (3, 224, 224) insrtad of   torch.Size([3, 224, 224]).
+batch = torch.stack(images).to(DEVICE) #  batching - list of 45 - bundling into one tensor  #(45, 3, 224, 224)  # DINOv2's forward expects a 4-D tensor
+with torch.no_grad(): # "with "" flips a switch -on- and guarantees it flips -off////no need to build computaitnal graph during forward (waste) cause the backbone is frozen and is not trained
+    embeddings = backbone(batch) # this is the resulting embedding after passing throuht the neural network
+embeddings = embeddings.cpu() #  copies the tensor out of GPU memory into normal RAM and hands you a CPU tensor.
+logger.info(f'embeddings: {tuple(embeddings.shape)}')
 
-logger.info(f"images: {len(images)} x {tuple(images[0].shape)}")
-
-# STEP 3b — wrap it into a function
-
-
-
-
-
-images = [transform(Image.open(p).convert("RGB")) for p in crop_paths]
-
+# STEP 3 b - wrapping the flat version into a function
 
 
 # STEP 4 — loop every window (grouped by event_id), embed its sequence, keep label + fish_id
