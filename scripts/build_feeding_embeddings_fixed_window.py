@@ -104,3 +104,13 @@ test_windows  = build_embeddings(test_crops, "test")
 
 # STEP 5 — save the per-window embedding sequences as .pt
 banner("STEP 5 — save embeddings")
+emb_dir = os.path.join(os.path.dirname(parquet_path), "feeding_train_test", "embeddings")
+os.makedirs(emb_dir, exist_ok=True)
+train_path = os.path.join(emb_dir, f"train_embeddings_{BACKBONE_NAME}.pt")
+test_path  = os.path.join(emb_dir, f"test_embeddings_{BACKBONE_NAME}.pt")
+
+torch.save(train_windows, train_path)
+torch.save(test_windows, test_path)
+
+logger.info(f"saved -> {train_path}")
+logger.info(f"saved -> {test_path}")
