@@ -14,8 +14,6 @@ usage: python -m scripts.train_feeding_lstm_fixed_window
 """
 import os
 import torch
-import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -26,10 +24,16 @@ VIDEO_RUN_NAME = 'IMG_2349_appearance_2026_08_12_1926'
 BACKBONE_NAME = 'dinov2_vits14'
 DEVICE = 'mps' if torch.backends.mps.is_available() else 'cpu'
 
-
 # STEP 1 — load the per-window embedding sequences (.pt)
 banner("STEP 1 — load train / test embedding sequences")
 # your code here
+parquet_path, *_ = grab_video_name(VIDEO_RUN_NAME)
+emb_dir = os.path.join(os.path.dirname(parquet_path), "feeding_train_test", "embeddings")
+train_path = os.path.join(emb_dir, f"train_embeddings_{BACKBONE_NAME}.pt")
+test_path  = os.path.join(emb_dir, f"test_embeddings_{BACKBONE_NAME}.pt")
+train_windows = torch.load(train_path, weights_only=False)  # weights_only=False -> full pickle, needed because this is my own list-of-dicts, not a flat state_dict (safe loader only handles tensors/state_dicts)
+test_windows  = torch.load(test_path,  weights_only=False)
+
 
 
 # STEP 2 — Dataset + DataLoader (serve one window: (45, 384) tensor + label)
