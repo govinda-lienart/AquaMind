@@ -1,13 +1,8 @@
 """
-train_feeding_lstm_fixed_window.py — Stage 7 Part 2, fixed-window pipeline (final step).
-
-- Loads the per-window embedding sequences (train_embeddings_*.pt / test_embeddings_*.pt) built by
-  build_feeding_embeddings_fixed_window.py — each window is a (45, 384) tensor + label
+- Loads the per-window embedding sequences (train_embeddings_*.pt / test_embeddings_*.pt) built by build_feeding_embeddings_fixed_window.py — each window is a (45, 384) tensor + label
 - Wraps them in a Dataset / DataLoader
-- Defines a small LSTM + linear classifier head (the only part that trains — the DINOv2 backbone
-  was frozen and already run in the embeddings step)
-- Trains with early stopping: keep the checkpoint at min test loss, not the last epoch
-  (the fix that caught the 200-epoch overfitting — see diary.md, Stage 7 Part 2)
+- Defines a small LSTM + linear classifier head (the only part that trains — the DINOv2 backbone was frozen and already run in the embeddings step)
+- Trains with early stopping: keep the checkpoint at min test loss, not the last epoch (the fix that caught the 200-epoch overfitting — see diary.md, Stage 7 Part 2)
 - Reports accuracy / precision / recall on the test split
 
 usage: python -m scripts.train_feeding_lstm_fixed_window
@@ -19,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 from scripts.console import banner, banner_sub
 from scripts.video_utils import grab_video_name
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 
 VIDEO_RUN_NAME = 'IMG_2349_appearance_2026_08_12_1926'
 BACKBONE_NAME = 'dinov2_vits14'
@@ -39,19 +34,34 @@ logger.info(f"window keys: {list(train_windows[0].keys())}")
 logger.info(f"first embeddings shape: {tuple(train_windows[0]['embeddings'].shape)}")
 
 # STEP 2 — Dataset + DataLoader (serve one window: (45, 384) tensor + label)
-banner("STEP 2 — Dataset / DataLoader")
+banner("STEP 2 — Dataset / DataLoader") # DataLoader's job is the looping, shuffling, and batching,
 class FeedingWindowDataset(Dataset):
-    def __init__(self, windows):
+  """Defines a new dataset class that inherits PyTorch's Dataset interface, so a DataLoader can batch and shuffle it."""
+  def __init__(self, windows):
+      """Stores the incoming list of windows onto the object so the other methods can access it later."""
       self.windows = windows
-    def __len__(self):
+  def __len__(self):
+      """Tells the DataLoader how many samples total exist in the dataset."""
       return len(self.windows)
-
+  def __getitem__(self, idx): # idx the Sampler (hidden operation) inside the DataLoader  generates the index values, and the DataLoader is what calls your dataset with them.
+      """Fetches and formats one training sample by index."""
+      w = self.windows[idx] # Grabs the one dict at position idx out of the stored list, so the rest of the method can pull its embeddings and label from it.
+      emb = w["embeddings"]
+      label = torch.tensor(w["label"], dtype=torch.long) # Converts the plain Python int label into a long-type tenso(int64), the format CrossEntropyLoss requires it for comparison against the model's output.
+      return emb, label 
 train_ds = FeedingWindowDataset(train_windows)
 test_ds = FeedingWindowDataset(test_windows) 
 logger.info(f"train_ds: {len(train_ds)} samples | test_ds: {len(test_ds)} samples")
+sample_emb, sample_label = train_ds[0]
+logger.info(f"sample emb: {tuple(sample_emb.shape)}, label: {sample_label}")
 
+train_loader = DataLoader(train_ds, batch_size=8, shuffle=True) # every epoch, shuffles all 136 indices into a new random order, then hands them out to __getitem__ 8 at a time to build each batch.
+test_loader = DataLoader(test_ds, batch_size=8, shuffle=False) # Since nothing is learned during eval no shuffling needed for evaluation/same order every run, easier to debu  — fixed order, no gradient updates, just forward passes to check performance.
+logger.info(f"train_loader: {len(train_loader)} batches | test_loader: {len(test_loader)} batches") #136 windows ÷ 8 = 17  /// 59 windows ÷ 8 = 7.375 
+ 
 # STEP 3 — define the LSTM + classifier head (nn.Module)
 banner("STEP 3 — model")
+
 
 
 # STEP 4 — one training epoch + one eval pass (helper functions)
