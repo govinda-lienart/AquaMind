@@ -1,0 +1,1333 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../tank-setup/">
+      
+      
+        <link rel="next" href="../stage_2/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Stage 1 - Frame Extraction - AquaMind</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#stage-1-frame-extraction-and-mysql-storage" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="AquaMind" class="md-header__button md-logo" aria-label="AquaMind" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AquaMind
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Stage 1 - Frame Extraction
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="AquaMind" class="md-nav__button md-logo" aria-label="AquaMind" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    AquaMind
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../introduction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../pipeline-overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipeline Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods & Implementation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods & Implementation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tank-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tank Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stage 1 - Frame Extraction
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stage 1 - Frame Extraction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#system-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System Prerequisites
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="System Prerequisites">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#environment-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-acquisition-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Acquisition Considerations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data Acquisition Considerations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#video-encoding-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Video Encoding Constraints
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#infrastructure-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Infrastructure Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Infrastructure Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#database-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Database Deployment
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#database-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Database Schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#frame-extraction-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Frame Extraction Pipeline
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Frame Extraction Pipeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#source-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Source Code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#design-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Design Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#video-parsing-and-output-structuring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Video Parsing and Output Structuring
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#frame-rate-normalisation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Frame Rate Normalisation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sampling-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sampling Strategy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#frame-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Frame Storage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metadata-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metadata Storage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saving-and-cleanup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Saving and Cleanup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#outcome" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Outcome
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stage_2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stage 2 - Annotation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stage_3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stage 3 - Dataset Class
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../discussion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Discussion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../about/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../references/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    References
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#system-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System Prerequisites
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="System Prerequisites">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#environment-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-acquisition-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Acquisition Considerations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data Acquisition Considerations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#video-encoding-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Video Encoding Constraints
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#infrastructure-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Infrastructure Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Infrastructure Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#database-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Database Deployment
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#database-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Database Schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#frame-extraction-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Frame Extraction Pipeline
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Frame Extraction Pipeline">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#source-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Source Code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#design-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Design Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#video-parsing-and-output-structuring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Video Parsing and Output Structuring
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#frame-rate-normalisation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Frame Rate Normalisation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sampling-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sampling Strategy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#frame-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Frame Storage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metadata-storage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metadata Storage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#saving-and-cleanup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Saving and Cleanup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#outcome" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Outcome
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="stage-1-frame-extraction-and-mysql-storage">Stage 1 — Frame Extraction and MySQL Storage</h1>
+<p>Stage 1 implements the initial ingestion layer of the AquaMind pipeline, transforming raw aquarium video footage into a structured, frame-level dataset suitable for downstream machine learning tasks.</p>
+<p>The pipeline converts continuous video data into discrete, indexed image samples and stores both the extracted frames and their metadata in a MySQL database. This enables later linking with annotation data and supports reproducible dataset construction for model training.</p>
+<pre><code class="language-text">Video → Frame Sampling → Persistent Storage (Disk + MySQL) → ML Dataset
+</code></pre>
+<h2 id="system-prerequisites">System Prerequisites</h2>
+<h3 id="environment-setup">Environment Setup</h3>
+<p>A dedicated Conda environment (<code>aquamind</code>) was created using Python 3.11 to isolate project dependencies and ensure reproducibility across development machines.</p>
+<pre><code class="language-bash">conda create -n aquamind python=3.11
+conda activate aquamind
+pip install opencv-python mysql-connector-python
+</code></pre>
+<p>Core dependencies:</p>
+<ul>
+<li><code>opencv-python</code> — video decoding and frame extraction</li>
+<li><code>mysql-connector-python</code> — relational database connectivity</li>
+<li><code>os</code>, <code>datetime</code> — standard library modules for file system and timestamp management</li>
+</ul>
+<h2 id="data-acquisition-considerations">Data Acquisition Considerations</h2>
+<h3 id="video-encoding-constraints">Video Encoding Constraints</h3>
+<p>Initial recordings using iPhone 14 (iOS 26) in HEVC (H.265) format introduced frame-level colour inconsistencies when processed with OpenCV, resulting in degraded colour fidelity during extraction.</p>
+<p>This issue comes from how inter-frame compression works: modern codecs store occasional full frames and encode only the pixel differences between them to reduce file size. When OpenCV's software decoder processes an HEVC-encoded file, colour reconstruction can break down during this decoding process, producing washed-out frames.</p>
+<figure>
+  <img alt="Faded frame colours due to HEVC codec" src="../assets/Screenshot_2026-05-02_at_19.57.01.png" width="700" />
+<br />
+<figcaption style="margin-top: -0.5em;">
+    Faded colours extracted from HEVC-encoded MOV file
+  </figcaption>
+</figure>
+<p>To ensure deterministic frame decoding, the recording format on iPhone was switched to H.264 ("Most Compatible" mode). Although this increased storage size, it significantly improved frame consistency and colour stability during extraction.</p>
+<figure>
+  <img alt="iPhone camera settings switched to Most Compatible mode" src="../assets/Screenshot_2026-05-02_at_19.56.41.png" width="700" />
+<br />
+<figcaption style="margin-top: -0.5em;">
+    Correct colour reproduction after switching to H.264
+  </figcaption>
+</figure>
+<p>Recordings were standardised at 60 FPS to increase temporal resolution, enabling finer capture of fast behavioural events of fish such as feeding strikes.</p>
+<h2 id="infrastructure-setup">Infrastructure Setup</h2>
+<h3 id="database-deployment">Database Deployment</h3>
+<p>A MySQL 8.4 instance was deployed inside a Docker container to ensure environment isolation and avoid conflicts with local database installations. Port 3306 is exposed to the local machine, enabling connectivity from both Python scripts and MySQL Workbench.</p>
+<pre><code class="language-bash">docker run \
+  --name cont-aquamind-sql \
+  -e MYSQL_ROOT_PASSWORD=aquamind \
+  -e MYSQL_DATABASE=aquamind \
+  -p 3306:3306 \
+  -d mysql:8.4
+</code></pre>
+<p>The container status is verified using:</p>
+<pre><code class="language-bash">docker ps
+</code></pre>
+<p>This confirms that the container is running and that port 3306 is correctly mapped to the local machine. Once confirmed, the MySQL shell is accessed directly inside the container:</p>
+<pre><code class="language-bash">docker exec -it cont-aquamind-sql mysql -u root -paquamind
+</code></pre>
+<p>Database and table verification:</p>
+<pre><code class="language-sql">SHOW DATABASES;
+USE aquamind;
+SHOW TABLES;
+DESCRIBE frames;
+</code></pre>
+<p>MySQL Workbench was used for inspection and debugging with the following connection settings:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Host</td>
+<td>127.0.0.1</td>
+</tr>
+<tr>
+<td>Port</td>
+<td>3306</td>
+</tr>
+<tr>
+<td>Username</td>
+<td>root</td>
+</tr>
+<tr>
+<td>Password</td>
+<td>aquamind</td>
+</tr>
+</tbody>
+</table>
+<h2 id="database-schema">Database Schema</h2>
+<p>Frame-level metadata is stored in a single relational table designed for traceability and downstream dataset reconstruction. This structure ensures each frame can be traced back to its source video, aligned temporally with other frames, and later linked to annotation data in subsequent pipeline stages.</p>
+<pre><code class="language-sql">CREATE TABLE frames (
+    id           INT AUTO_INCREMENT PRIMARY KEY,  -- unique row identifier
+    video_path   VARCHAR(255),                    -- path to the source video file
+    frame_path   VARCHAR(255),                    -- path to the saved PNG frame on disk
+    frame_number INT,                             -- frame index in the original video
+    timestamp    FLOAT,                           -- seconds from video start
+    extracted_at TIMESTAMP                        -- system time of extraction
+  );
+</code></pre>
+<h2 id="frame-extraction-pipeline">Frame Extraction Pipeline</h2>
+<h3 id="source-code">Source Code</h3>
+<p><a href="https://github.com/govinda-lienart/AquaMind/blob/main/extract_frames.py" target="_blank">View source on GitHub</a>                                                 </p>
+<h3 id="design-overview">Design Overview</h3>
+<p>The pipeline reads video files sequentially using OpenCV and extracts frames at a fixed rate of one frame per second. Each extracted frame is saved both as an image file and as a structured record in a MySQL database. This design transforms raw video data into a structured dataset that can be used later for annotation and machine learning model training.</p>
+<h3 id="video-parsing-and-output-structuring">Video Parsing and Output Structuring</h3>
+<p>Each video is processed independently. For every run, the system creates a unique output folder using the video name combined with a timestamp (e.g. <code>frames_IMG_9856_20260511_1430</code>). This ensures that no previous outputs are overwritten and that each extraction session is clearly separated and traceable.</p>
+<p>The resulting directory structure follows the pattern <code>frames/frames_&lt;video_name&gt;_&lt;timestamp&gt;/</code>, allowing each dataset generation run to be uniquely identified at the filesystem level.</p>
+<h3 id="frame-rate-normalisation">Frame Rate Normalisation</h3>
+<p>The frame rate of each video is retrieved directly using OpenCV. However, iPhone recordings give a frame rate of <code>59.94</code> FPS instead of a clean <code>60</code> FPS due to underlying NTSC video encoding standards. If used directly, this small discrepancy causes <code>frame_count % fps == 0</code> to select frames inconsistently.</p>
+<p>To ensure stable and predictable extraction intervals, the FPS value is wrapped in <code>round()</code> to normalise it to the nearest integer (60fps) before being used in the sampling logic.</p>
+<h3 id="sampling-strategy">Sampling Strategy</h3>
+<p>Frames are selected using the expression <code>frame_count % fps == 0</code>, which ensures that exactly one frame per second is extracted. The video is read frame by frame using OpenCV, which returns two values on each call: a boolean <code>ret</code> indicating whether a frame was successfully read, and <code>frame</code>, the image data itself. When <code>ret</code> becomes <code>False</code>, the video has reached its end and the loop terminates automatically.</p>
+<h3 id="frame-storage">Frame Storage</h3>
+<p>Each selected frame is saved as a PNG image to preserve full image quality without any compression loss. This choice is important because the dataset is intended for future annotation and machine learning tasks where pixel-level accuracy matters.</p>
+<p>For every extracted frame, the system records its index and calculates its timestamp in seconds relative to the start of the video using <code>frame_count / fps</code>. These values ensure that each image can be accurately placed back into its original temporal context when needed.</p>
+<h3 id="metadata-storage">Metadata Storage</h3>
+<p>For every extracted frame, a corresponding record is stored in the MySQL database. This record includes the original video path, the saved frame path on disk, the frame number, the timestamp in seconds, and the exact time at which the frame was extracted. This structure allows every frame to be traced back to its source video, aligned temporally with other frames, and later linked to annotations or labels in downstream stages of the pipeline.</p>
+<h3 id="saving-and-cleanup">Saving and Cleanup</h3>
+<p>Once extraction is complete, <code>conn.commit()</code> permanently saves all inserted rows to the database. The video stream is then closed with <code>cap.release()</code> and the database connection with <code>conn.close()</code>. These steps ensure data integrity and prevent resource leaks during batch processing.</p>
+<h2 id="validation">Validation</h2>
+<p>Correctness of ingestion is verified via:</p>
+<pre><code class="language-sql">SELECT * FROM frames;
+</code></pre>
+<p>Expected properties include sequential frame indexing aligned with the sampling rate, consistent 1-second timestamp increments, valid file path references to the stored PNG frames, and correct separation between different extraction runs in the filesystem.</p>
+<figure>
+  <img alt="Verification SQL table structure and inserts" src="../assets/Screenshot_2026-05-12_at_6.57.40.png" width="700" />
+<br />
+<figcaption style="margin-top: -0.5em;">
+    Verification of SQL table structure and inserts
+  </figcaption>
+</figure>
+<h2 id="outcome">Outcome</h2>
+<p>Stage 1 establishes a reproducible ingestion pipeline that converts raw aquarium video into a structured frame dataset with persistent metadata tracking.</p>
+<p>The system successfully decodes video streams reliably using H.264-encoded input, extracts temporally consistent frames at 1 FPS, stores lossless PNG images on disk with run-level versioning, and persists structured metadata in a MySQL database running inside a Dockerised environment.</p>
+<p>This stage forms the foundational dataset layer for subsequent annotation, labelling, and machine learning model training within the AquaMind pipeline.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Govinda Lienart &mdash; AquaMind &mdash;Latest Update 13 May 2026
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
