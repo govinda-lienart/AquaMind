@@ -88,17 +88,24 @@ class FeedingLSTMClassifier(nn.Module):
         """
             # c_n final cell state (internal - no neededd)
         last_hidden = h_n[-1] # (1, batch, 64) take the last of the list
-
-    # def forward(self, x):
-    #     output, (h_n, c_n) = self.lstm(x)
-    #     last_hidden = h_n[-1]
-    #     logits = self.head(last_hidden)
-    #     return logits
-
+        # the [-1] literally drops from (1, 8, 64) → (8, 64) (no range:used -) the folder wrapepr dissapears - using -1 removes the outer layer 
+        logits = self.head(last_hidden)
+        return logits    
+         # e.g [-1.2, 3.4] — raw scores - a higher number in position 1 means the model currently favors "feeding strike" for this window.
+    
  # STEP 4 — one training epoch + one eval pass (helper functions)
 banner("STEP 4 — train / eval helpers")
-# your code here
+# your coklo           
 
+def train_one_epoch(model, loader, criterion, optimizer):
+    """One training epoch: forward, loss, backward, optimizer step per bach. returns meann train loss"""
+    model.train() # Sets the model to training modert # "it flips a mode flag that Dropout and BatchNorm layers check  # but here model just 2 layers so no effect
+                # BatchNorm: it keeps the numbers flowing through the network from getting too big or too small or too erratic, like a thermostat that keeps a room's temperature 
+                # Dropout -  it randomly "blinds" part of the network on purpose, so it can't get lazy and rely on just a few shortcuts — like practicing a sport with one arm tied behind your back sometimes, so you develop all your skills, not just your favorite move.
+
+
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters()), lr = 
 
 # STEP 5 — training loop with early stopping (keep min-test-loss checkpoint)
 banner("STEP 5 — training loop")
