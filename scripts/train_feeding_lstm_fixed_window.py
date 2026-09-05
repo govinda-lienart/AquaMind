@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 from scripts.console import banner, banner_sub
 from scripts.video_utils import grab_video_name
 from torch.utils.data import Dataset, DataLoader
+import torch.nn as nn
+
 
 VIDEO_RUN_NAME = 'IMG_2349_appearance_2026_08_12_1926'
 BACKBONE_NAME = 'dinov2_vits14'
@@ -59,12 +61,41 @@ train_loader = DataLoader(train_ds, batch_size=8, shuffle=True) # every epoch, s
 test_loader = DataLoader(test_ds, batch_size=8, shuffle=False) # Since nothing is learned during eval no shuffling needed for evaluation/same order every run, easier to debu  — fixed order, no gradient updates, just forward passes to check performance.
 logger.info(f"train_loader: {len(train_loader)} batches | test_loader: {len(test_loader)} batches") #136 windows ÷ 8 = 17  /// 59 windows ÷ 8 = 7.375 
  
-# STEP 3 — define the LSTM + classifier head (nn.Module)
+# STEP 3 — define the LSTM + classifier head (nn.Module) # build the structure — the blueprint of layers and how they connect
 banner("STEP 3 — model")
+class FeedingLSTMClassifier(nn.Module): 
+    def __init__(self, input_size=384, hidden_size=64,num_classes=2):
+                                # hidden_size=64 is the size of the vector the LSTM produces at its last time step —> that's what feeds into the head
+                                # num_classes (2) describes the head's output side — the final answer size you want.
+        super().__init__() # calls the parent class (nn.Module's) constructor and exectures its hidden set up -  it builds a canbitet to srtore all the layers of my model and its parameters 
+        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True) #  builds and stores the LSTM  layer. 
+        self.head = nn.Linear(hidden_size, num_classes) 
+    def forward(self, x):
+        # Every i run the model - dorward executes fresh on batch tensor
+        # so for 17 train batches - forward runs 17 times - processing 8 windowns thorhg LSTM/head - producing 9 sets of class scoress 
+        output, (h_n, c_n) = self.lstm(x)
+            # output fore each of the 45 steps 
+            # h_n final hidden state - >>> LSTM final memory (64 lenght summary vecot) after reading thw whole sequence
+            # h_n consists of (num_layers, batch, hidden_size) (1, batch, 64)
+        """
+            h_n = [                          # level 1: layers (size 1 — you have 1 LSTM layer)
+                [                             # level 2: batch (size 8 — one per window in the batch)
+                    [0.12, -0.5, ..., 0.03],  # level 3: the 64 numbers = the summary vector for window 1
+                    [0.44, 0.01, ..., -0.2],  # the 64 numbers for window 2
+                    ... (8 of these total)
+                ]
+            ]
+        """
+            # c_n final cell state (internal - no neededd)
+        last_hidden = h_n[-1] # (1, batch, 64) take the last of the list
 
+    # def forward(self, x):
+    #     output, (h_n, c_n) = self.lstm(x)
+    #     last_hidden = h_n[-1]
+    #     logits = self.head(last_hidden)
+    #     return logits
 
-
-# STEP 4 — one training epoch + one eval pass (helper functions)
+ # STEP 4 — one training epoch + one eval pass (helper functions)
 banner("STEP 4 — train / eval helpers")
 # your code here
 
