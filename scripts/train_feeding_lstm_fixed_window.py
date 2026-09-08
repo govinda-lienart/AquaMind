@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 from scripts.console import banner, banner_sub
 from scripts.video_utils import grab_video_name
 from torch.utils.data import Dataset, DataLoader
+from sklearn.metrics import accuracy_score, precision_score, recall_score
 import torch.nn as nn
 
 
@@ -98,19 +99,83 @@ banner("STEP 4 — train / eval helpers")
 # your coklo           
 
 def train_one_epoch(model, loader, criterion, optimizer):
-    """One training epoch: forward, loss, backward, optimizer step per bach. returns meann train loss"""
+    """One training epoch: forward, loss, backward, optimizer step per batch -> returns mean train loss"""
     model.train() # Sets the model to training modert # "it flips a mode flag that Dropout and BatchNorm layers check  # but here model just 2 layers so no effect
                 # BatchNorm: it keeps the numbers flowing through the network from getting too big or too small or too erratic, like a thermostat that keeps a room's temperature 
                 # Dropout -  it randomly "blinds" part of the network on purpose, so it can't get lazy and rely on just a few shortcuts — like practicing a sport with one arm tied behind your back sometimes, so you develop all your skills, not just your favorite move.
 
+    total_loss = 0.0 # "PyTorch only computes the loss for one batch at a time — it's on me to add those up loss up at for ex at epoch-level averag
+    for embeddings, labels in loader: # see step 2 : train and test loader
+        embeddings, labels = embeddings.to(DEVICE), labels.to(DEVICE)# the model was alrady moved to cpu....we also need to move the embeddings and the labels
+        logits = model(embeddings) # model(x) call the method which calls model forwad() from step 4
+        loss = criterion(logits, labels) # runss crossentroypy on the batchs logits(raw class scoeres) against the labels( produicing one numebr - how wrong the model was on this batch)
+        optimizer.zero_grad() #  clears leftover gradients from the previous batch 
+        loss.backward() # runs backpropagation - computes how much each weight in the mdoel contributed to this batch error.
+        optimizer.step() # updates the weights, nudging each one a little in the direction that reduces the loss, sized you learning rate (0.001)
+        total_loss += loss.item() # Adds this batch's loss value onto the running total, so by the end of the epoch I have the sum of all batches' losses
+    return total_loss / len(loader) # that is the nyumebr of batches (eg 17 for train). divifing this gives the mean loss per batch for the epoch....number to compare epoch to epoch when looking fro overtfiitng  
 
-criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters()), lr = 
+def eval_one_epoch(model, loader, criterion):
+    """measures how the model performs on the test set - never changes the weights"""
+    model.eval()
+    total_loss = 0.0
+    with torch.no_grad():# tells pythoch to no track computational graph - never also calls backward() - not learning just measuring + "with" makes sure that no grad function is stopped once finished and turn on again back on grad
+        for embeddings, labels in loader:
+            embeddings, labels = embeddings.to(DEVICE), labels.to(DEVICE)
+            logits = model(embeddings)
+            loss = criterion(logits, labels)
+            total_loss += loss.item()
+    return total_loss / len(loader)
 
 # STEP 5 — training loop with early stopping (keep min-test-loss checkpoint)
 banner("STEP 5 — training loop")
-# your code here
 
+model = FeedingLSTMClassifier().to(DEVICE) # argument function step 5 -  calls __init__, which builds and stores the lstm and head layers  defined in STEP 3 
+criterion = nn.CrossEntropyLoss() # is what the train/eval_one_epoch expects as argument
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001) # optimizer - update model's weight during optimizer.step() #  it is a cabinet the cabinet is really storing "the pieces that make up the network cabinet is really storing "the pieces that make up the network,super().__init__() built an empty cabinet. Then self.lstm = nn.LSTM(...) and self.head = nn.Linear(...) each got automatically filed into it. model.parameters() is just "give me everything that's in the cabinet.it's tracking every individual trainable number inside both of them, ready to hand to the optimizer.
+num_epochs = 100 # how many passes through the full training set
+best_test_loss = float("inf") # starts as infinity so the very first epoch's test loss automatically counts as an improvement
+checkpoint_path = "best_feeding_lstm.pt" # the filename where you'll save the best-performing model's weights
 
-# STEP 6 — load best checkpoint, report accuracy / precision / recall on test
+for epoch in range(num_epochs): # Inside this loop, each iteration is one full pass over the training data
+    train_loss = train_one_epoch(model, train_loader, criterion, optimizer)
+    test_loss = eval_one_epoch(model, test_loader, criterion)
+    logger.info(f"epoch {epoch+1}/{num_epochs} | train_loss  {train_loss:.4f} | test_loss {test_loss:.4f}")  # epoch+1 — since range() starts at 0, this prints "epoch 1" instead of "epoch 0" for the first pass, more human-readable  # :.4f — formats each loss to 4 decimal places, so the printed numbers stay readable instead of showing 15 digits
+
+    if test_loss < best_test_loss: # targetting smalles value...
+        best_test_loss = test_loss
+        torch.save(model.state_dict(), checkpoint_path) # state_dict() saves just the learned numbers (the weights), not the model's blueprint/code.
+        logger.info(f"  -> new best test_loss {best_test_loss:.4f}, checkpoint saved")
+
+#  STEP 6 — load the best checkpoint back and report final metrics.
 banner("STEP 6 — final evaluation")
+
+best_model = FeedingLSTMClassifier().to(DEVICE) # This calls __init__ again, so I get a brand-new LSTM + head with random weights, sitting on the right device.
+best_model.load_state_dict(torch.load(checkpoint_path)) # .load_state_dict(...) copies each of those tensors into the matching layer of best_model, overwriting the random init.
+best_model.eval() # Sets the mode flag to eval. Here it barely matters for 2 layer model
+
+all_preds = [] # what the model guessed (0 or 1 per window)
+all_labels = [] # he ground truth from  my labeling.
+
+with torch.no_grad():
+    for embeddings, labels in test_loader:
+        embeddings, labels = embeddings.to(DEVICE), labels.to(DEVICE)
+        logits = best_model(embeddings)
+        preds = logits.argmax(dim=1) # (batch, 2) raw scores -> (batch,) predicted class index (the larger score wins)
+        all_preds.append(preds.cpu()) # all_preds is a list of ~8 small tensors
+        all_labels.append(labels.cpu())
+
+all_preds = torch.cat(all_preds) # torch.cat ("concatenate") joins the list of ~8 batch tensors end-to-end into one tensor of ~59 numbers (the whole test set)
+all_labels = torch.cat(all_labels)
+
+y_true = all_labels.numpy() # sklearn wants plain NumPy arrays, not torch tensors
+y_pred = all_preds.numpy()
+
+acc  = accuracy_score(y_true, y_pred)
+prec = precision_score(y_true, y_pred, pos_label=1) # class 1 = feeding strike
+rec  = recall_score(y_true, y_pred, pos_label=1)
+
+logger.info("")
+logger.info(f"test accuracy  {acc:.3f}")
+logger.info(f"test precision {prec:.3f}  (of predicted strikes, how many were real)")
+logger.info(f"test recall    {rec:.3f}  (of real strikes, how many we caught)")
