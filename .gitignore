@@ -2,7 +2,6 @@
 /frames
 /notes
 /mydata
-site/
 mysql_backup/
 /chat
 /practice
@@ -31,7 +30,6 @@ open_links.sh
 /dataset
 AquaMind/
 scripts/trigger_kaggle.py
-docs/
 mysql_requests_backup/
 labelstudio_backup/
 diagram_pipeline/

@@ -12,6 +12,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
 from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.model_selection import StratifiedKFold, cross_validate
 import matplotlib
 matplotlib.use('Agg')  # avoids popup windows of produced plots
 import matplotlib.pyplot as plt
@@ -95,6 +96,47 @@ run_config = {'video_run_name': VIDEO_RUN_NAME, 'random_seed': RANDOM_SEED, 'fea
 logger.info(f'run_config:\n{yaml.dump(run_config, sort_keys=False)}')
 with open(os.path.join(output_folder, 'run_config.yaml'), 'w') as f:
     yaml.dump(run_config, f, sort_keys=False)
+
+# STEP 2.5 - CROSS-VALIDATION (honest evaluation for a small dataset)
+# The single train/test split below scores on only 40 windows - too few to trust (one
+# flipped prediction moves precision ~5 points). k-fold CV instead rotates the test fold
+# across ALL the data so every window is scored exactly once, then reports mean +/- std
+# across folds - a number that says how much the score wobbles, not just one lucky draw.
+banner('STEP 2.5 - CROSS-VALIDATION (5-fold, stratified)')
+
+full_df = pd.concat([train_df, test_df], ignore_index=True)  # glue the pre-split data back into one pile - CV makes its own splits
+X_full = full_df[feature_cols]
+y_full = full_df['label']
+logger.info(f'full dataset for CV: {X_full.shape}, class balance: {y_full.value_counts().to_dict()}')
+
+# StratifiedKFold (not plain KFold): each fold keeps the same chase:not_chase ratio as the
+# whole set - with a 73:53 imbalance a random split could hand one fold almost no negatives
+# and make that fold's precision/recall meaningless.
+skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_SEED)
+
+cv_models = {  # fresh unfitted instances - cross_validate clones + refits these per fold, independent of STEP 3-5
+    'logistic_regression': LogisticRegression(),
+    'random_forest': RandomForestClassifier(random_state=RANDOM_SEED),
+    'xgboost': XGBClassifier(random_state=RANDOM_SEED),
+}
+cv_scoring = ['precision', 'recall', 'f1', 'accuracy']  # precision/recall/f1 default to the positive class (label 1 = chase)
+
+cv_rows = []
+for name, model in cv_models.items():
+    banner_sub(f'{name} - 5-fold CV')
+    scores = cross_validate(model, X_full, y_full, cv=skf, scoring=cv_scoring)  # runs 5 fit/score rounds internally
+    for metric in cv_scoring:
+        vals = scores[f'test_{metric}']
+        logger.info(f'  {metric:10s} {vals.mean():.3f} +/- {vals.std():.3f}   folds: {[round(float(v), 3) for v in vals]}')
+        cv_rows.append({'model': name, 'metric': metric, 'mean': vals.mean(), 'std': vals.std()})
+
+cv_csv_path = os.path.join(output_folder, 'cross_validation_scores.csv')
+pd.DataFrame(cv_rows).to_csv(cv_csv_path, index=False)
+logger.info(f'saved CV scores -> {cv_csv_path}')
+
+# NOTE: STEP 3-5 below still train on the original 126-row train_df and report the final
+# number on the untouched 40-row test_df - that stays the single headline holdout result.
+# CV above is the "how much does that number wobble" companion, not a replacement.
 
 # STEP 3 - MODEL A: LogisticRegression (baseline #1)
 banner('STEP 3 - MODEL A: LOGISTIC REGRESSION')

@@ -171,6 +171,7 @@ all_labels = torch.cat(all_labels)
 y_true = all_labels.numpy() # sklearn wants plain NumPy arrays, not torch tensors
 y_pred = all_preds.numpy()
 
+
 acc  = accuracy_score(y_true, y_pred)
 prec = precision_score(y_true, y_pred, pos_label=1) # class 1 = feeding strike
 rec  = recall_score(y_true, y_pred, pos_label=1)
