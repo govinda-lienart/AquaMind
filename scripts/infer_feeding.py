@@ -12,11 +12,13 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
+import torch
+
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
-from scripts.console import banner
+from scripts.console import banner, banner_sub
 from scripts.video_utils import grab_video_name
 
 
@@ -40,3 +42,42 @@ SEGMENTS = {
 
 RUN_STAMP = datetime.now().strftime("%Y_%m_%d_%H%M")
 
+
+# STEP 1 — resolve paths and load the tracker output
+# find the run folder, read tracks.parquet, work out the video name / fps
+banner("── STEP 1 — resolve paths and load the tracker output")
+parquet_path, pixels_per_cm, calibration_secs, surface_y_px, bottom_y_px, frame_number_end = grab_video_name(VIDEO_RUN_NAME)
+tracks = pd.read_parquet(parquet_path)
+banner_sub("laoding tracks")
+logger.info(f"loading {len(tracks)} from {parquet_path}")
+logger.info(tracks.head())
+
+# ── STEP 2 — define the model blueprint ────────────────────────────────────
+# the fixed-window LSTM class, matching train_feeding_lstm_fixed_window.py
+
+
+# ── STEP 3 — load the trained checkpoint + the frozen DINOv2 backbone ──────
+# model.load_state_dict(...), model.eval(); backbone in eval mode, no grad
+
+
+# ── STEP 4 — build the list of windows to score ────────────────────────────
+# for each segment, for each fish_id: slide (WINDOW, STRIDE) over the frame range
+# keep only windows where the fish has a full 45 frames of track
+
+
+# ── STEP 5 — embed every window's crops with DINOv2 ────────────────────────
+# load the 45 crop images per window, transform, batch through the backbone (EMB_BATCH)
+# result: one (45, 384) tensor per window
+
+
+# ── STEP 6 — run the LSTM over every window ────────────────────────────────
+# forward pass, softmax, take P(strike); pred = score >= PROB_THRESHOLD
+
+
+# ── STEP 7 — assemble and write the predictions parquet ────────────────────
+# one row per window: fish_id, segment, frame_start, frame_end, score, pred
+# write to <run>/feeding_train_test/output_infer/feeding_predictions_<RUN_STAMP>.parquet
+
+
+# ── STEP 8 — quick summary to the log ─────────────────────────────────────
+# positive-window count per segment, side by side — the negative-control readout
