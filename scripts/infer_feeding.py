@@ -89,15 +89,52 @@ crops_dir = os.path.join(run_dir, "crops")
 fish_ids = sorted(tracks["fish_id"].unique())
 logger.info(f"fish ids: {fish_ids}")
 
+# frames each fish actually has a track row for — for the gap check
+# It creates a dictionary where each key is a fish id and each value is a set of that fish's frame numbers:
+
+frames_by_fish = {}
+for fid, g in tracks.groupby("fish_id"):
+    #  fid — the group's key: the actual fish id value for this group. 1, then 2, then 3, then 4
+    # g — a whole sub-DataFrame: every row of tracks where fish_id == fid. All columns, just filtered to that one fish.
+    """     fish_id  frame_number  timestamp     x      y   confidence  occluded
+    0          1          7505     125.13  210.4   88.1        0.94     False
+    1          1          7506     125.15  212.0   90.3        0.92     False           """
+
+
+
+    frames_by_fish[fid] = set(g["frame_number"]) # in the dict frames_by_fish, set the key fid to this value." If the key doesn't exist yet, it's created.
+
+    """0    7505
+       1    7506
+       2    7507
+        """
+
+"""frames_by_fish = {
+    1: {7505, 7506, 7507, 7509, 7510, ...},   # note: 7508 missing = tracker gap for fish 1
+    2: {7505, 7506, 7507, 7508, ...},
+    3: {...},
+    4: {...},
+}""""
+
+
 windows = [] # list of tuples
+"""windows = [
+    ("before_food", 1, 7505, 7549),
+    ("before_food", 1, 7525, 7569),
+    ..."""
+
+
 for seg_name, (seg_start, seg_end) in SEGMENTS.items(): # for each of the 2 segments
-    for fish_id in fish_ids: # for each of the 2 segments
-        for start in range(seg_start, seg_end - WINDOW + 1, STRIDE): # for each sliding start position → make one window 
+    for fish_id in fish_ids: # for each fish
+        have = frames_by_fish.get(fish_id, set())   # this fish's tracked frame numbers, looked up once
+        for start in range(seg_start, seg_end - WINDOW + 1, STRIDE): # for each sliding start position → make one window
             # start = makes a list of starting points, spaced STRIDE apart # range(7505, 21477 - 45 + 1, 20) produces  7505, 7525, 7545, 7565, 7585, 7605, ... up to ~21430
             end = start + WINDOW - 1 # minus 1 because the start frame counts as frame 1 of the 45.
-            windows.append((seg_name, fish_id, start, end)) 
+            if not all(f in have for f in range(start, end + 1)):  # all(...) returns True only if every item is true. 
+                continue   # tracker lost this fish somewhere in the window — skip, crops would be missing
+            windows.append((seg_name, fish_id, start, end))
 
-logger.info(f"built {len(windows)} candidate windows")
+logger.info(f"built {len(windows)} candidate windows (windows with tracker gaps dropped)")
 for seg_name in SEGMENTS:
     n = sum(1 for w in windows if w[0] == seg_name) # stream of 1, 1, 1, ... for eacgh segnebt
     logger.info(f"  {seg_name}: {n}")
