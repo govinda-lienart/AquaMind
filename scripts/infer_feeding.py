@@ -83,14 +83,33 @@ backbone = load_backbone(BACKBONE_NAME, device=DEVICE) # box 2: DINOv2          
 # ── STEP 4 — build the list of windows to score ────────────────────────────
 # for each segment, for each fish_id: slide (WINDOW, STRIDE) over the frame range
 # keep only windows where the fish has a full 45 frames of track
+banner("── STEP 4 — build the list of windows to score")
+run_dir   = os.path.dirname(parquet_path)          # the tracker run folder
+crops_dir = os.path.join(run_dir, "crops")
+fish_ids = sorted(tracks["fish_id"].unique())
+logger.info(f"fish ids: {fish_ids}")
 
+windows = [] # list of tuples
+for seg_name, (seg_start, seg_end) in SEGMENTS.items(): # for each of the 2 segments
+    for fish_id in fish_ids: # for each of the 2 segments
+        for start in range(seg_start, seg_end - WINDOW + 1, STRIDE): # for each sliding start position → make one window 
+            # start = makes a list of starting points, spaced STRIDE apart # range(7505, 21477 - 45 + 1, 20) produces  7505, 7525, 7545, 7565, 7585, 7605, ... up to ~21430
+            end = start + WINDOW - 1 # minus 1 because the start frame counts as frame 1 of the 45.
+            windows.append((seg_name, fish_id, start, end)) 
 
+logger.info(f"built {len(windows)} candidate windows")
+for seg_name in SEGMENTS:
+    n = sum(1 for w in windows if w[0] == seg_name) # stream of 1, 1, 1, ... for eacgh segnebt
+    logger.info(f"  {seg_name}: {n}")
 
-
+banner_sub("first 3 before_food windows")
+sand_windows = [x for x in windows if x[0] == "before_food"]
+for w in sand_windows[:3]:
+    logger.info(f"{w}")    
 
 # ── STEP 5 — embed every window's crops with DINOv2 ────────────────────────
 # load the 45 crop images per window, transform, batch through the backbone (EMB_BATCH)
-# result: one (45, 384) tensor per window
+# result: one (45, 384) tensor per w                              indow
 
 
 # ── STEP 6 — run the LSTM over every window ────────────────────────────────
