@@ -14,6 +14,7 @@ import pandas as pd
 
 import torch
 from scripts.reid_features import transform, load_backbone # load_backbone(loads torch.hub.load("facebookresearch/dinov2", name))
+from PIL import Image
 
 
 import logging
@@ -109,12 +110,10 @@ for fid, g in tracks.groupby("fish_id"):
        2    7507
         """
 
-"""frames_by_fish = {
-    1: {7505, 7506, 7507, 7509, 7510, ...},   # note: 7508 missing = tracker gap for fish 1
-    2: {7505, 7506, 7507, 7508, ...},
-    3: {...},
-    4: {...},
-}""""
+# frames_by_fish ends up like:
+#   {1: {7505, 7506, 7507, 7509, ...},   # 7508 missing = tracker gap for fish 1
+#    2: {7505, 7506, 7507, 7508, ...},
+#    3: {...}, 4: {...}}
 
 
 windows = [] # list of tuples
@@ -125,7 +124,7 @@ windows = [] # list of tuples
 
 
 for seg_name, (seg_start, seg_end) in SEGMENTS.items(): # for each of the 2 segments
-    for fish_id in fish_ids: # for each fish
+    for fish_id in fish_ids: # for each fish#
         have = frames_by_fish.get(fish_id, set())   # this fish's tracked frame numbers, looked up once
         for start in range(seg_start, seg_end - WINDOW + 1, STRIDE): # for each sliding start position → make one window
             # start = makes a list of starting points, spaced STRIDE apart # range(7505, 21477 - 45 + 1, 20) produces  7505, 7525, 7545, 7565, 7585, 7605, ... up to ~21430
@@ -146,17 +145,36 @@ for w in sand_windows[:3]:
 
 # ── STEP 5 — embed every window's crops with DINOv2 ────────────────────────
 # load the 45 crop images per window, transform, batch through the backbone (EMB_BATCH)
-# result: one (45, 384) tensor per w                              indow
+# result: one (45, 384) tensor per window
 
+# helper function
+def crop_paths_for(fish_id, start, end):
+    """Build the ordered list of crop-image paths for one window (one .jpg per frame, start..end inclusive)."""
+    fish_dir = os.path.join(crops_dir, f"fish_{fish_id}")
+    return [os.path.join(fish_dir, f"frame_{f}_fish_{fish_id}.jpg") for f in range(start, end + 1)]
+    # e.g. [".../crops/fish_1/frame_7505_fish_1.jpg", ".../crops/fish_1/frame_7506_fish_1.jpg", ...]
+
+window_embs = []                                       # one (45, 384) tensor per window, same order as `windows`
+for seg, fid, start, end in windows:                   # windows: list of ("before_food", 1, 7505, 7549) tuples — unpacked
+    paths = crop_paths_for(fid, start, end)             # 45 crop-file paths for this window
+    imgs = torch.stack([transform(Image.open(p).convert("RGB")) for p in paths])   # (45, 3, 224, 224)
+    with torch.no_grad():
+        emb = backbone(imgs.to(DEVICE))     # (45, 384)
+    window_embs.append(emb.cpu()) # window_embs is a list of (45, 384) tensors,
+    if len(window_embs) % 200 == 0:
+        logger.info(f"embedded {len(window_embs)}/{len(windows)} windows")
+        logger.info(f"first window emb shape: {tuple(window_embs[0].shape)}")   # expect (45, 384)
 
 # ── STEP 6 — run the LSTM over every window ────────────────────────────────
 # forward pass, softmax, take P(strike); pred = score >= PROB_THRESHOLD
 
 
+
+       
 # ── STEP 7 — assemble and write the predictions parquet ────────────────────
 # one row per window: fish_id, segment, frame_start, frame_end, score, pred
 # write to <run>/feeding_train_test/output_infer/feeding_predictions_<RUN_STAMP>.parquet
 
 
 # ── STEP 8 — quick summary to the log ─────────────────────────────────────
-# positive-window count per segment, side by side — the negative-control readout
+# positive-window count per segment, side by side — the negative-control readou 
