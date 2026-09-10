@@ -13,6 +13,8 @@ import numpy as np
 import pandas as pd
 
 import torch
+from scripts.reid_features import transform, load_backbone # load_backbone(loads torch.hub.load("facebookresearch/dinov2", name))
+
 
 import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -72,18 +74,25 @@ class FeedingLSTMClassifier(nn.Module):
 
 # ── STEP 3 — load the trained checkpoint + the frozen DINOv2 backbone ──────
 # model.load_state_dict(...), model.eval(); backbone in eval mode, no grad
-
+banner("── STEP 3 — load checkpoint + DINOv2 backbone")
+model = FeedingLSTMClassifier().to(DEVICE) # # box 1: lstm + head    (trained, your weights) runs inti (builds LSTM with random weights) - claculation on mps # crating box
+model.load_state_dict(torch.load(CHECKPOINT_PATH, map_location=DEVICE)) # put all the values/parameteres/weights nicely in the box we created in the class
+model.eval() #switching to inference mode 
+backbone = load_backbone(BACKBONE_NAME, device=DEVICE) # box 2: DINOv2          (frozen, pretrained, never touched)
 
 # ── STEP 4 — build the list of windows to score ────────────────────────────
 # for each segment, for each fish_id: slide (WINDOW, STRIDE) over the frame range
 # keep only windows where the fish has a full 45 frames of track
 
 
+
+
+
 # ── STEP 5 — embed every window's crops with DINOv2 ────────────────────────
 # load the 45 crop images per window, transform, batch through the backbone (EMB_BATCH)
 # result: one (45, 384) tensor per window
 
-"
+
 # ── STEP 6 — run the LSTM over every window ────────────────────────────────
 # forward pass, softmax, take P(strike); pred = score >= PROB_THRESHOLD
 
