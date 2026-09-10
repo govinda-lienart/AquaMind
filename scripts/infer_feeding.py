@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 from scripts.console import banner, banner_sub
 from scripts.video_utils import grab_video_name
 
+import torch.nn as nn
 
 # ── config ──────────────────────────────────────────────────────────────────
 VIDEO_RUN_NAME  = "IMG_2349_appearance_2026_08_12_1926"
@@ -55,6 +56,19 @@ logger.info(tracks.head())
 # ── STEP 2 — define the model blueprint ────────────────────────────────────
 # the fixed-window LSTM class, matching train_feeding_lstm_fixed_window.py
 
+# building the network using the class
+class FeedingLSTMClassifier(nn.Module):
+    def __init__(self, input_size =384, hidden_size=64, num_classes=2): # constructor - build and store the networks layers # input_size is tensor size of one frame after DINO2 processing # 64 is hidden state running summary afterbeing processed by LSTM.....
+        """ what the network is made of"""
+        super().__init__()  # = nn.Module.__init__(self) — run the parent's constructor  # creates an empty organized box
+        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True) # creates LSTM Layer and stores it in the organized box for easy access
+        self.head = nn.Linear(hidden_size, num_classes) # received the function value arguments # expect a 64-long vector in, produce a 2-long vector out."
+    def forward(self, x): # calls forward wehn call model(x) ---->> x model calls Feeding
+        """what the network does with an input - blueprint 45 frame in - LSTM 64 summary - 2 scores"""
+        output, (h_n, c_n) = self.lstm(x) # run the window through lstm 
+        last_hidden = h_n[-1] # take its final memory vecotr (64 d vector)
+        logits = self.head(last_hidden) # run the vinal memory (throught the head) 
+        return logits            # 2 scores                       
 
 # ── STEP 3 — load the trained checkpoint + the frozen DINOv2 backbone ──────
 # model.load_state_dict(...), model.eval(); backbone in eval mode, no grad
@@ -69,7 +83,7 @@ logger.info(tracks.head())
 # load the 45 crop images per window, transform, batch through the backbone (EMB_BATCH)
 # result: one (45, 384) tensor per window
 
-
+"
 # ── STEP 6 — run the LSTM over every window ────────────────────────────────
 # forward pass, softmax, take P(strike); pred = score >= PROB_THRESHOLD
 
