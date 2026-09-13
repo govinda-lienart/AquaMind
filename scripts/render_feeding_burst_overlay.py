@@ -23,13 +23,8 @@ logger = logging.getLogger(__name__)
 # CONSTANTS
 
 VIDEO_RUN_NAME = "IMG_2349_appearance_2026_08_12_1926"
-
-# frame where real food goes in — everything before is "control" (baseline + sand-injection
-# collapsed together, both are "no real food"), everything from here on is "feeding"
 FOOD_START = 14491
 SMOOTH_WIN = 5 # rolling_avg width (frames) to kill single frame tracker jitter wihtout blurring real burst # choosen arbitrary but typically safe value to start with.
-
-# ── config ──────────────────────────────────────────────────────────────────
 
 
 # ── STEP 1 — load tracks + resolve the video path ────────────────────────────
@@ -39,24 +34,12 @@ run_dir = os.path.dirname(parquet_path)
 video_path = os.path.join(run_dir, f"tracker_{VIDEO_RUN_NAME}.mp4")
 
 # ── STEP 1b — per-fish smoothed speed + data-derived BURST_MIN_CMS ────────────
-# ONE flat DataFrame the whole way through — no dict. groupby("fish_id") computes
-# x/y diffs -> dist_px -> speed_cms -> speed_smooth (rolling mean, SMOOTH_WIN) per
-# fish, all in new columns added directly onto `tracks`. reused as-is by STEP 2
-# (same columns, don't recompute there) via tracks[tracks.fish_id == fid] filtering.
-#
-# then, using ONLY the control segment (frame_number < FOOD_START) as "what does
-# normal look like": pool every fish's speed_smooth values from that segment and
-# take a high percentile (e.g. 95th) -> this becomes BURST_MIN_CMS, instead of a
-# hardcoded constant. this is the number to justify in the paper, so:
-#   - print/log the chosen percentile value
-#   - save a histogram (matplotlib, Agg backend) of the control-segment speed
-#     distribution with a vertical line at the chosen threshold -> output/ PNG,
-#     this is the evidence figure that shows WHERE the number came from
 
 FISH_IDS = sorted(tracks.fish_id.unique()) # sorted is python built - gives small list [1, 2, 3, 4]. 
 
 banner("STEP 1b — per-fish smoothed speed + data-derived BURST_MIN_CMS")
 
+# compute per-fish distance + speed
 banner_sub("compute per-fish distance + speed")
 tracks = tracks.sort_values(["fish_id", "frame_number"])
 dx = tracks.groupby("fish_id")["x"].diff()
@@ -71,11 +54,29 @@ grouped_speed = tracks.groupby("fish_id")["speed_cms"]
 tracks["speed_smooth"] = grouped_speed.transform(lambda s: s.rolling(SMOOTH_WIN, min_periods=1).mean()) # rolling creates a window...that moves from left to right...here of 5...and min_period..is small window for the initial values...and the mean takes the average for each window
 logging.info(tracks[["fish_id", "frame_number", "dist_px", "dist_cm", "speed_cms", "speed_smooth"]].head().to_string())
 
+# derive BURST_MIN_CMS from control-segment speed
 banner_sub("derive BURST_MIN_CMS from control-segment speed")
+control_speeds = tracks.loc[tracks.frame_number < FOOD_START, "speed_smooth"] # filter .loc[row_condition, column_name] 
+BURST_MIN_CMS= control_speeds.quantile(0.95) #  95th percentile ...is a fraction..rthe vlaue below whcih 95 percent of controls speeds fall cms = centimeters per second (cm/s)
+logging.info(f"BURST_MIN_CMS = {BURST_MIN_CMS:.2f} cm/s (95th percentile of control-segment speed)")
+feeding_speeds = tracks.loc[tracks.frame_number >= FOOD_START, "speed_smooth"]
 
-
-
-
+# graph  BURST_MIN_CMS from control-segment speed
+feeding_burst_output = os.path.join(run_dir, "feeding_burst")
+os.makedirs(feeding_burst_output, exist_ok=True)
+fig, ax = plt.subplots(figsize=(8, 5))
+bins = np.linspace(0, 40, 101) # 
+ax.hist(control_speeds.dropna(), bins=bins, alpha=0.6, label="control", color="tab:blue", density=True)
+ax.hist(feeding_speeds.dropna(), bins=bins, alpha=0.6, label="feeding", color="tab:orange", density=True)
+ax.axvline(BURST_MIN_CMS, color="red", linestyle="--", label=f"BURST_MIN_CMS = {BURST_MIN_CMS:.2f} cm/s")
+ax.set_xlabel("speed_smooth (cm/s)")
+ax.set_ylabel("density")
+ax.set_title("Control vs feeding speed distribution (threshold from control only)")
+ax.set_xlim(0, 40)
+ax.legend()
+hist_path = os.path.join(feeding_burst_output, "burst_threshold_histogram.png")
+fig.savefig(hist_path, dpi=150)
+logging.info(f"saved evidence figure -> {hist_path}")
 
 # ── STEP 2 — per-fish burst detection ─────────────────────────────────────────
 # find_peaks has no groupby equivalent, so this is the one place a real per-fish
