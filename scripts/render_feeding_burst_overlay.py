@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from scipy.signal import find_peaks
 
 from scripts.video_utils import grab_video_name
 from scripts.console import banner, banner_sub
@@ -25,6 +26,8 @@ logger = logging.getLogger(__name__)
 VIDEO_RUN_NAME = "IMG_2349_appearance_2026_08_12_1926"
 FOOD_START = 14491
 SMOOTH_WIN = 5 # rolling_avg width (frames) to kill single frame tracker jitter wihtout blurring real burst # choosen arbitrary but typically safe value to start with.
+BURST_PROM = 3.0   # chosen  arbitrary-but-reasonable guess-  cm/s — how far a peak must stand out above its surrounding baseline to count (not just barely poking over BURST_MIN_CMS)
+BURST_GAP_S = 1.0  #  seconds —> choosen arbitraly minimum time between two peaks for the same fish to count as separate bursts, not one burst counted twice
 
 
 # ── STEP 1 — load tracks + resolve the video path ────────────────────────────
@@ -35,7 +38,6 @@ video_path = os.path.join(run_dir, f"tracker_{VIDEO_RUN_NAME}.mp4")
 
 # ── STEP 1b — per-fish smoothed speed + data-derived BURST_MIN_CMS ────────────
 
-FISH_IDS = sorted(tracks.fish_id.unique()) # sorted is python built - gives small list [1, 2, 3, 4]. 
 
 banner("STEP 1b — per-fish smoothed speed + data-derived BURST_MIN_CMS")
 
@@ -80,32 +82,60 @@ logging.info(f"saved evidence figure -> {hist_path}")
 
 # ── STEP 2 — per-fish burst detection ─────────────────────────────────────────
 # find_peaks has no groupby equivalent, so this is the one place a real per-fish
-# loop is unavoidable: for fid in FISH_IDS: g = tracks[tracks.fish_id == fid]
-# (tracks already has speed_smooth from STEP 1b, no recomputation needed)
-# using g["speed_smooth"] + BURST_MIN_CMS (STEP 1b) + BURST_PROM + BURST_GAP_S
-# fill burst_frames_by_fish: {fish_id: sorted array of frame numbers where a burst peaked}
-# (this dict is fine/expected here — it's peak-detection RESULTS, not a second copy
-# of the tracking data itself, so it doesn't reintroduce the earlier confusion)
-# (this part stays ONE running total per fish here — the control/feeding split
-# happens next, in STEP 2b, not inside this loop)
+banner("STEP 2 — per-fish burst detection")
 
+FISH_IDS = sorted(tracks.fish_id.unique()) # sorted is python built - gives small list [1, 2, 3, 4]. 
+burst_frames_by_fish = {}  # burst_frames_by_fish is a dictionary where each key is a fish_id, and each value is an array of frame numbers where that fish had a burst. e.g {1: [820, 1450, 8901, ...], 2: [340, 5210, ...], 3: [...
 
+banner_sub("find bursts per fish (height + prominence + distance gates)")
+
+burst_frames_by_fish = {}
+for fid in FISH_IDS:
+    g = tracks[tracks.fish_id == fid].sort_values("frame_number")
+    median_dt = g["timestamp"].diff().mean() # find peaks - distance needs only one value argument,....so we take the median 
+    gap_frames = max(1, int(round(BURST_GAP_S / median_dt)))
+    peak_idx, _ = find_peaks( # imported module function # peak_idx is an array an array of position numbers # Each individual peak found by find_peaks = one single frame - the exact row where that burst's speed hit its summit (its single highest point). 
+        g["speed_smooth"].to_numpy(),
+        height=BURST_MIN_CMS,      # filter 1: fast enough in cm/s, full stop?
+        prominence=BURST_PROM,     # filter 2: does it stand out from its own dip, or is it just a small hill riding on a bigger one?
+        distance=gap_frames,       # filter 3: not too close in time to an already-counted, taller peak?
+    )  
+    # gures out which real frame numbers this fish's bursts happened on, and stores them under that fish's ID.
+    frame_numbers_array = g["frame_number"].to_numpy()   # step 1: whole frame_number column, as an array
+    burst_frames = frame_numbers_array[peak_idx]          # step 2: just the rows where a burst peaked
+    burst_frames_by_fish[fid] = burst_frames               # step 3: file it under this fish's id - > burst_frames_by_fish is a dictionary
+    logging.info(f"fish {fid}: {len(burst_frames)} bursts detected")
+
+logging.info(f"fish 1 bursts: {burst_frames_by_fish[1]}")
 
 # ── STEP 2b — segment label + flat burst-events table ────────────────────────
-# for every (fish_id, frame_number) burst found above, look up:
-#   - timestamp        -> tracks.loc[tracks.frame_number == frame_number, "timestamp"]
-#   - segment           -> "control" if frame_number < FOOD_START else "feeding"
-# stack all fish into one flat table:
-#   burst_events = pd.DataFrame(rows, columns=["fish_id", "frame_number", "timestamp", "segment"])
-# this table is the single source of truth for both the on-screen counters (STEP 3)
-# and the saved data + graph (STEP 4/5) — build it once, reuse it everywhere
+banner("STEP 2b — segment label + flat burst-events table")
 
-# helper: bursts_up_to(fish_id, frame_number, segment) -> running count for that fish
-#         WITHIN that segment only (filter burst_events to fish_id + segment, then
-#         count how many frame_number <= the current frame — same searchsorted idea
-#         as before, just on the filtered array instead of the whole-video one)
-# helper: is_flickering(fish_id, frame_number) -> True if a burst just peaked
-#         (unchanged — doesn't need the segment split, a flicker is a flicker)
+banner_sub("build one flat table: every burst, with its timestamp + segment")
+rows = []
+for fid, frame_numbers in burst_frames_by_fish.items():
+    for frame_number in frame_numbers:
+        timestamp = tracks.loc[
+            (tracks.fish_id == fid) & (tracks.frame_number == frame_number), "timestamp"
+        ].iloc[0]  # .iloc[0] -> there's exactly one row for this (fish_id, frame_number) pair, grab its value
+        segment = "control" if frame_number < FOOD_START else "feeding"
+        rows.append({"fish_id": fid, "frame_number": frame_number, "timestamp": timestamp, "segment": segment})
+
+burst_events = pd.DataFrame(rows, columns=["fish_id", "frame_number", "timestamp", "segment"])
+logging.info(burst_events.to_string())
+
+banner_sub("helpers built on top of burst_events")
+
+def bursts_up_to(fish_id, frame_number, segment):
+    # running count for this fish, WITHIN this segment only — a control-segment
+    # count naturally stops growing once frame_number crosses into feeding,
+    # since there are no more control-segment rows left to count
+    sub = burst_events[(burst_events.fish_id == fish_id) & (burst_events.segment == segment)]
+    return int((sub.frame_number <= frame_number).sum())
+
+def is_flickering(fish_id, frame_number):
+    # True only on the exact frame a burst peaked — used to flash the overlay
+    return bool(((burst_events.fish_id == fish_id) & (burst_events.frame_number == frame_number)).any())
 
 
 # ── STEP 3 — render the overlay video ────────────────────────────────────────
