@@ -48,9 +48,10 @@ workshop/
 kaggle/upload/
 kaggle/*.zip
 scripts/archive/
-diary.md
-paper_outline.md
-feeding_strike_findings.md
+docs/diary.md
+docs/paper_outline.md
+docs/feeding_strike_findings.md
+docs/reid_workshop.md
 .vscode/
 .wrangler/
 node_modules/

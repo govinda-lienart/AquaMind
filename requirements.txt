@@ -6,4 +6,3 @@ openpyxl
 mlflow
 pandas
 requests
-pytest
