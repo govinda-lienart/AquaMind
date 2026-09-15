@@ -4,6 +4,7 @@ render_feeding_burst_overlay.py — live per-fish burst overlay on the tracked v
 usage:  python -m scripts.render_feeding_burst_overlay
 """
 
+# %%
 # ── imports ──────────────────────────────────────────────────────────────────
 import os
 
@@ -25,21 +26,26 @@ logger = logging.getLogger(__name__)
 # CONSTANTS
 
 VIDEO_RUN_NAME = "IMG_2349_appearance_2026_08_12_1926"
+SAND_START = 7505   # prefeeding phase ends / sand-injection control starts (matches infer_feeding.py)
 FOOD_START = 14491
 SMOOTH_WIN = 5 # rolling_avg width (frames) to kill single frame tracker jitter wihtout blurring real burst # choosen arbitrary but typically safe value to start with.
-BURST_PROM = 2.0   # lowered from 3.0 — catch smaller real feeding lunges that don't stand out as much from an already-elevated baseline, without touching BURST_MIN_CMS (applies to both segments, same find_peaks call)
-BURST_GAP_S = 1.0  #  seconds —> choosen arbitraly minimum time between two peaks for the same fish to count as separate bursts, not one burst counted twice
+BURST_PROM = 4.0   # matches the visually-validated throwaway version (scripts/throwaway/feeding_strike/render_feeding_burst_overlay.py) — the lower 2.0 let through smaller wobbles that didn't look like real feeding lunges on the overlay video
+BURST_GAP_S = 0.4  # seconds — matches the throwaway version; 1.0s was merging genuinely separate bursts into one on the overlay video
 RATE_BIN_S = 10.0  # seconds per bin for the STEP 5 rate curve — arbitrary but reasonable starting value
 OVERLAY_FRAME_START = 0  # from here to the end of the video (video has 21678 frames total)
 OVERLAY_FRAME_END = None     # None -> no end limit, runs until cap.read() reports no more frames
+RENDER_OVERLAY_VIDEO = True  # set False to skip STEP 3's slow frame-by-frame video render
+                              # (~257MB, minutes to write) when only iterating on the STEP 5 graph
 
 
+# %%
 # ── STEP 1 — load tracks + resolve the video path ────────────────────────────
 parquet_path, pixels_per_cm, *_ = grab_video_name(VIDEO_RUN_NAME)
 tracks = pd.read_parquet(parquet_path)
 run_dir = os.path.dirname(parquet_path)
 video_path = os.path.join(run_dir, f"tracker_{VIDEO_RUN_NAME}.mp4")
 
+# %%
 # ── STEP 1b — per-fish smoothed speed + data-derived BURST_MIN_CMS ────────────
 
 
@@ -63,8 +69,8 @@ logging.info(tracks[["fish_id", "frame_number", "dist_px", "dist_cm", "speed_cms
 # derive BURST_MIN_CMS from control-segment speed
 banner_sub("derive BURST_MIN_CMS from control-segment speed")
 control_speeds = tracks.loc[tracks.frame_number < FOOD_START, "speed_smooth"] # filter .loc[row_condition, column_name] 
-BURST_MIN_CMS= control_speeds.quantile(0.95) #  95th percentile ...is a fraction..rthe vlaue below whcih 95 percent of controls speeds fall cms = centimeters per second (cm/s)
-logging.info(f"BURST_MIN_CMS = {BURST_MIN_CMS:.2f} cm/s (95th percentile of control-segment speed)")
+BURST_MIN_CMS= control_speeds.quantile(0.85) # 85th percentile — lands close to 9.0 cm/s, the value the throwaway version hardcoded and that visually best flagged real feeding lunges on the overlay video; still data-derived, not a re-hardcoded constant
+logging.info(f"BURST_MIN_CMS = {BURST_MIN_CMS:.2f} cm/s (85th percentile of control-segment speed)")
 feeding_speeds = tracks.loc[tracks.frame_number >= FOOD_START, "speed_smooth"]
 
 # graph  BURST_MIN_CMS from control-segment speed
@@ -145,79 +151,94 @@ FLICKER_S = 0.35  # seconds the star marker stays visible after a burst peaks �
 
 
 # ── STEP 3 — render the overlay video ────────────────────────────────────────
-banner("STEP 3 — render the overlay video")
+if RENDER_OVERLAY_VIDEO:
+    banner("STEP 3 — render the overlay video")
 
-overlay_path = os.path.join(feeding_burst_output, f"burst_overlay_{VIDEO_RUN_NAME}.mp4")
-cap = cv2.VideoCapture(video_path)
-fps = cap.get(cv2.CAP_PROP_FPS)
-frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-writer = cv2.VideoWriter(overlay_path, cv2.VideoWriter_fourcc(*"avc1"), fps, (frame_width, frame_height))  # avc1 (H.264) so QuickTime can actually open it — mp4v writes a valid file, just one QuickTime refuses
+    overlay_path = os.path.join(feeding_burst_output, f"burst_overlay_{VIDEO_RUN_NAME}.mp4")
+    cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    writer = cv2.VideoWriter(overlay_path, cv2.VideoWriter_fourcc(*"avc1"), fps, (frame_width, frame_height))  # avc1 (H.264) so QuickTime can actually open it — mp4v writes a valid file, just one QuickTime refuses
 
-# fish x/y per frame, for drawing the burst marker AT the fish instead of just in a corner
-fish_positions = tracks.set_index(["fish_id", "frame_number"])[["x", "y"]]
-flicker_frames = max(1, int(FLICKER_S * fps))  # FLICKER_S converted to a frame count, this fish's video's own fps
+    # fish x/y per frame, for drawing the burst marker AT the fish instead of just in a corner
+    fish_positions = tracks.set_index(["fish_id", "frame_number"])[["x", "y"]]
+    flicker_frames = max(1, int(FLICKER_S * fps))  # FLICKER_S converted to a frame count, this fish's video's own fps
 
-# ── precompute frames_since_burst for every (fish_id, frame_number) we'll render ──
-# merge_asof = a merge with "nearest match at-or-before" instead of an exact-key
-# match, so this replaces the old np.searchsorted helper (same idea, pandas
-# vocabulary) — and it's computed ONCE for the whole render range instead of once
-# per fish per frame inside the loop.
-banner_sub("precompute last-burst lookup via merge_asof")
+    # ── precompute frames_since_burst for every (fish_id, frame_number) we'll render ──
+    # merge_asof = a merge with "nearest match at-or-before" instead of an exact-key
+    # match, so this replaces the old np.searchsorted helper (same idea, pandas
+    # vocabulary) — and it's computed ONCE for the whole render range instead of once
+    # per fish per frame inside the loop.
+    banner_sub("precompute last-burst lookup via merge_asof")
 
-total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-last_frame = OVERLAY_FRAME_END if OVERLAY_FRAME_END is not None else total_frames - 1
-render_frames = np.arange(OVERLAY_FRAME_START, last_frame + 1)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    last_frame = OVERLAY_FRAME_END if OVERLAY_FRAME_END is not None else total_frames - 1
+    render_frames = np.arange(OVERLAY_FRAME_START, last_frame + 1)
 
-# every (fish_id, frame_number) pair we'll actually render — the "left" side of the merge
-# merge_asof needs the "on" column sorted GLOBALLY (not just within each fish_id group,
-# which is what by="fish_id" handles separately) — sort by frame_number alone
-lookup = pd.MultiIndex.from_product([FISH_IDS, render_frames], names=["fish_id", "frame_number"]).to_frame(index=False)
-lookup = lookup.sort_values("frame_number")
+    # every (fish_id, frame_number) pair we'll actually render — the "left" side of the merge
+    # merge_asof needs the "on" column sorted GLOBALLY (not just within each fish_id group,
+    # which is what by="fish_id" handles separately) — sort by frame_number alone
+    lookup = pd.MultiIndex.from_product([FISH_IDS, render_frames], names=["fish_id", "frame_number"]).to_frame(index=False)
+    lookup = lookup.sort_values("frame_number")
 
-burst_only = burst_events[["fish_id", "frame_number"]].sort_values("frame_number").rename(
-    columns={"frame_number": "last_burst_frame"}
-)
+    burst_only = burst_events[["fish_id", "frame_number"]].sort_values("frame_number").rename(
+        columns={"frame_number": "last_burst_frame"}
+    )
 
-lookup = pd.merge_asof(
-    lookup, burst_only,
-    left_on="frame_number", right_on="last_burst_frame",
-    by="fish_id", direction="backward",  # "backward" = nearest last_burst_frame <= frame_number
-)
-lookup["frames_since_burst"] = lookup["frame_number"] - lookup["last_burst_frame"]
-lookup = lookup.set_index(["fish_id", "frame_number"])["frames_since_burst"]
+    lookup = pd.merge_asof(
+        lookup, burst_only,
+        left_on="frame_number", right_on="last_burst_frame",
+        by="fish_id", direction="backward",  # "backward" = nearest last_burst_frame <= frame_number
+    )
+    lookup["frames_since_burst"] = lookup["frame_number"] - lookup["last_burst_frame"]
+    lookup = lookup.set_index(["fish_id", "frame_number"])["frames_since_burst"]
 
-cap.set(cv2.CAP_PROP_POS_FRAMES, OVERLAY_FRAME_START)  # jump straight there instead of decoding every earlier frame
-frame_number = OVERLAY_FRAME_START
-while True:
-    if OVERLAY_FRAME_END is not None and frame_number > OVERLAY_FRAME_END:
-        break
-    ok, frame = cap.read()
-    if not ok:  # ok is False once there are no more frames left to read
-        break
-    for row, fid in enumerate(FISH_IDS):
-        control_count = bursts_up_to(fid, frame_number, "control")  # freezes once feeding starts
-        feeding_count = bursts_up_to(fid, frame_number, "feeding")  # stays 0 until FOOD_START
-        flickering = is_flickering(fid, frame_number)
-        text = f"F{fid}  control:{control_count}  feeding:{feeding_count}" + (" *" if flickering else "")
-        color = (0, 0, 255) if flickering else (255, 255, 255)  # flash red on the exact burst frame
-        cv2.putText(frame, text, (10, 30 + row * 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, OVERLAY_FRAME_START)  # jump straight there instead of decoding every earlier frame
+    frame_number = OVERLAY_FRAME_START
+    while True:
+        if OVERLAY_FRAME_END is not None and frame_number > OVERLAY_FRAME_END:
+            break
+        ok, frame = cap.read()
+        if not ok:  # ok is False once there are no more frames left to read
+            break
+        for row, fid in enumerate(FISH_IDS):
+            control_count = bursts_up_to(fid, frame_number, "control")  # freezes once feeding starts
+            feeding_count = bursts_up_to(fid, frame_number, "feeding")  # stays 0 until FOOD_START
+            flickering = is_flickering(fid, frame_number)
+            text = f"F{fid}  control:{control_count}  feeding:{feeding_count}" + (" *" if flickering else "")
+            color = (0, 0, 255) if flickering else (255, 255, 255)  # flash red on the exact burst frame
+            cv2.putText(frame, text, (10, 30 + row * 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-        # burst marker, drawn right on the fish, visible for flicker_frames after it peaks
-        diff = lookup.at[(fid, frame_number)]
-        if pd.notna(diff) and 0 <= diff <= flicker_frames:
-            try:
-                x, y = fish_positions.loc[(fid, frame_number)]
-            except KeyError:
-                continue  # this fish has no detection on this exact frame (occluded)
-            cv2.drawMarker(frame, (int(x), int(y) - 15), (0, 255, 255),
-                            markerType=cv2.MARKER_STAR, markerSize=26, thickness=2)
-    writer.write(frame)
-    frame_number += 1
+            # burst marker, drawn right on the fish, visible for flicker_frames after it peaks
+            diff = lookup.at[(fid, frame_number)]
+            if pd.notna(diff) and 0 <= diff <= flicker_frames:
+                try:
+                    x, y = fish_positions.loc[(fid, frame_number)]
+                except KeyError:
+                    continue  # this fish has no detection on this exact frame (occluded)
+                cv2.drawMarker(frame, (int(x), int(y) - 15), (0, 255, 255),
+                                markerType=cv2.MARKER_STAR, markerSize=26, thickness=2)
 
-cap.release()
-writer.release()
-logging.info(f"saved overlay video -> {overlay_path}")
+        # segment subtitle, sitting at sand/ground level near the bottom of the frame
+        if frame_number < SAND_START:
+            segment_label = "BASELINE"
+        elif frame_number < FOOD_START:
+            segment_label = "SAND (control)"
+        else:
+            segment_label = "FEEDING"
+        (text_w, _), _ = cv2.getTextSize(segment_label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+        cv2.putText(frame, segment_label, ((frame_width - text_w) // 2, int(frame_height * 0.9)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+        writer.write(frame)
+        frame_number += 1
+
+    cap.release()
+    writer.release()
+    logging.info(f"saved overlay video -> {overlay_path}")
+else:
+    logging.info("RENDER_OVERLAY_VIDEO is False — skipping STEP 3's video render")
 
 
 # ── STEP 4 — save burst_events to disk ────────────────────────────────────────
@@ -227,6 +248,7 @@ burst_events_path = os.path.join(feeding_burst_output, f"burst_events_{VIDEO_RUN
 burst_events.to_parquet(burst_events_path)
 logging.info(f"saved burst events -> {burst_events_path}")
 
+# %% 
 
 # ── STEP 5 — graph: burst rate, control vs feeding ────────────────────────────
 banner("STEP 5 — graph: burst rate, control vs feeding")
@@ -236,6 +258,12 @@ food_start_time = tracks.loc[tracks.frame_number == FOOD_START, "timestamp"].ilo
 
 burst_events["time_bin"] = (burst_events["timestamp"] // RATE_BIN_S) * RATE_BIN_S
 bin_rate = burst_events.groupby("time_bin").size() / RATE_BIN_S  # bursts/sec, pooled across all fish
+
+# drop the trailing partial bin — the video's last real timestamp falls short of a
+# full RATE_BIN_S window there, so dividing by the full RATE_BIN_S understates its
+# rate (e.g. only ~2.6s of real footage in a bin divided by 10s), not a real activity drop
+last_full_bin = (tracks["timestamp"].max() // RATE_BIN_S) * RATE_BIN_S
+bin_rate = bin_rate[bin_rate.index < last_full_bin]
 
 control_rate = bin_rate[bin_rate.index < food_start_time].mean()
 feeding_rate = bin_rate[bin_rate.index >= food_start_time].mean()
@@ -256,3 +284,5 @@ ax.legend()
 rate_path = os.path.join(feeding_burst_output, "burst_rate_over_time.png")
 fig.savefig(rate_path, dpi=150)
 logging.info(f"saved burst-rate evidence figure -> {rate_path}")
+
+# %%
