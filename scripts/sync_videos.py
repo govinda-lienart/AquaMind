@@ -4,12 +4,10 @@
 
 # IMPORTS
 import logging
-import os
-from dotenv import load_dotenv
-import mysql.connector
 import openpyxl
 import cv2
 from scripts.console import banner, banner_sub
+from scripts.db import get_connection
 
 # CONSTANTS
 
@@ -42,8 +40,33 @@ def get_video_fps_resolution(file_path):
     return fps, resolution
 
 
-
-
+def register_video(row, conn):
+    fps, resolution = get_video_fps_resolution(row["file_path"])  # reading that video path to extract automaitcally fps and resolution
+    cursor = conn.cursor()
+    cursor.execute( # ON DUPLICATE KEY UPDATE: safe to re-run — updates existing row instead of erroring on duplicate file_path
+        """INSERT INTO videos (file_path, fps, resolution, activity, plants, fish_count, notes,
+                                filmed_at, species, morph, tank_width_cm, tank_height_cm, tank_depth_cm)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            fps            = VALUES(fps),
+            resolution     = VALUES(resolution),
+            activity       = VALUES(activity),
+            plants         = VALUES(plants),
+            fish_count     = VALUES(fish_count),
+            notes          = VALUES(notes),
+            filmed_at      = VALUES(filmed_at),
+            species        = VALUES(species),
+            morph          = VALUES(morph),
+            tank_width_cm  = VALUES(tank_width_cm),
+            tank_height_cm = VALUES(tank_height_cm),
+            tank_depth_cm  = VALUES(tank_depth_cm)""",
+        (row["file_path"], fps, resolution, row["activity"], row["plants"], row["fish_count"],
+        row["notes"], row["filmed_at"], row["species"], row["morph"],
+        row["tank_width_cm"], row["tank_height_cm"], row["tank_depth_cm"])
+    )
+    conn.commit()
+    cursor.close()
+    logger.info(f"synced {row['file_path']} fps={fps} resolution={resolution}")
 
 # MAIN
 
@@ -51,31 +74,12 @@ banner("SYNC VIDEOS")
 
 banner_sub("Loading video metadata from xlsx")
 video_rows = load_video_row("video_metadata.xlsx")
-print(video_rows)
 
-banner_sub("Reading fps/resolution for each video")
+banner_sub("Connecting to MySQL")
+conn = get_connection()
+
+banner_sub("Syncing all videos to MySQL")
 for row in video_rows:
-    fps, resolution = get_video_fps_resolution(row["file_path"])
-    print(row["file_path"], fps, resolution)
+    register_video(row, conn)
 
-banner_sub("Reading parameters mysql")
-load_dotenv() # loads .env data
-conn = mysql.connector.connect(
-    host = os.getenv('DB_HOST'),
-    port = int(os.getenv("DB_PORT")),
-    user = os.getenv("DB_USER"),
-    password = os.getenv("DB_PASSWORD"),
-    database = os.getenv("DB_NAME")
-)
-print(conn) # object
-
-banner_sub("Reading video from mysql")
-cursor = conn.cursor()
-cursor.execute("SELECT * FROM videos")
-rows = cursor.fetchall()
-print(rows)
-cursor.close()
-
-banner_sub("inserting a test video")
-row = video_rows[0] # download first video metadata
-print(row) 
+conn.close()
