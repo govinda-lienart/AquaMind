@@ -1,82 +1,9 @@
-"""
-Reads video metadata from an Excel sheet and registers it in MySQL.
-
-Input  : XLSX_PATH spreadsheet with one video per row
-Needs  : MySQL running, videos table created
-Output : rows inserted into videos table (skips already-registered entries)
-"""
-
-# ── IMPORTS ───────────────────────────────────────────────────────────────────
-
-import logging
-from typing import Any
-
-import openpyxl # reads excel files
-
-from scripts.db import register_video
-
-# ── CONSTANTS ─────────────────────────────────────────────────────────────────
-
-logger = logging.getLogger(__name__)
 
 
-# ── CONSTANTS ─────────────────────────────────────────────────────────────────
 
-XLSX_PATH = 'video_metadata.xlsx'
+import openpyxl
 
-
-# ── HELPERS ───────────────────────────────────────────────────────────────────
-
-def load_video_rows(xlsx_path: str) -> list[dict[str, Any]]: # e.g. [{"file_path": "videos/IMG_0350.MOV", "fish_count": 5, ...},{"file_path": "videos/IMG_0651...]  # row 2 of xlsx
-
-    wb      = openpyxl.load_workbook(xlsx_path) # the entire file
-    ws      = wb.active # ws is worksheet - single sheet
-    headers = [cell.value for cell in ws[1]] # select row 1 as tuple (all headers) # iterates over each of cell objects (headers)  eg # file_path | fish_count | -> 'file_path', 'fps', 'fish_count
-    rows = ws.iter_rows(min_row=2, values_only=True) #generator object - getting the data rows start from row 2 - give aw value -> ('videos/IMG_0350.MOV', 5, 60, 'tracking', ...)
-    return [dict(zip(headers, row)) for row in rows] #  pairs each header name with its matching value by position as a list of dictrionaries[  {'file_path': 'videos/IMG_0350.MOV', 'fish_count': 5},  # row 2...
-
-# ── MAIN ──────────────────────────────────────────────────────────────────────
-
-def main() -> None:
-
-    rows      = load_video_rows(XLSX_PATH)
-    added     = 0
-    updated   = 0
-    unchanged = 0
-
-    for data in rows:  # loop reads over the loaded list of dictionaries and stores it in mysql
-        video_id, rowcount = register_video( # pulls the arguments form the dictionary, inserts in mysql and the outcome of the function is  an integer refering to video id
-            file_path      = data['file_path'],# it stores it as a dictionary. e.g row 2 ->  {'file_path': 'videos/IMG_0350.MOV', 'activity': 'normal', 'plants': 1, ...}
-            activity       = data['activity'],
-            plants         = int(data['plants']),
-            fish_count     = int(data['fish_count']),
-            notes          = data['notes'],
-            species        = data['species'],
-            morph          = data['morph'],
-            tank_width_cm  = data['tank_width_cm'],
-            tank_height_cm = data['tank_height_cm'],
-            tank_depth_cm  = data['tank_depth_cm'],
-            filmed_at      = data.get('filmed_at'),
-        )
-
-        if rowcount == 1:
-            logger.info(f"added     {data['file_path']} → video_id={video_id}")
-            added += 1
-        elif rowcount == 2:
-            logger.info(f"updated   {data['file_path']} → video_id={video_id}")
-            updated += 1
-        else:
-            logger.info(f"unchanged {data['file_path']}")
-            unchanged += 1
-
-    logger.info(f"done — {added} added, {updated} updated, {unchanged} unchanged")
-
-
-# ── ENTRY POINT ───────────────────────────────────────────────────────────────
-
-if __name__ == '__main__':
-    from scripts.logger import setup_logging
-    setup_logging()
-    main()
-
+wb = openpyxl.load_workbook("video_metadata.xlsx") # creates a workbook object
+ws = wb["videos"] # grab the sheet videos
+print (ws["A1"].value) # test - name column
 
