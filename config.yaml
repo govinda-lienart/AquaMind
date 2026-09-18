@@ -3,17 +3,9 @@
 extract_frames:
   video_path:     videos/IMG_1839.MOV   # RAW source (never a tracker output — those have boxes drawn on them)
   frames_dir:     frames
-  sample_rate:    4     # frames per second to extract (1=1fps, 4=4fps for dense hard-negative mining, 60=every frame) — used only in window mode
-  start_seconds:  0     # leave 0 for beginning of video — window mode
-  end_seconds:    null  # leave null for full video — window mode
-  # frame_ranges: multi-range mode. When set (non-empty), overrides the seconds/sample_rate window above.
-  # Each [start, end] is INCLUSIVE and in FRAME NUMBERS; every frame in the range is saved (no sampling).
-  # A single frame = [n, n]. Leave null/empty to use window mode instead.
-  frame_ranges:   null
-  # frame_ranges:
-  #   - [100, 200]
-  #   - [240, 240]
-  #   - [300, 400]
+  sample_rate:    4     # frames per second to extract (1=1fps, 4=4fps for dense hard-negative mining, 60=every frame)
+  start_seconds:  0     # leave 0 for beginning of video
+  end_seconds:    null  # leave null for full video
 
 # download_labelstudio_script
 download_labelstudio:

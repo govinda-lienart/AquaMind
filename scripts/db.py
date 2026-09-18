@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__) # log
 
 # ── FUNCTIONS ─────────────────────────────────────────────────────────────────
 
-def get_connection() 
+def get_connection():
     load_dotenv()
     db_name = os.getenv("DB_NAME")
     logger.debug(f"connecting to database={db_name}")
@@ -37,52 +37,6 @@ def get_connection()
         password = os.getenv("DB_PASSWORD"),
         database = db_name
     )
-
-
-def register_video(file_path: str, activity: str, plants: int, fish_count: int,
-                   notes: str | None = None, species: str = 'danio_rerio', morph: str | None = None,
-                   tank_width_cm: float | None = None, tank_height_cm: float | None = None,
-                   tank_depth_cm: float | None = None, filmed_at: str | None = None) -> int:
-    """Registers a video in MySQL — reads FPS and resolution directly from the video file."""
-    cap        = cv2.VideoCapture(file_path)
-    fps        = round(cap.get(cv2.CAP_PROP_FPS))
-    width      = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    resolution = '4K' if width >= 3840 else '1080p' if width >= 1920 else '720p'
-    cap.release()
-    logger.debug(f"registering {file_path} fps={fps} resolution={resolution}")
-
-    conn   = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO videos (file_path, fps, resolution, activity, plants, fish_count, notes, filmed_at,
-                            species, morph, tank_width_cm, tank_height_cm, tank_depth_cm)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON DUPLICATE KEY UPDATE
-            fps            = VALUES(fps),
-            resolution     = VALUES(resolution),
-            activity       = VALUES(activity),
-            plants         = VALUES(plants),
-            fish_count     = VALUES(fish_count),
-            notes          = VALUES(notes),
-            filmed_at      = VALUES(filmed_at),
-            species        = VALUES(species),
-            morph          = VALUES(morph),
-            tank_width_cm  = VALUES(tank_width_cm),
-            tank_height_cm = VALUES(tank_height_cm),
-            tank_depth_cm  = VALUES(tank_depth_cm)
-    """, (file_path, fps, resolution, activity, plants, fish_count, notes, filmed_at,
-          species, morph, tank_width_cm, tank_height_cm, tank_depth_cm))
-    conn.commit()
-    rowcount = cursor.rowcount  # 1=inserted, 2=updated, 0=unchanged
-    if cursor.lastrowid:
-        video_id = cursor.lastrowid
-    else:
-        cursor.execute("SELECT id FROM videos WHERE file_path = %s", (file_path,))
-        video_id = cursor.fetchone()[0]
-    cursor.close()
-    conn.close()
-    logger.debug(f"register_video result: video_id={video_id} rowcount={rowcount}")
-    return video_id, rowcount
 
 
 def get_video_id(cursor: Any, video_path: str) -> int:
