@@ -1,9 +1,9 @@
 
 # extract_frames_script
 extract_frames:
-  video_path:     videos/IMG_1839.MOV   # RAW source (never a tracker output — those have boxes drawn on them)
+  video_path:     videos/IMG_1839.MOV   # RAW source
   frames_dir:     frames
-  sample_rate:    4     # frames per second to extract (1=1fps, 4=4fps for dense hard-negative mining, 60=every frame)
+  sample_rate:    1    # frames per second to extract (1=1fps, 4=4fps for dense hard-negative mining, 60=every frame)
   start_seconds:  0     # leave 0 for beginning of video
   end_seconds:    null  # leave null for full video
 
