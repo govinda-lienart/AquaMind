@@ -13,7 +13,7 @@ import datetime
 
 # module imports
 from scripts.console import banner, banner_sub
-from scripts.db import get_connection
+from scripts.db import get_connection, get_video_id
 
 # logging imports
 import logging
@@ -57,8 +57,12 @@ logger.info(f"frame_folder_path={frame_folder_path}")
 banner("STEP 3 - CONNECT to MySQL")
 
 conn = get_connection()
-logger.inf(f"connected to database={conn.database}")
+logger.info(f"connected to database={conn.database}")
 cursor = conn.cursor()
+
+# ── STEP 4: GUARDRAILS (run in order) ─────────────────────────────────────────
+
+banner("STEP 4 - GUARDRAILS")
 
 banner_sub("guard 1 - unique constraint on frames (video_id, frame_number)") # never allow the same frame of the same video to be stored twice
 try:
@@ -67,16 +71,17 @@ try:
 except Exception:
     logger.info("constrain already exist, continuing") # eats the error in case constrains already established
 
+banner_sub("guard 2 - video is registered in the videos table") 
+video_id = get_video_id(cursor, video_path) # has 2 functions: Check the video is registered. If it isn't, it stops with an error. 2) Return its id. That number is the foreign key you attach to every frame row later.
+logger.info(f"video_id={video_id}, type={type(video_id)}")
 
-
-
-
-# ── STEP 4: GUARDRAILS (run in order) ─────────────────────────────────────────
-# TODO: banner("STEP 4 - GUARDRAILS"), then banner_sub("guard 1 - unique constraint") / ("guard 2 - video registered") / ("guard 3 - already extracted?")
-# TODO guard 1: unique constraint on frames (video_id, frame_number)
-# TODO guard 2: get_video_id(cursor, video_path)
-# TODO guard 3: frames already extracted? -> stop if yes
-
+banner_sub("guard 3 - frames already extracted for this video?")
+cursor.execute("SELECT COUNT(*) FROM frames WHERE video_id = %s", (video_id,))  # values go in a tuple; one value needs a trailing comma
+already_extracted = cursor.fetchone()[0] > 0
+logger.info(f"already_extracted={already_extracted}")
+if already_extracted:
+    logger.info(f"frames already exist for {video_path}, skipping extraction")
+    raise SystemExit
 
 # ── STEP 5: EXTRACT frames to disk ────────────────────────────────────────────
 # TODO: banner("STEP 5 - EXTRACT frames to disk"), banner_sub("video settings: fps / step / start-end frame"), banner_sub("saving frames")
