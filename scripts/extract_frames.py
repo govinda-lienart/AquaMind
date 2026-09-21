@@ -34,9 +34,9 @@ logger.info(cfg)
 banner_sub("extract_frames specific parameters")
 video_path = cfg["video_path"]
 frames_dir = cfg["frames_dir"]
-sample_rate = cfg["sample_rate"]
-start_seconds = cfg["start_seconds"]
-end_seconds = cfg["end_seconds"]
+sample_rate = cfg.get("sample_rate", 1)              # missing -> 1 frame per second
+start_seconds = cfg.get("start_seconds", 0) or 0     # missing or blank (None) -> 0
+end_seconds = cfg.get("end_seconds")                 # missing or blank -> None (whole video)
 
 logger.info(f"video_path={video_path}, frames_dir={frames_dir}, sample_rate={sample_rate}, start_seconds={start_seconds}, end_seconds={end_seconds}")
 
@@ -74,12 +74,15 @@ except Exception:
 banner_sub("guard 2 - video is registered in the videos table") 
 video_id = get_video_id(cursor, video_path) # has 2 functions: Check the video is registered. If it isn't, it stops with an error. 2) Return its id. That number is the foreign key you attach to every frame row later.
 logger.info(f"video_id={video_id}, type={type(video_id)}")
+cursor.execute("SELECT fps FROM videos WHERE id = %s", (video_id,))   # the old register_frames() took timestamps from videos.fps, not from OpenCV
+video_fps = cursor.fetchone()[0]
+logger.info(f"video_fps (from videos table)={video_fps}")
 
 banner_sub("guard 3 - frames already extracted for this video?")
 cursor.execute("SELECT COUNT(*) FROM frames WHERE video_id = %s", (video_id,))  # values go in a tuple; one value needs a trailing comma
 already_extracted = cursor.fetchone()[0] > 0
 logger.info(f"already_extracted={already_extracted}")
-if False: # temporryly on false to be able to test rest of the script
+if already_extracted:
     logger.info(f"frames already exist for {video_path}, skipping extraction")
     raise SystemExit
 
@@ -117,7 +120,7 @@ while frame_count < end_frame:
             break # break when The video ran out of frames or error
         filename = f"{frame_folder_path}/frame_{frame_count}_{video_name}.jpg"
         cv2.imwrite(filename, frame) # save it as a JPG
-        rows.append((video_id, filename, frame_count, frame_count / fps))   # order must match the INSERT in STEP 6 - important step as this one will be used for storying in mysql
+        rows.append((video_id, filename, frame_count, frame_count / video_fps, datetime.datetime.now()))   # order must match the INSERT in STEP 6 - important step as this one will be used for storying in mysql
         frames_stored += 1
     else: # if == 0 is false  - skip the frame with grab().
         if not cap.grab(): # skip a frame without decoding it (fast); still moves the bookmark forward
@@ -131,29 +134,34 @@ logger.info(f"frames_stored={frames_stored}")
 banner("STEP 6 - REGISTER frames in MySQL")
 
 cursor.executemany( # allows to loop over the rows
-    "INSERT INTO frames (video_id, frame_path, frame_number, timestamp) VALUES (%s, %s, %s, %s)", # usually one row with several columns but here several rows several coluimsn
+    "INSERT IGNORE INTO frames (video_id, frame_path, frame_number, timestamp, extracted_at) VALUES (%s, %s, %s, %s, %s)", # IGNORE = duplicates skipped, safe to re-run (as in the old register_frames); usually one row with several columns but here several rows several coluimsn
     rows, # see list of tuples in step 5
 )
 conn.commit()   # nothing is saved in MySQL until this line
 logger.info(f"rows inserted = {cursor.rowcount} (frames_stored = {frames_stored})")
 
 # ── STEP 7: SIDECAR + DONE ────────────────────────────────────────────────────
+# lineage: extraction_params.yaml -> store_annotations.py -> annotation_sets -> dataset_card.yaml -> MLflow
 banner("STEP 7 - SIDECAR + DONE")
 
 banner_sub("write extraction_params.yaml")
 
 params = {
+    "frame_source": "regular",              # read by store_annotations.py
     "video_path": video_path,
-    "fps": fps,
-    "sample_rate": sample_rate,
+    "sample_rate": sample_rate,             # read by store_annotations.py
+    "start_seconds": start_seconds,         # read by store_annotations.py
+    "end_seconds": end_seconds,             # read by store_annotations.py
+    "frames_extracted": frames_stored,      # read by store_annotations.py (key name must stay 'frames_extracted')
+    "extracted_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    "fps": fps,                             # extras, not read by store_annotations.py
     "step": step,
     "start_frame": start_frame,
     "end_frame": end_frame,
-    "frames_stored": frames_stored,
 }
 
 with open(f"{frame_folder_path}/extraction_params.yaml", "w") as f:   # "w" = write (STEP 1 used the default "r" = read)
-    yaml.safe_dump(params, f) # dump = write a dict to YAML (load = read)
+    yaml.safe_dump(params, f, sort_keys=False) # dump = write a dict to YAML (load = read); sort_keys=False keeps my order
 
 banner_sub("summary")
 logger.info(f"done: {frames_stored} frames saved to {frame_folder_path} and {cursor.rowcount} rows registered in MySQL")

@@ -1,11 +1,11 @@
 
 # extract_frames_script
 extract_frames:
-  video_path:     videos/IMG_1839.MOV   # RAW source
+  video_path:     videos/IMG_0867.MOV   # RAW source
   frames_dir:     frames
   sample_rate:    1    # frames per second to extract (1=1fps, 4=4fps for dense hard-negative mining, 60=every frame)
   start_seconds:  0     # leave 0 for beginning of video
-  end_seconds:    null  # leave null for full video
+  end_seconds:    10    # TEST RUN (about 10 frames) - set back to null for full video
 
 # download_labelstudio_script
 download_labelstudio:
