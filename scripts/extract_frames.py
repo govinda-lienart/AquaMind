@@ -10,6 +10,7 @@ Usage: python -m scripts.extract_frames
 import os
 import yaml
 import datetime
+import cv2
 
 # module imports
 from scripts.console import banner, banner_sub
@@ -79,7 +80,7 @@ banner_sub("guard 3 - frames already extracted for this video?")
 cursor.execute("SELECT COUNT(*) FROM frames WHERE video_id = %s", (video_id,))  # values go in a tuple; one value needs a trailing comma
 already_extracted = cursor.fetchone()[0] > 0
 logger.info(f"already_extracted={already_extracted}")
-if already_extracted:
+if False: # temporryly on false to be able to test rest of the script
     logger.info(f"frames already exist for {video_path}, skipping extraction")
     raise SystemExit
 
@@ -89,13 +90,49 @@ if already_extracted:
 # TODO: loop, save every Nth frame as JPG into frame_folder_path
 # TODO: count frames_stored
 
+banner("STEP 5 - EXTRACT frames to disk")
+
+banner_sub("video settings: fps / step / start-end frame")
+
+cap = cv2.VideoCapture(video_path)
+fps = round(cap.get(cv2.CAP_PROP_FPS))
+total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+logger.info(f"total_frames = {total_frames}")
+
+step = max(1, round(fps / sample_rate)) # : 60 / 1 = 60 (keep every 60th frame), 60 / 4 = 15 (keep every 15th).
+start_frame = int(start_seconds * fps) # so 50 sec x 60 fr/sec is frame 3000
+end_frame = int(end_seconds * fps) if end_seconds else total_frames  # end time given -> convert to frame; None -> use last frame of video
+logger.info(f"fps={fps}, sample_rate={sample_rate}, step={step}")
+logger.info(f"frames {start_frame} -> {end_frame} (total {total_frames})")
 
 # ── STEP 6: REGISTER frames in MySQL ──────────────────────────────────────────
-# TODO: banner("STEP 6 - REGISTER frames in MySQL")
-# TODO: scan frame_folder_path, INSERT IGNORE one row per JPG into frames
 
+banner_sub("saving frames")
+
+cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+os.makedirs(frame_folder_path, exist_ok=True) # putting it here and not step 2 makes sure the folder is not created in case the guardrails detect an error.
+
+frame_count = start_frame # counter
+frames_stored = 0 
+
+while frame_count < end_frame:
+    if (frame_count - start_frame) % step == 0:   # frames walked since the start is a multiple of step -> keep it, otherwise skip (start 100, step 15: keep 100, 115, 130...)
+        ret, frame = cap.read()   # read the frame (ret = False at end of video) #Every call to cap.read() moves the pointer forward by one frame.
+        if not ret:  
+            break # break when The video ran out of frames or error
+        filename = f"{frame_folder_path}/frame_{frame_count}_{video_name}.jpg"
+        cv2.imwrite(filename, frame) # save it as a JPG
+        frames_stored += 1
+    else: # if == 0 is false  - skip the frame with grab().
+        if not cap.grab(): # skip a frame without decoding it (fast); still moves the bookmark forward
+            break  # break if cap.grab() did not succeed
+    frame_count += 1 # every round moves one frame forward, kept or skipped
+cap.release()
+logger.info(f"frames_stored={frames_stored}")
 
 # ── STEP 7: SIDECAR + DONE ────────────────────────────────────────────────────
-# TODO: banner("STEP 7 - SIDECAR + DONE")
+banner("STEP 7 - SIDECAR + DONE")
+
+
 # TODO: write extraction_params.yaml into frame_folder_path
 # TODO: log the summary
