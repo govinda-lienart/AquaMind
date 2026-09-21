@@ -22,7 +22,6 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 # ── STEP 1: READ config.yaml ──────────────────────────────────────────────────
-# DONE: load config.yaml, keep ['extract_frames'], pull out the five values, log them
 
 banner("STEP 1 - READ config.yaml")
 
@@ -85,10 +84,6 @@ if False: # temporryly on false to be able to test rest of the script
     raise SystemExit
 
 # ── STEP 5: EXTRACT frames to disk ────────────────────────────────────────────
-# TODO: banner("STEP 5 - EXTRACT frames to disk"), banner_sub("video settings: fps / step / start-end frame"), banner_sub("saving frames")
-# TODO: open video with cv2, work out fps / step / start_frame / end_frame
-# TODO: loop, save every Nth frame as JPG into frame_folder_path
-# TODO: count frames_stored
 
 banner("STEP 5 - EXTRACT frames to disk")
 
@@ -105,15 +100,15 @@ end_frame = int(end_seconds * fps) if end_seconds else total_frames  # end time 
 logger.info(f"fps={fps}, sample_rate={sample_rate}, step={step}")
 logger.info(f"frames {start_frame} -> {end_frame} (total {total_frames})")
 
-# ── STEP 6: REGISTER frames in MySQL ──────────────────────────────────────────
-
 banner_sub("saving frames")
 
 cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
 os.makedirs(frame_folder_path, exist_ok=True) # putting it here and not step 2 makes sure the folder is not created in case the guardrails detect an error.
 
 frame_count = start_frame # counter
-frames_stored = 0 
+frames_stored = 0
+rows = []   # one tuple per saved frame, inserted in STEP 6 [(1, "frames/f_3000.jpg", 3000, 50.0),    (1, "frames/f_3060.jpg", 3060, 51.0),
+
 
 while frame_count < end_frame:
     if (frame_count - start_frame) % step == 0:   # frames walked since the start is a multiple of step -> keep it, otherwise skip (start 100, step 15: keep 100, 115, 130...)
@@ -122,6 +117,7 @@ while frame_count < end_frame:
             break # break when The video ran out of frames or error
         filename = f"{frame_folder_path}/frame_{frame_count}_{video_name}.jpg"
         cv2.imwrite(filename, frame) # save it as a JPG
+        rows.append((video_id, filename, frame_count, frame_count / fps))   # order must match the INSERT in STEP 6 - important step as this one will be used for storying in mysql
         frames_stored += 1
     else: # if == 0 is false  - skip the frame with grab().
         if not cap.grab(): # skip a frame without decoding it (fast); still moves the bookmark forward
@@ -130,9 +126,37 @@ while frame_count < end_frame:
 cap.release()
 logger.info(f"frames_stored={frames_stored}")
 
+# ── STEP 6: REGISTER frames in MySQL ──────────────────────────────────────────
+
+banner("STEP 6 - REGISTER frames in MySQL")
+
+cursor.executemany( # allows to loop over the rows
+    "INSERT INTO frames (video_id, frame_path, frame_number, timestamp) VALUES (%s, %s, %s, %s)", # usually one row with several columns but here several rows several coluimsn
+    rows, # see list of tuples in step 5
+)
+conn.commit()   # nothing is saved in MySQL until this line
+logger.info(f"rows inserted = {cursor.rowcount} (frames_stored = {frames_stored})")
+
 # ── STEP 7: SIDECAR + DONE ────────────────────────────────────────────────────
 banner("STEP 7 - SIDECAR + DONE")
 
+banner_sub("write extraction_params.yaml")
 
-# TODO: write extraction_params.yaml into frame_folder_path
-# TODO: log the summary
+params = {
+    "video_path": video_path,
+    "fps": fps,
+    "sample_rate": sample_rate,
+    "step": step,
+    "start_frame": start_frame,
+    "end_frame": end_frame,
+    "frames_stored": frames_stored,
+}
+
+with open(f"{frame_folder_path}/extraction_params.yaml", "w") as f:   # "w" = write (STEP 1 used the default "r" = read)
+    yaml.safe_dump(params, f) # dump = write a dict to YAML (load = read)
+
+banner_sub("summary")
+logger.info(f"done: {frames_stored} frames saved to {frame_folder_path} and {cursor.rowcount} rows registered in MySQL")
+cursor.close()
+conn.close()
+
