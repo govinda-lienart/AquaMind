@@ -40,6 +40,14 @@ project_name = cfg["project_name"]
 frames_dir = cfg["frames_dir"]
 logger.info(f"project_name={project_name}, frames_dir={frames_dir}")
 
+banner_sub("exchange refresh token for access token")
+resp = requests.post(f"{LS_URL}/api/token/refresh", json={"refresh": LS_TOKEN})
+logger.info(f"token refresh status: {resp.status_code}") # token refresh status: 200 => OK, success
+resp.raise_for_status() #  it checks the status code, and if it's in the "bad" range (4xx or 5xx), it raises an exceptiosn, but if good like 200 is ok an dwil lpass
+access_token = resp.json()["access"] # parses the json respobse of end point as a dictionary...and we pull out the access token using ["access"]
+logger.info(f"access_token starts with: {access_token[:15]}...") # for saftery reason just pritning part of it 
+HEADERS = {"Authorization": f"Bearer {access_token}"} # will be used in next steps when requesting using the access token.
+
 
 # ── STEP 2: LIST frames ───────────────────────────────────────────────────────
 
