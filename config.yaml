@@ -12,10 +12,6 @@ download_labelstudio:
   project_name: ghost_frames_hard_mining_IMG_1839_20260804_14h09    # Label Studio project name
   min_task_id:                           # leave empty for no lower limit
   max_task_id:                            # leave empty for no upper limit
-  mode: export                           # export or search
-  search_term: frame_2220                # used only when mode = search
-  export_labels: true                    # download YOLO .txt label files into labels/ folder
-  export_images: false                    # download source images into images/ folder
 
 # upload_labelstudio_script - hard negative mining - upload crossing frames to LabelStudio
 upload_labelstudio:
