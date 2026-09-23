@@ -103,9 +103,8 @@ for i, img in enumerate(images, 1): # starts enumerating at 1    # enumating is 
     resp.raise_for_status()
     total += 1
     logger.info(f"{i}/{len(images)} uploaded")
-    
-# ── STEP 5 - DONE ────────────────────────────────────────
 
+# ── STEP 5 - DONE ────────────────────────────────────────
 banner("STEP 5 - DONE")
 
 logger.info(f"done: {total} images uploaded into '{project_name}' (id={project_id})")
