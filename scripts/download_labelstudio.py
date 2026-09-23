@@ -56,7 +56,7 @@ banner("STEP 2 - LOOKUP project id by name")
 
 resp = requests.get(f"{LS_URL}/api/projects", headers=HEADERS)
 resp.raise_for_status()
-projects = resp.json()["results"]  #  "results" is a key in the JSON dict LabelStudio sends back for list-type endpoints (like /api/projects) EG. {'count': 12, 'next': None, 'previous': None, 'results': [{'id': 1, 'title': 'AquaMind_IMG_0350', ...}, {'id': 2, 'title': 'sampl
+projects = resp.json()["results"]  #  "results" is a key in the JSON dict LabelStudio sends back for list-type endpoints (like /api/projects) EG. result ->  {'count': 12, 'next': None, 'previous': None, 'results': [{'id': 1, 'title': 'AquaMind_IMG_0350', ...}, {'id': 2, 'title': 'sampl
 logger.info(f"found {len(projects)} project(s) in LabelStudio")
 
 project_id = None
@@ -72,6 +72,14 @@ if project_id is None:
 logger.info(f"project '{project_name}' -> id={project_id}")
 
 # ── STEP 3: FETCH tasks + filter to labeled ───────────────────────────────────
+banner("STEP 3 -  FETCH tasks + filter to labeled")
+url = f"{LS_URL}/api/tasks?project={project_id}&page_size=1000" # if had lets say 10k samples then i would need to loop over it
+resp = requests.get(url, headers=HEADERS)
+resp.raise_for_status()
+tasks = resp.json()["tasks"] # his /api/tasks call gives you lightweight metadata per image: its id, whether it's labeled (is_labeled), some info about the image itself. It's not carrying the full box coordinates/class for each annotation 
+                             # {"total": 10, "tasks": [{"id": 51, "is_labeled": False, "data": {...}}, {"id": 52, "is_labeled": True, "data": {...}}, ...]}
+
+
 
 
 # ── STEP 4: EXPORT labels (YOLO zip -> extract) ───────────────────────────────
