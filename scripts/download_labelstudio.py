@@ -78,11 +78,13 @@ resp = requests.get(url, headers=HEADERS)
 resp.raise_for_status()
 tasks = resp.json()["tasks"] # his /api/tasks call gives you lightweight metadata per image: its id, whether it's labeled (is_labeled), some info about the image itself. It's not carrying the full box coordinates/class for each annotation 
                              # {"total": 10, "tasks": [{"id": 51, "is_labeled": False, "data": {...}}, {"id": 52, "is_labeled": True, "data": {...}}, ...]}
-
-
-
+logger.info(f"found {len(tasks)} total tasks in project")
+labeled_ids = [t["id"] for t in tasks if t["is_labeled"]]
+logger.info(f"found {len(labeled_ids)} labeled tasks")
 
 # ── STEP 4: EXPORT labels (YOLO zip -> extract) ───────────────────────────────
+
+
 
 
 # ── STEP 5: SIDECAR + DONE ─────────────────────────────────────────────────────
