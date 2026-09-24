@@ -9,6 +9,8 @@ Usage: python -m scripts.download_labelstudio
 import os
 import yaml
 import requests
+import zipfile
+from datetime import datetime
 
 # module imports
 from scripts.console import banner, banner_sub
@@ -83,8 +85,46 @@ labeled_ids = [t["id"] for t in tasks if t["is_labeled"]]
 logger.info(f"found {len(labeled_ids)} labeled tasks")
 
 # ── STEP 4: EXPORT labels (YOLO zip -> extract) ───────────────────────────────
+banner("STEP 4 - EXPORT labels (YOLO zip -> extract)")
+
+banner_sub("build output folder path")
+timestamp = datetime.now().strftime("%d%m%Y_%Hh%M")
+output_dir = f"labelstudio_download/{project_name}_{timestamp}"
+os.makedirs(output_dir, exist_ok=True)
+logger.info(f"output_dir={output_dir}")
+
+banner_sub("build export request")
+params = "exportType=YOLO&" + "&".join([f"ids[]={i}" for i in labeled_ids])
+                                # "exportType=YOLO&" + prepends the export format flag => giving the final result: "exportType=YOLO&ids[]=51&ids[]=53&ids[]=54....."
+                                # [f"ids[]={i}" for i in labeled_ids] => ["ids[]=51", "ids[]=53", "ids[]=54"] # ids[]= is a convention some APIs use for "this parameter can repeat multiple times" (array-style query param).
+                                # "&".join([...]) glues that list together with & between each item: ids[]=51&ids[]=53&ids[]=54    
+                                # => exportType=YOLO&ids[]=51&ids[]=53&ids[]=54   + willl aslo expo retrieve class id danio rerio and reflection
+url = f"{LS_URL}/api/projects/{project_id}/export?{params}" 
+logger.info(f"exporting {len(labeled_ids)} tasks as YOLO -> {output_dir}")
+
+banner_sub("download export zip")
+resp = requests.get(url, headers=HEADERS)
+resp.raise_for_status
+zip_path = os.path.join(output_dir, "export.zip")
+with open(zip_path, "wb") as f: # write bites - images
+    f.write(resp.content)
+logger.info(f"zip downloaded -> {zip_path}")
 
 
+
+# banner_sub("download export zip")
+# resp = requests.get(url, headers=HEADERS)
+# resp.raise_for_status()
+# zip_path = os.path.join(output_dir, "export.zip")
+# with open(zip_path, "wb") as f:
+#     f.write(resp.content)
+# logger.info(f"zip downloaded -> {zip_path}")
+
+# banner_sub("extract zip")
+# with zipfile.ZipFile(zip_path, "r") as z:
+#     z.extractall(output_dir)
+# os.remove(zip_path)
+# logger.info(f"extracted YOLO labels -> {output_dir}")
 
 
 # ── STEP 5: SIDECAR + DONE ─────────────────────────────────────────────────────
