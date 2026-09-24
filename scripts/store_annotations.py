@@ -111,12 +111,62 @@ insert_cursor.execute(
 annotation_set_id = insert_cursor.lastrowid   # the id MySQL just generated for this row
 logger.info(f"success creation of annotation_set_id={annotation_set_id}")
 
-
 # ── STEP 4: LOOP label files -> INSERT annotations ────────────────────────────s
 banner("STEP 4 - LOOP label files -> INSERT annotations")
+
+banner_sub("loop over label files")
+total_frames = 0
+total_annotations = 0
+
+for label_file in os.listdir(labels_path):        # one .txt per labelled frame
+    if not label_file.endswith(".txt"):
+        continue                                   # skip anything that isn't a label file
+
+    # 4a. parse the frame number from the filename (the only clue the label file gives about which frame it belongs to)
+    # filename: 8d4813a4-frame_0_IMG_0867.txt  ->  frame number 0 => cleaning the labelstudio format
+    name = label_file.split("-")[1]                # "frame_0_IMG_0867.txt"  (drop the LabelStudio hash before the "-")
+    stem = os.path.splitext(name)[0]               # "frame_0_IMG_0867"      (drop ".txt")
+    frame_number = int(stem.split("_")[1])         # "0"                     (the part after "frame_") 
+
+    logger.info(f"{label_file} -> frame_number={frame_number}") #  8d4813a4-frame_0_IMG_0867.txt -> frame_number=0
+
+    # 4b. look up frame_id (FK), skip the file if the frame isn't in MySQL
+    try:
+        frame_id = get_frame_id(reading_cursor, frames_folder, frame_number)   # SELECT id FROM frames ... -> FK for annotations
+    except ValueError:
+        logger.warning(f"frame {frame_number} not in MySQL, skipping {label_file}")
+        continue 
+    total_frames += 1
+
+    # 4c. read the label file (one line per bounding box)
+    with open(os.path.join(labels_path, label_file)) as f:
+        lines = f.readlines()                      # one line per bounding box
+
+    for line in lines:
+        # 4d. parse one bounding box
+        tokens = line.split()[:5]                  # "0 0.44 0.66 0.05 0.06" -> ["0", "0.44", "0.66", "0.05", "0.06"]
+        if len(tokens) != 5:
+            logger.warning(f"{label_file}: expected 5 values, got {len(tokens)}, skipping line")
+            continue
+
+        class_id = int(tokens[0])
+        x_center = float(tokens[1])
+        y_center = float(tokens[2])
+        width    = float(tokens[3])
+        height   = float(tokens[4])
+
+        # 4e. insert it, linked to its frame (frame_id) and its batch (annotation_set_id)
+        insert_cursor.execute(
+            "INSERT INTO annotations (frame_id, annotation_set_id, class_id, label, x_center, y_center, width, height, created_at) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (frame_id, annotation_set_id, class_id, LABEL_MAP[class_id],
+             x_center, y_center, width, height, datetime.datetime.now())
+        )
+        total_annotations += 1
+
+logger.info(f"frames processed={total_frames}, annotations inserted={total_annotations}")
 
 
 # ── STEP 5: COMMIT + DONE ─────────────────────────────────────────────────────
 banner("STEP 5 - COMMIT + DONE")
 
-s
