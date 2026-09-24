@@ -83,6 +83,8 @@ tasks = resp.json()["tasks"] # his /api/tasks call gives you lightweight metadat
 logger.info(f"found {len(tasks)} total tasks in project")
 labeled_ids = [t["id"] for t in tasks if t["is_labeled"]]
 logger.info(f"found {len(labeled_ids)} labeled tasks")
+if not labeled_ids:
+    raise ValueError(f"no labeled tasks in project '{project_name}'")
 
 # ── STEP 4: EXPORT labels (YOLO zip -> extract) ───────────────────────────────
 banner("STEP 4 - EXPORT labels (YOLO zip -> extract)")
@@ -95,7 +97,7 @@ logger.info(f"output_dir={output_dir}")
 
 banner_sub("build export request")
 params = "exportType=YOLO&" + "&".join([f"ids[]={i}" for i in labeled_ids])
-                                # "exportType=YOLO&" + prepends the export format flag => giving the final result: "exportType=YOLO&ids[]=51&ids[]=53&ids[]=54....."
+                                # "exportType=YOLO&" + prepends the export format flag => giving the final result: "exportType=YOLO&ids[]=51&ids[]=53&ids[]=54....." # exportType=YOLO_WITH_IMAGES if i want the images
                                 # [f"ids[]={i}" for i in labeled_ids] => ["ids[]=51", "ids[]=53", "ids[]=54"] # ids[]= is a convention some APIs use for "this parameter can repeat multiple times" (array-style query param).
                                 # "&".join([...]) glues that list together with & between each item: ids[]=51&ids[]=53&ids[]=54    
                                 # => exportType=YOLO&ids[]=51&ids[]=53&ids[]=54   + willl aslo expo retrieve class id danio rerio and reflection
@@ -104,27 +106,36 @@ logger.info(f"exporting {len(labeled_ids)} tasks as YOLO -> {output_dir}")
 
 banner_sub("download export zip")
 resp = requests.get(url, headers=HEADERS)
-resp.raise_for_status
+resp.raise_for_status()
 zip_path = os.path.join(output_dir, "export.zip")
 with open(zip_path, "wb") as f: # write bites - images
     f.write(resp.content)
 logger.info(f"zip downloaded -> {zip_path}")
 
-
-
-# banner_sub("download export zip")
-# resp = requests.get(url, headers=HEADERS)
-# resp.raise_for_status()
-# zip_path = os.path.join(output_dir, "export.zip")
-# with open(zip_path, "wb") as f:
-#     f.write(resp.content)
-# logger.info(f"zip downloaded -> {zip_path}")
-
-# banner_sub("extract zip")
-# with zipfile.ZipFile(zip_path, "r") as z:
-#     z.extractall(output_dir)
-# os.remove(zip_path)
-# logger.info(f"extracted YOLO labels -> {output_dir}")
-
+banner_sub("extract zip")
+with zipfile.ZipFile(zip_path, "r") as z:
+    z.extractall(output_dir)
+os.remove(zip_path)
+logger.info(f"extracted yolo labels -> {output_dir}")
 
 # ── STEP 5: SIDECAR + DONE ─────────────────────────────────────────────────────
+# lineage: download_params.yaml -> store_annotations.py -> annotation_sets (ls_* columns)
+banner("STEP 5 - SIDECAR + DONE")
+
+banner_sub("write download_params.yaml")
+params = { # read by store_annotations.py
+    "project_name": project_name,           
+    "project_id": project_id,              
+    "min_task_id": min(labeled_ids),       
+    "max_task_id": max(labeled_ids),      
+    "downloaded_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  
+    "labeled_tasks": len(labeled_ids),     
+    "total_tasks": len(tasks),
+}
+
+with open(f"{output_dir}/download_params.yaml", "w") as f:
+    yaml.safe_dump(params, f, sort_keys=False)
+logger.info(f"sidecar written -> {output_dir}/download_params.yaml")
+
+banner_sub("summary")
+logger.info(f"done: {len(labeled_ids)}/{len(tasks)} labeled tasks exported to {output_dir}")
