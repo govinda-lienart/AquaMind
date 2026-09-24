@@ -93,6 +93,24 @@ ls_downloaded_at = dl_sidecar.get("downloaded_at")    # when the labels were dow
 # ── STEP 3: CREATE annotation_sets ROW ────────────────────────────────────────
 banner("STEP 3 - CREATE annotation_sets ROW")
 
+banner_sub("look up video_id (foreign key)")
+video_id = get_video_id(reading_cursor, video_name)   # SELECT id FROM videos ... -> the FK for annotation_sets
+logger.info(f"video_name={video_name} -> video_id={video_id}")
+
+banner_sub("insert annotation_sets row")
+insert_cursor.execute(
+    """INSERT INTO annotation_sets
+       (video_id, frame_source, notes, frames_extracted, iou_threshold, dedup_window,
+        sample_rate, start_seconds, end_seconds, created_at,
+        ls_project_name, ls_project_id, ls_min_task_id, ls_max_task_id, ls_downloaded_at)
+       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+    (video_id, frame_source, notes, frames_extracted, iou_threshold, dedup_window,
+     sample_rate, start_seconds, end_seconds, datetime.datetime.now(),
+     ls_project_name, ls_project_id, ls_min_task_id, ls_max_task_id, ls_downloaded_at)
+)
+annotation_set_id = insert_cursor.lastrowid   # the id MySQL just generated for this row
+logger.info(f"success creation of annotation_set_id={annotation_set_id}")
+
 
 # ── STEP 4: LOOP label files -> INSERT annotations ────────────────────────────s
 banner("STEP 4 - LOOP label files -> INSERT annotations")
@@ -100,3 +118,5 @@ banner("STEP 4 - LOOP label files -> INSERT annotations")
 
 # ── STEP 5: COMMIT + DONE ─────────────────────────────────────────────────────
 banner("STEP 5 - COMMIT + DONE")
+
+s
