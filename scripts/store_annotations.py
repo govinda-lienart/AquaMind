@@ -25,15 +25,17 @@ logger = logging.getLogger(__name__)
 
 # CONSTANTS───────────────────────────────────────────
 
+LABEL_MAP = {0: "danio_rerio", 1: "reflection"}
 
 # ── STEP 1: READ config.yaml + CONNECT ────────────────────────────────────────
 banner("STEP 1 - READ config.yaml + CONNECT")
+
+banner_sub("load store_annotations section of config.yaml")
 with open("config.yaml") as f:
     cfg = yaml.safe_load(f)
 cfg = cfg["store_annotations"]
 logger.info(cfg)
 
-banner_sub("load store_annotations section of config.yaml")
 labels_path   = cfg["labels_path"]     # labelstudio_download/<project>_<timestamp>/labels
 frames_folder = cfg["frames_folder"]   # frames/frames_IMG_0764_20260624_1635
 video_name    = cfg["video_name"]      # "IMG_0350.MOV"
@@ -43,13 +45,58 @@ logger.info(f"video_name={video_name}, frame_source={frame_source}, labels_path=
 
 banner_sub("connect to MySQL")
 conn = get_connection()
-logger.info("connected to sql database")
+logger.info(f"connected to sql database: {conn.is_connected()}")
 reading_cursor = conn.cursor()   # SELECT queries (fetching)
-insert_cursor  = conn.cursor()
+insert_cursor  = conn.cursor()   # INSERTs
 
 # ── STEP 2: READ SIDECARS ─────────────────────────────────────────────────────
 banner("STEP 2 - READ SIDECARS")
 
+banner_sub("extraction_params.yaml (from the frames folder)")
+extraction_path = os.path.join(frames_folder, "extraction_params.yaml") # .get() needs a dictionary first, and it only handles a missing KEY, not a missing FILE
+if os.path.exists(extraction_path):
+    with open(extraction_path) as f:
+        sidecar = yaml.safe_load(f) or {}   # "or {}" covers a file that exists but is empty (safe_load returns None) => safe_load retuns None but its not a dictionary...so later the script might crash when we use .get so better to return {}
+else:
+    sidecar = {}                            # file missing -> empty dict, so every .get() below gives None
+    logger.warning(f"no sidecar found at {extraction_path}")
+
+
+banner_sub("download_params.yaml (next to labels/, from download_labelstudio.py)")
+
+# banner_sub("extraction_params.yaml (from the frames folder)")
+# extraction_path = os.path.join(frames_folder, "extraction_params.yaml")
+# sidecar = {}                                   # missing file -> empty dict, every .get() below gives None
+# if os.path.exists(extraction_path):
+#     with open(extraction_path) as f:
+#         sidecar = yaml.safe_load(f) or {}      # "or {}" covers an empty file (safe_load returns None)
+# else:
+#     logger.warning(f"no sidecar found at {extraction_path}")
+
+# frame_source     = sidecar.get("frame_source", frame_source)   # sidecar wins over config; config value is the fallback
+# frames_extracted = sidecar.get("frames_extracted")
+# iou_threshold    = sidecar.get("iou_threshold")     # crossing frames only
+# dedup_window     = sidecar.get("dedup_window")      # crossing frames only
+# sample_rate      = sidecar.get("sample_rate")
+# start_seconds    = sidecar.get("start_seconds")
+# end_seconds      = sidecar.get("end_seconds")
+# logger.info(f"extraction sidecar: frame_source={frame_source}, frames_extracted={frames_extracted}")
+
+# banner_sub("download_params.yaml (next to labels/, from download_labelstudio.py)")
+# download_path = os.path.join(os.path.dirname(labels_path), "download_params.yaml")   # parent of labels/ = the download folder
+# dl_sidecar = {}
+# if os.path.exists(download_path):
+#     with open(download_path) as f:
+#         dl_sidecar = yaml.safe_load(f) or {}
+# else:
+#     logger.warning(f"no sidecar found at {download_path}")
+
+# ls_project_name  = dl_sidecar.get("project_name")
+# ls_project_id    = dl_sidecar.get("project_id")
+# ls_min_task_id   = dl_sidecar.get("min_task_id")
+# ls_max_task_id   = dl_sidecar.get("max_task_id")
+# ls_downloaded_at = dl_sidecar.get("downloaded_at")
+# logger.info(f"download sidecar: project={ls_project_name} (id={ls_project_id}), tasks {ls_min_task_id}-{ls_max_task_id}")
 
 
 banner_sub("extraction_params.yaml (from the frames folder)")
