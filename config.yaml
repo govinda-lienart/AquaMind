@@ -18,11 +18,11 @@ upload_labelstudio:
 
 # store_annotations_script
 store_annotations:
-  labels_path: labelstudio_download/labelstudio_frames_hard_mining_IMG_1839_20260804_14h09_04082026_16h44/labels
-  frames_folder: frames/ghost_frames_IMG_1839_20260804_1405
-  video_name: IMG_1839
-  frame_source: ghosting_event   # regular | crossing_event (the frames folder's sidecar overrides this)
-  notes: hard negative mining — using ghosting, YOLO pre-labeled + manually corrected
+  labels_path: labelstudio_download/sample_test_IMG_0867_24092026_09h38/labels
+  frames_folder: frames/frames_IMG_0867_20260921_1357
+  video_name: IMG_0867
+  frame_source: regular   # regular | crossing_event | ghosting_event (the frames folder's sidecar overrides this)
+  notes: sample test — 10 frames uploaded to LabelStudio, 3 labeled, to test the download + store pipeline
 
 # prepare_dataset_script
 prepare_dataset:
