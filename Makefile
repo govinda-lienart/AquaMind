@@ -7,6 +7,11 @@
 config:
 	open config.yaml
 
+# Start the MySQL container and open a MySQL shell on the aquamind database
+mysql:
+	docker start cont-aquamind-sql
+	docker exec -it cont-aquamind-sql mysql -u root -paquamind aquamind
+
 # Dump MySQL aquamind database to mysql_backup/ with timestamp
 backup-db:
 	docker exec cont-aquamind-sql mysqldump -u root -paquamind aquamind > mysql_backup/aquamind_$$(date +%Y%m%d_%H%M).sql
@@ -201,6 +206,7 @@ help:
 	@echo ""
 	@echo "  make test                 Run all tests"
 	@echo "  make config               Open config.yaml"
+	@echo "  make mysql                Start MySQL container + open shell"
 	@echo "  make backup-db            Dump MySQL to mysql_backup/"
 	@echo "  make backup_rclone        Sync whole project to rclone remote"
 	@echo "  make help                 Show this list"

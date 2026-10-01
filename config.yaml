@@ -25,16 +25,24 @@ store_annotations:
   notes: sample test — 10 frames uploaded to LabelStudio, 3 labeled, to test the download + store pipeline
 
 # prepare_dataset_script
+
 prepare_dataset:
-  dataset_name: data_ann_5r_8c_9r_10r_11c_14c_17g_2026_08_04_2006
+  dataset_name: regular_data_ann_5r_9r_10r_2026_10_01_11h47
   annotation_set_ids:   # integer IDs from annotation_sets table — run store_annotations.py first
     - 5
-    - 8
     - 9
     - 10
-    - 11
-    - 14
-    - 17
+
+# prepare_dataset:
+#   dataset_name: test_data_ann_5r_8c_9r_10r_11c_14c_17g_2026_10_01_11h47
+#   annotation_set_ids:   # integer IDs from annotation_sets table — run store_annotations.py first
+#     - 5
+#     - 8
+#     - 9
+#     - 10
+#     - 11
+#     - 14
+#     - 17
 
 # log_artifact_mlflow_script
 log_artifact_mlflow:
