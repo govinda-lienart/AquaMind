@@ -170,3 +170,18 @@ logger.info(f"frames processed={total_frames}, annotations inserted={total_annot
 # ── STEP 5: COMMIT + DONE ─────────────────────────────────────────────────────
 banner("STEP 5 - COMMIT + DONE")
 
+banner_sub("commit")
+conn.commit()   # save all adaptations in MySQL 
+
+banner_sub("summary")
+logger.info(f"annotation_set_id    : {annotation_set_id}")
+logger.info(f"labels_path          : {labels_path}")
+logger.info(f"frames_folder        : {frames_folder}")
+logger.info(f"frames processed     : {total_frames}")
+logger.info(f"annotations inserted : {total_annotations}")
+logger.info(f"cross-check in SQL   : SELECT COUNT(*) FROM annotations WHERE annotation_set_id = {annotation_set_id};")
+
+reading_cursor.close()
+insert_cursor.close()
+conn.close()
+
