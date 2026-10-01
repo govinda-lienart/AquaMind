@@ -11,6 +11,7 @@ Usage: python -m scripts.prepare_dataset
 # IMPORTS───────────────────────────────────────────
 
 import os
+from joblib.logger import Logger
 import yaml
 import datetime
 
@@ -49,29 +50,12 @@ reading_cursor = conn.cursor()   # SELECT queries (fetching)
 # ── STEP 2: FETCH ANNOTATED FRAMES ────────────────────────────────────────────
 banner("STEP 2 - FETCH ANNOTATED FRAMES")
 
-# 2a. build the placeholders string: one %s per annotation_set_id
-
+# 2a. fetch every labelled frame in the chosen annotation sets 
+placeholders = ",".join(["%s"] * len(annotation_set_ids))
 reading_cursor.execute(
-    "SELECT DISTINCT frames.id, frames.frame_path FROM frames JOIN annotations ON frames.id = annotations.frame_id  WHERE annotations.annotation_set_id IN (5, 9, 10)"
-)
-
-
-
-# insert_cursor.execute(
-#     """INSERT INTO annotation_sets
-#        (video_id, frame_source, notes, frames_extracted, iou_threshold, dedup_window,
-#         sample_rate, start_seconds, end_seconds, created_at,
-#         ls_project_name, ls_project_id, ls_min_task_id, ls_max_task_id, ls_downloaded_at)
-#        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-#     (video_id, frame_source, notes, frames_extracted, iou_threshold, dedup_window,
-#      sample_rate, start_seconds, end_seconds, datetime.datetime.now(),
-#      ls_project_name, ls_project_id, ls_min_task_id, ls_max_task_id, ls_downloaded_at)
-# )
-# annotation_set_id = insert_cursor.lastrowid   # the id MySQL just generated for this row
-# logger.info(f"success creation of annotation_set_id={annotation_set_id}")
-
-# 2b. SELECT DISTINCT frame id + frame_path (annotations JOIN frames, filtered by annotation_set_id IN (...))
-# 2c. fetchall -> list of (frame_id, frame_path), log how many
+    f"SELECT DISTINCT frames.id, frames.frame_path FROM frames JOIN annotations ON frames.id = annotations.frame_id WHERE annotations.annotation_set_id IN ({placeholders})", annotation_set_ids) # e.g IN (5, 9, 10)
+frames = reading_cursor.fetchall() # fetching the selection
+logger.info(f"total number of selected frames and its paths: {len(frames)}")
 
 # ── STEP 3: SPLIT TRAIN / VAL ─────────────────────────────────────────────────
 # banner("STEP 3 - SPLIT TRAIN / VAL")
