@@ -28,24 +28,48 @@ logger = logging.getLogger(__name__)
 # TODO: TRAIN_SPLIT, RANDOM_SEED, CLASS_NAMES
 
 # ── STEP 1: READ config.yaml + CONNECT ────────────────────────────────────────
-# banner("STEP 1 - READ config.yaml + CONNECT")
-# 1a. load the prepare_dataset section of config.yaml
+banner("STEP 1 - READ config.yaml + CONNECT")
 
+# 1a. load the prepare_dataset section of config.yaml
 with open("config.yaml") as f:
     cfg = yaml.safe_load(f)
 cfg = cfg["prepare_dataset"]
 logger.info(cfg)
 
+# 1b. pull out annotation_set_ids and dataset_name
 dataset_name   = cfg["dataset_name"]     
 annotation_set_ids = cfg["annotation_set_ids"]  
 
-# 1b. pull out annotation_set_ids and dataset_name
 # 1c. connect to MySQL + open a reading cursor
+banner_sub("connect to MySQL")
+conn = get_connection()
+logger.info(f"connected to sql database: {conn.is_connected()}")
+reading_cursor = conn.cursor()   # SELECT queries (fetching)
 
 # ── STEP 2: FETCH ANNOTATED FRAMES ────────────────────────────────────────────
-# banner("STEP 2 - FETCH ANNOTATED FRAMES")
+banner("STEP 2 - FETCH ANNOTATED FRAMES")
 
 # 2a. build the placeholders string: one %s per annotation_set_id
+
+reading_cursor.execute(
+    "SELECT DISTINCT frames.id, frames.frame_path FROM frames JOIN annotations ON frames.id = annotations.frame_id  WHERE annotations.annotation_set_id IN (5, 9, 10)"
+)
+
+
+
+# insert_cursor.execute(
+#     """INSERT INTO annotation_sets
+#        (video_id, frame_source, notes, frames_extracted, iou_threshold, dedup_window,
+#         sample_rate, start_seconds, end_seconds, created_at,
+#         ls_project_name, ls_project_id, ls_min_task_id, ls_max_task_id, ls_downloaded_at)
+#        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+#     (video_id, frame_source, notes, frames_extracted, iou_threshold, dedup_window,
+#      sample_rate, start_seconds, end_seconds, datetime.datetime.now(),
+#      ls_project_name, ls_project_id, ls_min_task_id, ls_max_task_id, ls_downloaded_at)
+# )
+# annotation_set_id = insert_cursor.lastrowid   # the id MySQL just generated for this row
+# logger.info(f"success creation of annotation_set_id={annotation_set_id}")
+
 # 2b. SELECT DISTINCT frame id + frame_path (annotations JOIN frames, filtered by annotation_set_id IN (...))
 # 2c. fetchall -> list of (frame_id, frame_path), log how many
 
