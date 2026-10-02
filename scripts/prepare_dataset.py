@@ -11,9 +11,10 @@ Usage: python -m scripts.prepare_dataset
 # IMPORTS───────────────────────────────────────────
 
 import os
-from joblib.logger import Logger
 import yaml
 import datetime
+import random
+import shutil
 
 # module imports
 from scripts.console import banner, banner_sub
@@ -24,9 +25,9 @@ import logging
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
-# CONSTANTS───────────────────────────────────────────
-
-# TODO: TRAIN_SPLIT, RANDOM_SEED, CLASS_NAMES
+# CONSTANTS──────────────────────────────────────────
+TRAIN_SPLIT = 0.8  # 80% of frames go to train, the other 20% to val
+RANDOM_SEED = 42  # fixed seed, so the shuffle gives the same split every run
 
 # ── STEP 1: READ config.yaml + CONNECT ────────────────────────────────────────
 banner("STEP 1 - READ config.yaml + CONNECT")
@@ -54,27 +55,51 @@ banner("STEP 2 - FETCH ANNOTATED FRAMES")
 placeholders = ",".join(["%s"] * len(annotation_set_ids))
 reading_cursor.execute(
     f"SELECT DISTINCT frames.id, frames.frame_path FROM frames JOIN annotations ON frames.id = annotations.frame_id WHERE annotations.annotation_set_id IN ({placeholders})", annotation_set_ids) # e.g IN (5, 9, 10)
-frames = reading_cursor.fetchall() # fetching the selection
+frames = reading_cursor.fetchall() # fetching the selection - list of tuples   [                                      # ← the list of tuples => e.g frames = [(336, "frames/.../frame_1800_IMG_0909.jpg"), ...]
 logger.info(f"total number of selected frames and its paths: {len(frames)}")
 
 # ── STEP 3: SPLIT TRAIN / VAL ─────────────────────────────────────────────────
-# banner("STEP 3 - SPLIT TRAIN / VAL")
+banner("STEP 3 - SPLIT TRAIN / VAL")
+# 3a. seed the random generator + shuffle the frames list
+random.seed(RANDOM_SEED)
+random.shuffle(frames) # nshuffle changes the list in place and returns nothing (None) - is impaacted by the seed value - reproducitbility
 
-# 3a. seed the random generator (why? same split every run)
-# 3b. shuffle the frames list
-# 3c. compute the split index, slice into train_frames and val_frames
+# 3b compute the split index, slice into train_frames and val_frames
+split_at = int(len(frames) * TRAIN_SPLIT) # e.g 260 * 0.8 = 208
+train_frames = frames[:split_at] # e.g  # first 208 frames (positions 0-207)
+val_frames = frames[split_at:] # # remaining 52 frames (position 208 to end).
+logger.info(f'total={len(frames)} | train={len(train_frames)} | val={len(val_frames)}')
 
 # ── STEP 4: CREATE YOLO FOLDERS ───────────────────────────────────────────────
-# banner("STEP 4 - CREATE YOLO FOLDERS")
+banner("STEP 4 - CREATE YOLO FOLDERS")
 
 # 4a. dataset_path = dataset/<dataset_name>
+dataset_path  = os.path.join("dataset", dataset_name)   # e.g dataset/5r_8c_9r_10r_11c_14c
+
 # 4b. if it already exists -> delete it (fresh rebuild)
+if os.path.exists(dataset_path):
+    shutil.rmtree(dataset_path) # deletes the folder AND everything inside it
+    logger.info(f"old dataset deleteds: {dataset_path}")
+
 # 4c. create images/train, images/val, labels/train, labels/val
+for subfolder in ["images/train", "images/val", "labels/train", "labels/val"]:
+    os.makedirs(os.path)
+
+for subfolder in ["images/train", "images/val", "labels/train", "labels/val"]:
+    os.makedirs(os.path.join(dataset_path, subfolder), exist_ok=True)
+logger.info(f"YOLO folders created in {dataset_path}")
 
 # ── STEP 5: COPY IMAGES + WRITE LABEL FILES ───────────────────────────────────
-# banner("STEP 5 - COPY IMAGES + WRITE LABEL FILES")
+banner("STEP 5 - COPY IMAGES + WRITE LABEL FILES")
 
 # 5a. loop over the two splits: ("train", train_frames), ("val", val_frames)
+for split, split_frames in [("train", train_frames), ("val", val_frames)]:
+    for frame_id, frame_path in split_frames:
+        frame_name = os.path.basename(frame_path)   # e.g frame_1800_IMG_0909.jpg
+
+
+
+
 # 5b.   loop over frames in that split
 # 5c.     copy the image into images/<split>/
 # 5d.     SELECT this frame's bboxes (class_id, x_center, y_center, width, height), same annotation_set_id filter
