@@ -94,6 +94,7 @@ banner("STEP 5 - COPY IMAGES + WRITE LABEL FILES")
 
 # 5a. copies the images + labels of ONE split (train or val); called twice below
 def copy_split(split, split_frames): # e.g copy_split("train", train_frames)
+    """For one split (train or val), it copies each photo into images/<split>/ and writes a matching .txt file of its MySQL boxes into labels/<split>/"""
     for frame_id, frame_path in split_frames:
         frame_name = os.path.basename(frame_path)   # e.g frame_1800_IMG_0909.jpg
 
@@ -111,18 +112,22 @@ def copy_split(split, split_frames): # e.g copy_split("train", train_frames)
         # 5d. write labels/<split>/<frame_name>.txt, one "class x y w h" line per box
         label_name = os.path.splitext(frame_name)[0] + ".txt"   # frame_1800_IMG_0909.jpg -> frame_1800_IMG_0909.txt
         with open(os.path.join(dataset_path, "labels", split, label_name), "w") as f:
+            for class_id, x_center, y_center, width, height in boxes:
+                f.write(f"{class_id} {x_center} {y_center} {width} {height}\n")
+        logger.debug(f"{split} | frame_id={frame_id} | label written: {label_name} ({len(boxes)} lines)")
 
     logger.info(f"{split}: {len(split_frames)} images copied to {os.path.join(dataset_path, 'images', split)}")
 
-
 copy_split("train", train_frames)
 copy_split("val", val_frames)
-
 
 # ── STEP 6: COLLECT METADATA FOR THE DATASET CARD ─────────────────────────────
 # banner("STEP 6 - COLLECT METADATA")
 
 # 6a. open a dictionary cursor (rows come back as dicts -> readable in the yaml)
+
+
+
 # 6b. SELECT the videos that contributed frames (videos JOIN frames JOIN annotations)
 # 6c. SELECT the annotation_sets rows used (provenance: frame_source, sample_rate, LS project...)
 # 6d. get the current git commit hash (which code version built this dataset)
