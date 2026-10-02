@@ -39,7 +39,8 @@ cfg = cfg["prepare_dataset"]
 logger.info(cfg)
 
 # 1b. pull out annotation_set_ids and dataset_name
-dataset_name   = cfg["dataset_name"]     
+timestamp    = datetime.datetime.now().strftime("%Y_%m_%d_%Hh%M")   # e.g 2026_10_02_14h05
+dataset_name = f"{cfg['dataset_name']}_{timestamp}"                 # e.g regular_data_ann_5r_9r_10r_2026_10_02_14h05
 annotation_set_ids = cfg["annotation_set_ids"]  
 
 # 1c. connect to MySQL + open a reading cursor
@@ -74,17 +75,16 @@ logger.info(f'total={len(frames)} | train={len(train_frames)} | val={len(val_fra
 banner("STEP 4 - CREATE YOLO FOLDERS")
 
 # 4a. dataset_path = dataset/<dataset_name>
-dataset_path  = os.path.join("dataset", dataset_name)   # e.g dataset/5r_8c_9r_10r_11c_14c
+if not dataset_name:
+    raise ValueError("dataset_name is empty in config.yaml, refusing to delete dataset/")
+dataset_path = os.path.join("dataset", dataset_name)   # e.g dataset/5r_8c_9r_10r_11c_14c
 
 # 4b. if it already exists -> delete it (fresh rebuild)
 if os.path.exists(dataset_path):
     shutil.rmtree(dataset_path) # deletes the folder AND everything inside it
-    logger.info(f"old dataset deleteds: {dataset_path}")
+    logger.info(f"old dataset deleted: {dataset_path}")
 
 # 4c. create images/train, images/val, labels/train, labels/val
-for subfolder in ["images/train", "images/val", "labels/train", "labels/val"]:
-    os.makedirs(os.path)
-
 for subfolder in ["images/train", "images/val", "labels/train", "labels/val"]:
     os.makedirs(os.path.join(dataset_path, subfolder), exist_ok=True)
 logger.info(f"YOLO folders created in {dataset_path}")
@@ -92,19 +92,32 @@ logger.info(f"YOLO folders created in {dataset_path}")
 # ── STEP 5: COPY IMAGES + WRITE LABEL FILES ───────────────────────────────────
 banner("STEP 5 - COPY IMAGES + WRITE LABEL FILES")
 
-# 5a. loop over the two splits: ("train", train_frames), ("val", val_frames)
-for split, split_frames in [("train", train_frames), ("val", val_frames)]:
+# 5a. copies the images + labels of ONE split (train or val); called twice below
+def copy_split(split, split_frames): # e.g copy_split("train", train_frames)
     for frame_id, frame_path in split_frames:
         frame_name = os.path.basename(frame_path)   # e.g frame_1800_IMG_0909.jpg
 
+        # 5b. copy the image into images/<split>/
+        shutil.copy2(frame_path, os.path.join(dataset_path, "images", split, frame_name)) # shutil.copy2(FROM, TO)
+        logger.debug(f"{split} | frame_id={frame_id} | image copied: {frame_name}")
+
+        # 5c. SELECT this frame's bboxes, only from the chosen annotation sets
+        reading_cursor.execute(
+            f"SELECT class_id, x_center, y_center, width, height FROM annotations WHERE frame_id = %s AND annotation_set_id IN ({placeholders})",
+            (frame_id, *annotation_set_ids)) # without the * → (336, [5, 9, 10]) -> with the * unpacks to (336, 5, 9, 10)
+        boxes = reading_cursor.fetchall()   # e.g [(0, 0.41, 0.55, 0.08, 0.04), ...]
+        logger.debug(f"{split} | frame_id={frame_id} | {len(boxes)} boxes fetched")
+
+        # 5d. write labels/<split>/<frame_name>.txt, one "class x y w h" line per box
+        label_name = os.path.splitext(frame_name)[0] + ".txt"   # frame_1800_IMG_0909.jpg -> frame_1800_IMG_0909.txt
+        with open(os.path.join(dataset_path, "labels", split, label_name), "w") as f:
+
+    logger.info(f"{split}: {len(split_frames)} images copied to {os.path.join(dataset_path, 'images', split)}")
 
 
+copy_split("train", train_frames)
+copy_split("val", val_frames)
 
-# 5b.   loop over frames in that split
-# 5c.     copy the image into images/<split>/
-# 5d.     SELECT this frame's bboxes (class_id, x_center, y_center, width, height), same annotation_set_id filter
-# 5e.     write labels/<split>/<frame_name>.txt, one "class x y w h" line per bbox
-# 5f. log images copied + label lines written
 
 # ── STEP 6: COLLECT METADATA FOR THE DATASET CARD ─────────────────────────────
 # banner("STEP 6 - COLLECT METADATA")
