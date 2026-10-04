@@ -158,13 +158,62 @@ logger.info(f"git commit: {git_commit}")
 # ── STEP 7: WRITE dataset_card.yaml + dataset.yaml ────────────────────────────
 # banner("STEP 7 - WRITE dataset_card.yaml + dataset.yaml")
 
-# 7a. build the card dict (name, ids, git commit, videos, annotation sets, counts, classes, seed, created_at)
+banner("STEP 7 - WRITE dataset_card.yaml ")
+
+# 7a. building the card dict (name, ids, git commit, videos, annotation sets, counts, classes, seed, created_at)
+card = {
+    "dataset_name":       dataset_name,                     # e.g regular_data_ann_5r_9r_10r_2026_10_01_11h47
+    "annotation_set_ids": annotation_set_ids,               # e.g [5, 9, 10]
+    "git_commit":         git_commit,                       # e.g ea544b5b
+    "created_at":         datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    "total_frames":       len(frames),
+    "num_train":          len(train_frames),
+    "num_val":            len(val_frames),
+    "split":              f"{int(TRAIN_SPLIT * 100)}/{int(round((1 - TRAIN_SPLIT) * 100))} train/val, random per frame",
+    "random_seed":        RANDOM_SEED,
+    "classes":            {0: "danio_rerio", 1: "reflection"},
+    "videos":             videos_meta,                      # from 6b
+    "annotation_sets":    annotation_sets_meta,             # from 6c
+}
+logger.info(f"card built: {card['dataset_name']} | sets {card['annotation_set_ids']} | {card['num_train']} train / {card['num_val']} val | commit {card['git_commit']}")
+logger.debug(card)   # full card, only visible with level=DEBUG
+
 # 7b. yaml.dump it to dataset/<name>/dataset_card.yaml
-# 7c. build the YOLO dict (path, train, val, nc, names)
-# 7d. yaml.dump it to dataset.yaml at project root (what YOLO training reads)
+card_path = os.path.join(dataset_path, "dataset_card.yaml")
+with open(card_path, "w") as f:
+    yaml.safe_dump(card, f, sort_keys=False)   # dump = dict → YAML text (load = YAML text → dict)
+logger.info(f"dataset card written → {card_path}")
 
-# ── STEP 8: SUMMARY + CLOSE ───────────────────────────────────────────────────
-# banner("STEP 8 - SUMMARY + CLOSE")
 
-# 8a. log dataset name, ids, git commit, total / train / val, output path
-# 8b. close cursors + connection
+# banner("STEP 8 - WRITE dataset.yaml")
+banner("STEP 8 - WRITE dataset.yaml ")
+
+# 8a. build the YOLO dict (path, train, val, nc, names)
+yolo_dict = {
+    "path":  dataset_path,                      # e.g dataset/regular_data_ann_5r_9r_10r_2026_10_01_11h47
+    "train": "images/train",                    # relative to path
+    "val":   "images/val",                      # relative to path
+    "nc":    len(card["classes"]),              # number of classes → 2
+    "names": list(card["classes"].values()),    # ["danio_rerio", "reflection"]
+}
+
+# 8b. yaml.dump it to dataset.yaml at project root (what YOLO training reads)
+with open("dataset.yaml", "w") as f:
+    yaml.safe_dump(yolo_dict, f, sort_keys=False)
+logger.info(f"dataset.yaml written → points YOLO at {dataset_path}")
+
+# ── STEP 9: SUMMARY + CLOSE ───────────────────────────────────────────────────
+# banner("STEP 9 - SUMMARY + CLOSE")
+# 9a. log dataset name, ids, git commit, total / train / val, output path
+logger.info(f"dataset name       : {dataset_name}")
+logger.info(f"annotation sets    : {annotation_set_ids}")
+logger.info(f"git commit         : {git_commit}")
+logger.info(f"frames             : {len(frames)} total | {len(train_frames)} train | {len(val_frames)} val")
+logger.info(f"output folder      : {dataset_path}")
+logger.info(f"→ for MLflow, set log_artifact_mlflow.dataset_name to: {dataset_name}")
+
+# 9b. close cursors + connection
+reading_cursor.close()
+dict_cursor.close()
+conn.close()
+logger.info("MySQL connection closed")
