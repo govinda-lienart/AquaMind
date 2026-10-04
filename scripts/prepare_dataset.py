@@ -15,6 +15,7 @@ import yaml
 import datetime
 import random
 import shutil
+import subprocess
 
 # module imports
 from scripts.console import banner, banner_sub
@@ -122,15 +123,37 @@ copy_split("train", train_frames)
 copy_split("val", val_frames)
 
 # ── STEP 6: COLLECT METADATA FOR THE DATASET CARD ─────────────────────────────
-# banner("STEP 6 - COLLECT METADATA")
+banner("STEP 6 - COLLECT METADATA")
 
 # 6a. open a dictionary cursor (rows come back as dicts -> readable in the yaml)
+dict_cursor = conn.cursor(dictionary = True) # differnt than producing a side car where i manually provided the yaml structure dictionary like but here we pulling from mysql direclt so we need to make sure structed like a dics
 
+# 6b. SELECT the videos that contributed frames (videos JOIN annotation_sets)
+dict_cursor.execute(
+    f"""SELECT DISTINCT videos.id, videos.file_path, videos.fps, videos.fish_count
+    FROM videos
+    JOIN annotation_sets ON annotation_sets.video_id = videos.id
+    WHERE annotation_sets.id IN ({placeholders})""",
+    annotation_set_ids)
+videos_meta = dict_cursor.fetchall()   # LIST -  e.g [{"file_path": "videos/IMG_2349.MOV", "fps": 60, "fish_count": 4}]
+logger.info(f"videos used: {len(videos_meta)} → ids {[video['id'] for video in videos_meta]}")
 
-
-# 6b. SELECT the videos that contributed frames (videos JOIN frames JOIN annotations)
 # 6c. SELECT the annotation_sets rows used (provenance: frame_source, sample_rate, LS project...)
+dict_cursor.execute(f"SELECT * FROM annotation_sets WHERE id IN ({placeholders})", annotation_set_ids)
+annotation_sets_meta = dict_cursor.fetchall()   # LIST - one dict per set, e.g [{"id": 5, "frame_source": "regular", "sample_rate": 1, ...}]
+logger.info(f"annotation sets used: {len(annotation_sets_meta)} → ids {[ann_set['id'] for ann_set in annotation_sets_meta]}")
+
 # 6d. get the current git commit hash (which code version built this dataset)
+try:
+    git_commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"]).decode().strip()   
+                                                        # e.g "ea544b5b" # 
+                                                        # .strip()   remove the newline git ends its output with \n 
+                                                        # .decode(): bytes → text Commands return raw bytes: b'ea544b5b\n'. .decode() turns them into a normal string: 'ea544b5b\n'.
+                                                        # check_output is one function inside subprocess: captures what the command prints
+                                                        # HEAD = "the commit i am on right now" // # rev-parse = "turn that into its commit id" # --short = "give the short version" (ea544b5b instead of 40 characters)
+except Exception:
+    git_commit = "unknown"
+logger.info(f"git commit: {git_commit}")
 
 # ── STEP 7: WRITE dataset_card.yaml + dataset.yaml ────────────────────────────
 # banner("STEP 7 - WRITE dataset_card.yaml + dataset.yaml")
