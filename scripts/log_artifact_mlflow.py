@@ -11,7 +11,19 @@ Usage: python -m scripts.log_artifact_mlflow
 
 # IMPORTS───────────────────────────────────────────
 
-from console import banner, banner_sub
+# libraries
+import os                
+import yaml               
+import mlflow #  tracking: run, params, metrics, artifacts, alias.
+import mlflow.pyfunc # the model wrapper: - YoloModel subclasses mlflow.pyfunc.PythonModel
+
+# module imports
+from scripts.console import banner, banner_sub
+
+# logging imports
+import logging
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+logger = logging.getLogger(__name__)
 
 # CONSTANTS──────────────────────────────────────────
 
@@ -19,7 +31,9 @@ from console import banner, banner_sub
 
 # ── STEP 1: READ config.yaml ──────────────────────────────────────────────────
 banner("STEP 1 - READ config.yaml")
+# 1a. load the log_artifact_mlflow section of config.yaml
 
+# 1b. pull out run_path, dataset_name and alias
 
 # ── STEP 2: LOAD dataset_card.yaml ────────────────────────────────────────────
 banner("STEP 2 - LOAD dataset_card.yaml")
