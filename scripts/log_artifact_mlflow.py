@@ -29,6 +29,24 @@ logger = logging.getLogger(__name__)
 # CONSTANTS──────────────────────────────────────────
 TRACKING_URI = "sqlite:///mlflow.db"   # registry needs a database backend (the mlruns/ file store can't register models)
 EXPERIMENT   = "aquamind_detector"              # the MLflow experiment every YOLO detector run is logged under
+MODEL_NAME   = "aquamind-yolo-detector"   # the registered model: each logged run adds a new version (v1, v2, ...)
+
+# MODEL WRAPPER──────────────────────────────────────
+
+# MODEL WRAPPER──────────────────────────────────────
+
+class YoloModel(mlflow.pyfunc.PythonModel):
+    """Wraps best.pt as a proper MLflow model flavor, so the registry holds a real model, not a bare file."""
+
+    # instructions for anyone loading this model through MLflow (not really user here by the tracker, which loads best.pt directly)
+    def load_context(self, context):
+        from ultralytics import YOLO
+        self.model = YOLO(context.artifacts["weights"])          # rebuild YOLO from the logged best.pt
+
+    # runs when someone asks for predictions: images in, boxes out
+    def predict(self, context, model_input, params=None):
+        results = self.model(model_input, verbose=False)
+        return [r.boxes.data.cpu().numpy() for r in results]     # boxes per image: x1, y1, x2, y2, conf, class
 
 # ── STEP 1: READ config.yaml ──────────────────────────────────────────────────
 banner("STEP 1 - READ config.yaml")
@@ -106,11 +124,39 @@ logger.info(f"params logged: {yolo_model} | {card['dataset_name']} | sets {card[
 
 # ── STEP 6: LOG per-epoch metrics ─────────────────────────────────────────────
 banner("STEP 6 - LOG per-epoch metrics")
-# 5b. start the run: everything logged until mlflow.end_run() (end of STEP 8) belongs to it
+# 6a. map YOLO's column names to clean MLflow metric names
+
+METRIC_NAMES = {
+    "train/box_loss":       "train/box_loss",
+    "train/cls_loss":       "train/cls_loss",
+    "train/dfl_loss":       "train/dfl_loss",
+    "val/box_loss":         "val/box_loss",
+    "val/cls_loss":         "val/cls_loss",
+    "val/dfl_loss":         "val/dfl_loss",
+    "metrics/precision(B)": "precision",
+    "metrics/recall(B)":    "recall",
+    "metrics/mAP50(B)":     "mAP50",
+    "metrics/mAP50-95(B)":  "mAP50_95",
+    "lr/pg0":               "lr0",
+    "lr/pg1":               "lr1",
+    "lr/pg2":               "lr2",
+}
+
+# 6b. send each epoch's scores to MLflow; step=epoch is the x-axis position (so MLflow can draw a curve)
+for index, row in results.iterrows():                    # for each epoch (50 times)
+    epoch   = int(row["epoch"])                          # epoch comes from the ROW, not from the index
+    metrics = {}                                         # 1. start with an empty dictionary then # {'train/box_loss': 1.95943, 'train/cls_loss': 1.21242, 'train/dfl_loss': 1.29453,....
+    for yolo_name, mlflow_name in METRIC_NAMES.items():  # The inner loop (for yolo_name, mlflow_name in METRIC_NAMES.items()) goes, within that one epoch, through each value, 13 times: box loss, cls loss @         # 2. walk through the translation table, pair by pair (13 times)
+        value = row[yolo_name]                           # 3. read the value from this epoch's row (by YOLO's name) # xrow["metrics/mAP50(B)"] → 0.6135.
+        metrics[mlflow_name] = value                     # 4. store it under the MLflow name mtrics = {}
+    mlflow.log_metrics(metrics, step=epoch)              # dictionary full: send this epoch's 13 values, placed at x = epoch
+logger.info(f"{len(results)} epochs of metrics logged")  # after the loop: runs once
 
 # ── STEP 7: LOG artifacts ─────────────────────────────────────────────────────
 banner("STEP 7 - LOG artifacts")
-
+# 7a. the dataset card: which batches, videos and code commit the training data came from
+mlflow.log_artifact(card_path)
+logger.info(f"dataset card logged: {card_path}")
 
 # ── STEP 8: REGISTER model + SET alias ────────────────────────────────────────
 banner("STEP 8 - REGISTER model + SET alias")
