@@ -16,6 +16,7 @@ import os
 import yaml               
 import mlflow #  tracking: run, params, metrics, artifacts, alias.
 import mlflow.pyfunc # the model wrapper: - YoloModel subclasses mlflow.pyfunc.PythonModel
+import pandas as pd
 
 # module imports
 from scripts.console import banner, banner_sub
@@ -57,10 +58,27 @@ logger.info(f"card loaded: {card['dataset_name']} | sets {card['annotation_set_i
 
 # ── STEP 3: COUNT train / val images ──────────────────────────────────────────
 banner("STEP 3 - COUNT train / val images")
+# 3a. count the images actually on disk (.jpg / .png) in each split folder
+train_dir = os.path.join(dataset_path, "images", "train")
+val_dir   = os.path.join(dataset_path, "images", "val")
+num_train = len([f for f in os.listdir(train_dir) if f.endswith((".jpg", ".png"))])
+num_val   = len([f for f in os.listdir(val_dir)   if f.endswith((".jpg", ".png"))])
+logger.info(f"on disk: {num_train} train | {num_val} val")
 
+# 3b. compare with what the card says: a mismatch means frames were lost while copying
+if (num_train, num_val) != (card["num_train"], card["num_val"]): # comparing tuples
+    logger.warning(f"MISMATCH: card says {card['num_train']} train / {card['num_val']} val, disk has {num_train} / {num_val}")
 
 # ── STEP 4: LOAD results.csv + args.yaml ──────────────────────────────────────
 banner("STEP 4 - LOAD results.csv + args.yaml")
+# 4a (extra). quick look at the scores: best epoch vs last epoch
+results = pd.read_csv(os.path.join(run_path, "results.csv"))
+results.columns = results.columns.str.strip() # if ['                  epoch', ... -> repairs to ['epoch', 
+logger.info(f"results.csv: {len(results)} epochs") 
+best = results.loc[results["metrics/mAP50-95(B)"].idxmax()] # .idxmax() → "which index has the highest score e.g 19 -->  results.loc[19]  give me that whole row" contrast with .iloc which looks by position
+
+# 4b. args.yaml: the exact settings YOLO trained with (written by YOLO itself)
+with open(os.path.join(run_path, "args.yaml")) as f:
 
 
 # ── STEP 5: START MLflow run + LOG params ─────────────────────────────────────
