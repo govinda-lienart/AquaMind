@@ -31,13 +31,29 @@ logger = logging.getLogger(__name__)
 
 # ── STEP 1: READ config.yaml ──────────────────────────────────────────────────
 banner("STEP 1 - READ config.yaml")
+
 # 1a. load the log_artifact_mlflow section of config.yaml
+with open("config.yaml") as f:
+    cfg = yaml.safe_load(f)                  
+cfg = cfg["log_artifact_mlflow"]            
 
 # 1b. pull out run_path, dataset_name and alias
+run_path     = cfg["run_path"]              
+dataset_name = cfg["dataset_name"]          
+alias        = cfg["alias"]                 
+run_name     = os.path.basename(run_path)    
+logger.info(f"run: {run_name} | dataset: {dataset_name} | alias: @{alias}")
 
 # ── STEP 2: LOAD dataset_card.yaml ────────────────────────────────────────────
 banner("STEP 2 - LOAD dataset_card.yaml")
+# 2a. building the dataset folder path from the pinned dataset_name
+dataset_path = os.path.join("dataset", dataset_name)        # e.g dataset/regular_data_ann_5r_9r_10r_2026_10_01_11h47_2026_10_06_09h48
+card_path    = os.path.join(dataset_path, "dataset_card.yaml")
 
+# 2b. load the card: the provenance record prepare_dataset wrote (sets, videos, counts, git commit)
+with open(card_path) as f:
+    card = yaml.safe_load(f)
+logger.info(f"card loaded: {card['dataset_name']} | sets {card['annotation_set_ids']} | commit {card['git_commit']}")
 
 # ── STEP 3: COUNT train / val images ──────────────────────────────────────────
 banner("STEP 3 - COUNT train / val images")
