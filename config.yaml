@@ -46,8 +46,9 @@ prepare_dataset:
 
 # log_artifact_mlflow_script
 log_artifact_mlflow:
-  run_path: runs/aquamind_yolov8_run_5r_8c_9r_10r_11c_14c_17g_2026_08_04_2127_20260804_1507
-  dataset_name: data_ann_5r_8c_9r_10r_11c_14c_17g_2026_08_04_2006   # e.g data_ann_5r_8c_9r_10r_11c_14c_17g_2026_08_04_2006 - the dataset THIS run was trained on — pin it here so provenance stays truthful even after prepare_dataset moves on to a new dataset
+  run_path: runs/aquamind_yolov8_run_regular_5r_9r_10r_2026_10_06_20261006_0844
+  dataset_name: regular_data_ann_5r_9r_10r_2026_10_01_11h47_2026_10_06_09h48   # e.g data_ann_5r_8c_9r_10r_11c_14c_17g_2026_08_04_2006 - the dataset THIS run was trained on — pin it here so provenance stays truthful even after prepare_dataset moves on to a new dataset
+  alias: baseline   # registry alias moved to this model: champion = best detector (tracker default), baseline = regular-only starting point (Stage 3)
 
 # ml_backend_script — YOLO model used by LabelStudio for self-labeling (pre-labeling).
 # Decoupled from fish_trackers on purpose: set whichever model you want to pre-label with here.
