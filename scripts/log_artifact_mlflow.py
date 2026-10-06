@@ -27,8 +27,8 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 # CONSTANTS──────────────────────────────────────────
-
-
+TRACKING_URI = "sqlite:///mlflow.db"   # registry needs a database backend (the mlruns/ file store can't register models)
+EXPERIMENT   = "aquamind_detector"              # the MLflow experiment every YOLO detector run is logged under
 
 # ── STEP 1: READ config.yaml ──────────────────────────────────────────────────
 banner("STEP 1 - READ config.yaml")
@@ -79,15 +79,34 @@ best = results.loc[results["metrics/mAP50-95(B)"].idxmax()] # .idxmax() → "whi
 
 # 4b. args.yaml: the exact settings YOLO trained with (written by YOLO itself)
 with open(os.path.join(run_path, "args.yaml")) as f:
-
+    train_args = yaml.safe_load(f)
+yolo_model = train_args["model"].replace(".pt", "")   # e.g "yolov8s.pt" → "yolov8s"
+logger.info(f"trained: {yolo_model} | {train_args['epochs']} epochs | imgsz {train_args['imgsz']} | batch {train_args['batch']}")
 
 # ── STEP 5: START MLflow run + LOG params ─────────────────────────────────────
 banner("STEP 5 - START MLflow run + LOG params")
+# 5a. connect to the MLflow database and pick the experiment
+mlflow.set_tracking_uri(TRACKING_URI)
+mlflow.set_experiment(EXPERIMENT)
 
+# 5b. start the run: everything logged until mlflow.end_run() (end of STEP 8) belongs to it
+mlflow.start_run(run_name=run_name)
+
+# 5c. log params: what was trained, on which data, with which code
+mlflow.log_param("yolo_model",         yolo_model)                    # from args.yaml (not hardcoded)
+mlflow.log_param("epochs",             train_args["epochs"])
+mlflow.log_param("imgsz",              train_args["imgsz"])
+mlflow.log_param("batch",              train_args["batch"])
+mlflow.log_param("dataset_name",       card["dataset_name"])
+mlflow.log_param("annotation_set_ids", str(card["annotation_set_ids"]))
+mlflow.log_param("num_train",          num_train)
+mlflow.log_param("num_val",            num_val)
+mlflow.log_param("git_commit",         card["git_commit"])            # commit of the code that BUILT the dataset
+logger.info(f"params logged: {yolo_model} | {card['dataset_name']} | sets {card['annotation_set_ids']} | {num_train} train / {num_val} val")
 
 # ── STEP 6: LOG per-epoch metrics ─────────────────────────────────────────────
 banner("STEP 6 - LOG per-epoch metrics")
-
+# 5b. start the run: everything logged until mlflow.end_run() (end of STEP 8) belongs to it
 
 # ── STEP 7: LOG artifacts ─────────────────────────────────────────────────────
 banner("STEP 7 - LOG artifacts")
