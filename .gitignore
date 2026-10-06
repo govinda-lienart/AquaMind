@@ -55,3 +55,4 @@ docs/reid_workshop.md
 .vscode/
 .wrangler/
 node_modules/
+docs/*.md
