@@ -19,7 +19,7 @@ import mlflow.pyfunc # the model wrapper: - YoloModel subclasses mlflow.pyfunc.P
 import pandas as pd
 
 # module imports
-from scripts.console import banner, banner_sub
+from scripts.console import banner
 
 # logging imports
 import logging
@@ -33,12 +33,10 @@ MODEL_NAME   = "aquamind-yolo-detector"   # the registered model: each logged ru
 
 # MODEL WRAPPER──────────────────────────────────────
 
-# MODEL WRAPPER──────────────────────────────────────
-
 class YoloModel(mlflow.pyfunc.PythonModel):
     """Wraps best.pt as a proper MLflow model flavor, so the registry holds a real model, not a bare file."""
 
-    # instructions for anyone loading this model through MLflow (not really user here by the tracker, which loads best.pt directly)
+    # instructions for anyone loading this model through MLflow (not really used here by the tracker, which loads best.pt directly)
     def load_context(self, context):
         from ultralytics import YOLO
         self.model = YOLO(context.artifacts["weights"])          # rebuild YOLO from the logged best.pt
@@ -89,11 +87,16 @@ if (num_train, num_val) != (card["num_train"], card["num_val"]): # comparing tup
 
 # ── STEP 4: LOAD results.csv + args.yaml ──────────────────────────────────────
 banner("STEP 4 - LOAD results.csv + args.yaml")
-# 4a (extra). quick look at the scores: best epoch vs last epoch
+# 4a. results.csv: one row per epoch (losses, precision, recall, mAP, learning rates)
 results = pd.read_csv(os.path.join(run_path, "results.csv"))
 results.columns = results.columns.str.strip() # if ['                  epoch', ... -> repairs to ['epoch', 
 logger.info(f"results.csv: {len(results)} epochs") 
+
+# 4a (extra). quick look at the scores: best epoch vs last epoch
 best = results.loc[results["metrics/mAP50-95(B)"].idxmax()] # .idxmax() → "which index has the highest score e.g 19 -->  results.loc[19]  give me that whole row" contrast with .iloc which looks by position
+last = results.iloc[-1]                                     # the last row (final epoch), by position
+logger.info(f"best epoch {int(best['epoch'])}: mAP50 {best['metrics/mAP50(B)']:.3f} | mAP50-95 {best['metrics/mAP50-95(B)']:.3f}")
+logger.info(f"last epoch {int(last['epoch'])}: mAP50 {last['metrics/mAP50(B)']:.3f} | mAP50-95 {last['metrics/mAP50-95(B)']:.3f}")
 
 # 4b. args.yaml: the exact settings YOLO trained with (written by YOLO itself)
 with open(os.path.join(run_path, "args.yaml")) as f:
@@ -158,9 +161,42 @@ banner("STEP 7 - LOG artifacts")
 mlflow.log_artifact(card_path)
 logger.info(f"dataset card logged: {card_path}")
 
+# 7b. the whole run folder: results.csv, args.yaml, plots (results.png, confusion matrix, PR curves), weights/
+mlflow.log_artifacts(run_path)
+logger.info(f"run folder logged: {run_path}")
+
+# 7b. the whole run folder: results.csv, args.yaml, plots (results.png, confusion matrix, PR curves), weights/
+mlflow.log_artifacts(run_path)
+logger.info(f"run folder logged: {run_path}")
+
+
 # ── STEP 8: REGISTER model + SET alias ────────────────────────────────────────
 banner("STEP 8 - REGISTER model + SET alias")
 
+# 8a. packs the existing best.pt (plus instructions), --- >log best.pt as an MLflow model AND register it as a new version of MODEL_NAME, in one call
+best_pt = os.path.join(run_path, "weights", "best.pt")
+info = mlflow.pyfunc.log_model( # this line packs the model and puts it on the shelf in the registry.
+    name="model",                              # the package's name (stored in mlruns/<exp>/models/)
+    python_model=YoloModel(),                  # the wrapper (instructions for loading / predicting)
+    artifacts={"weights": best_pt},            # the file packed with it → context.artifacts["weights"]
+    registered_model_name=MODEL_NAME,          # also register it as a new version in the registry
+    pip_requirements=["ultralytics", "torch"], # what someone needs installed to load it
+)
+version = info.registered_model_version        # e.g 5 → the number this version got
+
+# 8b. move the alias from config.yaml (baseline / champion) to this new version
+mlflow.MlflowClient().set_registered_model_alias(MODEL_NAME, alias, version)
+logger.info(f"registered {MODEL_NAME} v{version} → @{alias}")
+
+# 8c. close the run opened in STEP 5
+mlflow.end_run()
 
 # ── STEP 9: SUMMARY ───────────────────────────────────────────────────────────
 banner("STEP 9 - SUMMARY")
+
+# 9a. what was logged and registered, in one glance
+logger.info(f"run          : {run_name}")
+logger.info(f"dataset      : {card['dataset_name']} (sets {card['annotation_set_ids']})")
+logger.info(f"trained      : {yolo_model} | {num_train} train / {num_val} val")
+logger.info(f"registered   : {MODEL_NAME} v{version} → @{alias}")
+logger.info(f"load it with : models:/{MODEL_NAME}@{alias}")
