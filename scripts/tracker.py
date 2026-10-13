@@ -75,13 +75,24 @@ weights = mlflow.artifacts.download_artifacts(artifact_uri=f"{model_path}/artifa
 logger.info(f"weights downloaded to: {weights}")
 model = YOLO(weights) # # build the YOLOv8 network + load the trained numbers from best.pt → a model we can run on frames (.boxes), unlike MLflow's pyfunc wrapper
 
-
-
 # ── STEP 4: fish memory ────────────────────────────────────────────────────────
 # one dict per fish: id, x, y, vx, vy, bbox, confidence, hits, missing
 
+tracks  = []   # the tracker's memory: one dict per fish it is currently following
+next_id = 1    # the ID number the next new fish will get
+
 
 # ── STEP 5: the frame loop ─────────────────────────────────────────────────────
+
+ok, frame = cap.read()
+logger.info(f"ok {ok}") # ok True 0 - the playhead succesfully read the first set frame - a NumPy array of pixels
+logger.info(f"frame shape: {frame.shape}")
+cv2.imwrite("test_frame.jpg", frame) # wrote a file in the root ok 
+results = model(frame, verbose=False) # object contain alll what yolo found in that frame...boxes, labels, ....etcetera
+boxes = results[0].boxes  # all boxes in frame positrion 0
+logger.info(f"boxes found: {len(boxes)}")
+
+
 # while True: read a frame, stop at the end of the clip
 
     # STEP 5a: detect, run YOLO on the frame, keep class 0 (danio_rerio), skip class 1 (reflection)
