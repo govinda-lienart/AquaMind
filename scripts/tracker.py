@@ -84,28 +84,36 @@ next_id = 1    # the ID number the next new fish will get
 
 # ── STEP 5: the frame loop ─────────────────────────────────────────────────────
 
+banner_sub("5.1 - read one frame")
 ok, frame = cap.read()
 logger.info(f"ok {ok}") # ok True 0 - the playhead succesfully read the first set frame - a NumPy array of pixels
 logger.info(f"frame shape: {frame.shape}")
 cv2.imwrite("test_frame.jpg", frame) # wrote a file in the root ok 
+
+
+banner_sub("5.2 - run YOLO on the frame")
 results = model(frame, verbose=False) # object contain alll what yolo found in that frame...boxes, labels, ....etcetera
 boxes = results[0].boxes  # all boxes in frame positrion 0
-logger.info(f"boxes found: {len(boxes)}")
+logger.info(f"boxes found: {len(boxes)}") # 5
+logger.info(f"classes: {boxes.cls.tolist()}")  # [0.0, 0.0, 0.0, 0.0, 0.0] - no reflections # boxes.cls is a PyTorch tensor, not a normal list - need to convert to list first
+logger.info(f"confidences: {boxes.conf.tolist()}") # [0.5438745617866516, 0.4641355574131012, 0.4558827877044678, 0.4546075761318207, 0.36899900436401367]
+cv2.imwrite("test_detect.jpg", results[0].plot()) # creates a picture and boxes the fish
 
+banner_sub("5.3 - keep fish, drop reflections")
+keep = boxes.cls == 0
+logger.info(f"keep: {keep.tolist()}")
+fish_boxes = boxes[keep]
+logger.info(f"fish boxes: {len(fish_boxes)}")
 
-# while True: read a frame, stop at the end of the clip
-
-    # STEP 5a: detect, run YOLO on the frame, keep class 0 (danio_rerio), skip class 1 (reflection)
-
-    # STEP 5b: predict each fish's next position + match predictions to boxes (Hungarian)
-
-    # STEP 5c: ghosts, healthy fish match first, missing fish search a wider (capped) radius
-
-    # STEP 5d: calibration lock, after calibration_secs keep the num_fish best tracks, give IDs 1..N
-
-    # STEP 5e: logging, occlusion_lost / occlusion_recovery + crossings (two fish's boxes overlapping)
-
-    # STEP 5f: store this frame's rows for tracks.parquet + draw boxes on the frame
+banner_sub("5.4 - box centres (x, y)")
+centres = fish_boxes.xywh[:, :2].tolist() # [x_centre, y_centre, width, height], one row per fish ->  [:, :2]: keeps  x, y
+                                          # SORT matches by box overlap, which works for large, slow objects like pedestrians. My fish are small, thin and fast relative to their body size, so boxes often stop overlapping between frames and IoU collapses to zero. Centre distance to a motion-predicted position degrades gracefully, so I used that instead.
+logger.info(f"centres: {centres}")
+banner_sub("5.5 - fill fish memory")
+for (x, y) in centres:
+    tracks.append({"id": next_id, "x": x, "y": y, "vx": 0, "vy": 0, "missing": 0})
+    next_id += 1
+logger.info(f"tracks: {tracks}")
 
 
 # ── STEP 6: save outputs ───────────────────────────────────────────────────────
