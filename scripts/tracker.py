@@ -9,6 +9,7 @@ Run:  python -m scripts.tracker
 
 import yaml
 import logging
+import cv2
 
 from scripts.console import banner, banner_sub
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -27,7 +28,6 @@ with open(CONFIG_PATH) as f:
 cfg = cfg["tracker"]
 logger.info(cfg)
 
-# 1b. pull out the settings
 input_video_path  = cfg["input_video_path"]
 model_path        = cfg["model_path"]
 output_video_path = cfg["output_video_path"] # where the run folder goes
@@ -37,12 +37,24 @@ num_fish          = cfg["num_fish"] # how many IDs to lock (4)
 calibration_secs  = cfg["calibration_secs"] # : how long to watch before locking on exisitng fish
 max_distance      = cfg["max_distance"] # the furthest a fish can move between frames and still count as a match (150 px)
 
-
-
+logger.info(f"\ninput_video_path: {input_video_path}")
+logger.info(f"model_path: {model_path}")
+logger.info(f"output_video_path: {output_video_path}")
+logger.info(f"start_seconds: {start_seconds}")
+logger.info(f"end_seconds: {end_seconds}")
+logger.info(f"num_fish: {num_fish}")
+logger.info(f"calibration_secs: {calibration_secs}")
+logger.info(f"max_distance: {max_distance}")
 
 # ── STEP 2: open the video ─────────────────────────────────────────────────────
+banner("STEP 2 - OPEN the video")
 # open the video with cv2, read fps / width / height
-
+cap = cv2.VideoCapture(input_video_path)
+fps = cap.get(cv2.CAP_PROP_FPS)
+logger.info(f"fps: {fps}")
+W = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+logger.info(f"frame size: {W} x {H}")
 
 # ── STEP 3: load the YOLO model ────────────────────────────────────────────────
 # load_yolo() from scripts.model_registry understands models:/aquamind-yolo-detector@baseline
