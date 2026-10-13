@@ -165,10 +165,6 @@ logger.info(f"dataset card logged: {card_path}")
 mlflow.log_artifacts(run_path)
 logger.info(f"run folder logged: {run_path}")
 
-# 7b. the whole run folder: results.csv, args.yaml, plots (results.png, confusion matrix, PR curves), weights/
-mlflow.log_artifacts(run_path)
-logger.info(f"run folder logged: {run_path}")
-
 
 # ── STEP 8: REGISTER model + SET alias ────────────────────────────────────────
 banner("STEP 8 - REGISTER model + SET alias")
