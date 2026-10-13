@@ -10,6 +10,8 @@ Run:  python -m scripts.tracker
 import yaml
 import logging
 import cv2
+import mlflow
+from ultralytics import YOLO
 
 from scripts.console import banner, banner_sub
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -18,6 +20,7 @@ logger = logging.getLogger(__name__)
 # CONSTANTS
 
 CONFIG_PATH = 'config.yaml'
+TRACKING_URI = 'sqlite:///mlflow.db' # the same store log_artifact_mlflow.py registers into
 
 # MAIN
 
@@ -48,16 +51,30 @@ logger.info(f"max_distance: {max_distance}")
 
 # ── STEP 2: open the video ─────────────────────────────────────────────────────
 banner("STEP 2 - OPEN the video")
-# open the video with cv2, read fps / width / height
+
+# open the video with cv2
 cap = cv2.VideoCapture(input_video_path)
+if not cap.isOpened():
+    raise FileNotFoundError(f"could not open video: {input_video_path}")
+
+# set the playhead at start video
 fps = cap.get(cv2.CAP_PROP_FPS)
+cap.set(cv2.CAP_PROP_POS_FRAMES, int(start_seconds * fps)) # cv2 only understand frame number - here 0 x 60 = frame zero but if 5 seconds then 5 x 60 = frame 300 start
 logger.info(f"fps: {fps}")
+
+# read width and height
 W = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) # returns a float - later we need an integer
 logger.info(f"frame size: {W} x {H}")
 
 # ── STEP 3: load the YOLO model ────────────────────────────────────────────────
-# load_yolo() from scripts.model_registry understands models:/aquamind-yolo-detector@baseline
+banner("STEP 3 - LOAD the YOLO model")
+
+mlflow.set_tracking_uri(TRACKING_URI)
+weights = mlflow.artifacts.download_artifacts(artifact_uri=f"{model_path}/artifacts/best.pt") # models:/aquamind-yolo-detector@baseline/artifacts/best.pt # ask the registry for this alias's best.pt: alias → version → copy to a temp folder (never touch mlruns/ directly)
+logger.info(f"weights downloaded to: {weights}")
+model = YOLO(weights) # # build the YOLOv8 network + load the trained numbers from best.pt → a model we can run on frames (.boxes), unlike MLflow's pyfunc wrapper
+
 
 
 # ── STEP 4: fish memory ────────────────────────────────────────────────────────
