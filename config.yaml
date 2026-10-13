@@ -58,10 +58,11 @@ ml_backend:
 # tracker_script (tracker.py)
 tracker:
   input_video_path:  videos/IMG_2349.MOV
-  model_path:        models:/aquamind-yolo-detector@champion   # was: runs/.../2026_07_21_.../weights/best.pt — now resolved via scripts.model_registry.load_yolo
+  model_path:        models:/aquamind-yolo-detector@baseline   # Stage 4 = baseline detector
+   # was: runs/.../2026_07_21_.../weights/best.pt — now resolved via scripts.model_registry.load_yolo
   output_video_path: output_fish_tracker/tracker_IMG_2349   # a '_basic_<timestamp>' or '_appearance_<timestamp>' folder is auto-created per run, tagged by the `appearance` flag below
   start_seconds:     0    # start video
-  end_seconds:       null   # end video, choose 'null' for the whole video
+  end_seconds:       20   # end video, choose 'null' for the whole video
   num_fish:          4
   calibration_secs:  10   # seconds to watch before assigning fish IDs (reflections disappear, real fish stay)
   max_distance:      150   # max pixels between predicted and detected position to count as a match

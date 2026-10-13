@@ -7,9 +7,37 @@ Run:  python -m scripts.tracker
 
 # imports
 
+import yaml
+import logging
+
+from scripts.console import banner, banner_sub
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+logger = logging.getLogger(__name__)
+
+# CONSTANTS
+
+CONFIG_PATH = 'config.yaml'
+
+# MAIN
 
 # ── STEP 1: load the config ────────────────────────────────────────────────────
-# read the `tracker:` section of config.yaml into c, then pull out the settings we need
+banner("STEP 1 - LOAD config.yaml")
+with open(CONFIG_PATH) as f:
+    cfg = yaml.safe_load(f)
+cfg = cfg["tracker"]
+logger.info(cfg)
+
+# 1b. pull out the settings
+input_video_path  = cfg["input_video_path"]
+model_path        = cfg["model_path"]
+output_video_path = cfg["output_video_path"] # where the run folder goes
+start_seconds     = cfg["start_seconds"]
+end_seconds       = cfg["end_seconds"]
+num_fish          = cfg["num_fish"] # how many IDs to lock (4)
+calibration_secs  = cfg["calibration_secs"] # : how long to watch before locking on exisitng fish
+max_distance      = cfg["max_distance"] # the furthest a fish can move between frames and still count as a match (150 px)
+
+
 
 
 # ── STEP 2: open the video ─────────────────────────────────────────────────────
