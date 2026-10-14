@@ -116,7 +116,8 @@ banner_sub("5.5 - fill fish memory")
 for (x, y) in centres:
     tracks.append({"id": next_id, "x": x, "y": y, "vx": 0, "vy": 0, "missing": 0})
     next_id += 1
-logger.info(f"tracks: {tracks}")
+for fish in tracks:
+    logger.info(f"{fish}\n")   # one fish per line, blank line between
 
 banner_sub("5.6 - read the NEXT frame")
 ok, frame = cap.read()                        # playhead moved on → frame 1
@@ -127,41 +128,25 @@ new_centres = fish_boxes.xywh[:, :2].tolist()
 logger.info(f"new centres: {new_centres}") # oups the order not the same? positions 3 and 4 swapped cause based on confidence level - we need to make sure that positon remain - use distance
 
 
-banner_sub("5.7 - distance from Fish 1 to each new centre")
-fish = tracks[0]                                    # Fish 1 - fish fish in memmory {'id': 1, 'x': 716.0689086914062, 'y': 561.0882568359375, 'vx': 0, 'vy': 0, 'missing': 0}
+banner_sub("5.7 - match + update every fish")
+for fish in tracks:                     # Fish 1, 2, 3, 4, 5
+    logger.info(f"Fish {fish['id']} before:  {fish}")   # memory BEFORE matching (vx, vy still 0)
+    best_d = float("inf")              # clean whiteboard for EACH fish
+    best_c = None
+    for (nx, ny) in new_centres:
+        d = math.hypot(nx - fish["x"], ny - fish["y"])
+        if d < best_d:
+            best_d = d
+            best_c = (nx, ny)
+    logger.info(f"Fish {fish['id']} nearest detection → ({best_c[0]:.0f}, {best_c[1]:.0f}): {best_d:.1f} px")
+    # calculating velocity (speed plus direction) + position -> save x, y (where it is) and vx, vy (how it just moved)
+    fish["vx"] = best_c[0] - fish["x"]   # sideways move this frame (px/frame) -> subtracting the positions from two frames that sit right next to each other.
+    fish["vy"] = best_c[1] - fish["y"]   # vertical move this frame (+ = down)
+    fish["x"], fish["y"] = best_c        # new position becomes the memory
+    logger.info(f"Fish {fish['id']} updated: {fish}\n")   # memory AFTER: new x, y + real vx, vy
 
-for (nx, ny) in new_centres:
-    d = math.hypot(nx - fish["x"], ny - fish["y"]) # how many pixels Fish 1 would have moved sideways (positive means right, negative means left) if this new detection is really Fish 1.
-    logger.info(f"Fish {fish['id']} → ({nx:.0f}, {ny:.0f}): {d:.1f} px") 
-
-"""
-Fish 1 → (723, 560): 6.6 px
-Fish 1 → (645, 792): 242.0 px
-Fish 1 → (780, 441): 136.1 px
-Fish 1 → (713, 506): 55.0 px
-Fish 1 → (648, 420): 156.6 px
-"""
-
-banner_sub("5.8 - pick the closest centre for Fish 1")
-best_d = float("inf")   # memory variable : smallest distance seen so far
-best_c = None           # memory variable: the centre that gave it
-
-for (nx, ny) in new_centres:
-    d = math.hypot(nx - fish["x"], ny - fish["y"])
-    if d < best_d:            # is this one closer than the best so far?
-        best_d = d            # yes → remember the new smallest distance
-        best_c = (nx, ny)     # ...and which centre gave it
-logger.info(f"Fish {fish['id']} closest → ({best_c[0]:.0f}, {best_c[1]:.0f}): {best_d:.1f} px")
-
-"""Fish 1 closest → (723, 560): 6.6 px"""
-
-banner_sub("5.9 - update Fish 1's memory") 
-# calculating velocity (speed plus direction) + position -> save x, y (where it is) and vx, vy (how it just moved)
-fish["vx"] = best_c[0] - fish["x"]   # sideways move this frame (px/frame) -> subtracting the positions from two frames that sit right next to each other.
-fish["vy"] = best_c[1] - fish["y"]   # vertical move this frame (+ = down)
-fish["x"], fish["y"] = best_c        # new position becomes the memory
-logger.info(f"Fish 1 updated: {fish}") # Fish 1 updated: {'id': 1, 'x': 722.672119140625, 'y': 560.35107421875, 'vx': 6.60321044921875, 'vy': -0.7371826171875, 'missing': 0}
-
-
-
-
+banner_sub("5.8 - read frame 2")
+ok, frame = cap.read()                         # playhead → frame 2
+results = model(frame, verbose=False)
+fish_boxes = results[0].boxes[results[0].boxes.cls == 0]
+new_centres = fish_boxes.xywh[:, :2].tolist()
