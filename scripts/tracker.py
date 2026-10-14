@@ -7,8 +7,10 @@ Run:  python -m scripts.tracker
 
 # imports
 
+import os
 import yaml
 import logging
+from datetime import datetime
 import cv2
 import math
 import mlflow
@@ -24,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 CONFIG_PATH = 'config.yaml'
 TRACKING_URI = 'sqlite:///mlflow.db' # the same store log_artifact_mlflow.py registers into
+RUN_TAG      = 'L0'   # ablation level written into the run folder name (becomes automatic once the use_* flags exist)
+COLOURS      = [(0, 0, 255), (0, 255, 0), (255, 0, 0), (0, 255, 255), (255, 0, 255), (255, 255, 0)]  # one BGR colour per fish ID (OpenCV = BGR, not RGB)
 
 # MAIN
 
@@ -81,72 +85,124 @@ model = YOLO(weights) # # build the YOLOv8 network + load the trained numbers fr
 # ── STEP 4: fish memory ────────────────────────────────────────────────────────
 # one dict per fish: id, x, y, vx, vy, bbox, confidence, hits, missing
 
-tracks  = []   # the tracker's memory: one dict per fish it is currently following
+tracks  = []   # the tracker's memory: one dict per fish it is currently following ---after 5.2 birth after tracks = [ {"id": 1, "x": 716.1, "y": 561.1, "vx": 0, "vy": 0, "bbox": [656, 541, 776, 581], "missing": 0},....
 next_id = 1    # the ID number the next new fish will get
 
 
 # ── STEP 5: the frame loop ─────────────────────────────────────────────────────
+banner("STEP 5 - FRAME LOOP: detect → match → update")
 
-banner_sub("5.1 - read one frame")
-ok, frame = cap.read()
-logger.info(f"ok {ok}") # ok True 0 - the playhead succesfully read the first set frame - a NumPy array of pixels
-logger.info(f"frame shape: {frame.shape}")
-cv2.imwrite("test_frame.jpg", frame) # wrote a file in the root ok 
+# 5.0 output: a fresh run folder per run + the annotated video writer
+stamp   = datetime.now().strftime("%Y_%m_%d_%H%M")              # e.g. 2026_10_14_1530 → a new folder every run, never overwrite
+run_dir = f"{output_video_path}_{RUN_TAG}_{stamp}"               # e.g. output_fish_tracker/tracker_IMG_1839_L0_2026_10_14_1530
+os.makedirs(run_dir, exist_ok=True)                              # create the folder (no error if it already exists)
+video_path = os.path.join(run_dir, "tracked.mp4")
+out = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (W, H))  # size MUST match the frames exactly, or the file is silently broken
+logger.info(f"run folder: {run_dir}")
 
+# 5.0 counters for the end-of-run summary (the ablation numbers)
+collisions   = 0    # a fish matched to a dot another fish already took this frame (two fish on one dot)
+teleports    = 0    # a fish jumped further than max_distance in one frame (grabbed a wrong, far dot)
+empty_frames = 0    # frames where YOLO found no fish at all
+unmatched_detections = 0  # boxes YOLO found that no fish ID claimed (the grey-only boxes in the video)
 
-banner_sub("5.2 - run YOLO on the frame")
-results = model(frame, verbose=False) # object contain alll what yolo found in that frame...boxes, labels, ....etcetera
-boxes = results[0].boxes  # all boxes in frame positrion 0
-logger.info(f"boxes found: {len(boxes)}") # 5
-logger.info(f"classes: {boxes.cls.tolist()}")  # [0.0, 0.0, 0.0, 0.0, 0.0] - no reflections # boxes.cls is a PyTorch tensor, not a normal list - need to convert to list first
-logger.info(f"confidences: {boxes.conf.tolist()}") # [0.5438745617866516, 0.4641355574131012, 0.4558827877044678, 0.4546075761318207, 0.36899900436401367]
-cv2.imwrite("test_detect.jpg", results[0].plot()) # creates a picture and boxes the fish
+# for every frame of the clip: find the fish with YOLO, link every fish in memory to its nearest new dot, update its position and velocity
+max_frames = int((end_seconds - start_seconds) * fps) if end_seconds is not None else None  # frames in the clip (None = whole video), e.g. (20 - 0) x 59.8 = 1195
+logger.info(f"max_frames: {max_frames}")
+frame_number = 0                               # counter: which frame we're on (the loop reads frame 0 itself)
+while True:
+    if max_frames is not None and frame_number >= max_frames:  # reached end_seconds
+        break
+    ok, frame = cap.read()                     # grab the frame under the playhead, playhead moves on (ok = False at end of video)
+    if not ok:                                 # video finished before end_seconds
+        break                                  # jump out of the while loop
 
-banner_sub("5.3 - keep fish, drop reflections")
-keep = boxes.cls == 0
-logger.info(f"keep: {keep.tolist()}")
-fish_boxes = boxes[keep]
-logger.info(f"fish boxes: {len(fish_boxes)}")
-
-banner_sub("5.4 - box centres (x, y)")
-centres = fish_boxes.xywh[:, :2].tolist() # [x_centre, y_centre, width, height], one row per fish ->  [:, :2]: keeps  x, y
-                                          # SORT matches by box overlap, which works for large, slow objects like pedestrians. My fish are small, thin and fast relative to their body size, so boxes often stop overlapping between frames and IoU collapses to zero. Centre distance to a motion-predicted position degrades gracefully, so I used that instead.
-logger.info(f"centres: {centres}")
-banner_sub("5.5 - fill fish memory")
-for (x, y) in centres:
-    tracks.append({"id": next_id, "x": x, "y": y, "vx": 0, "vy": 0, "missing": 0})
-    next_id += 1
-for fish in tracks:
-    logger.info(f"{fish}\n")   # one fish per line, blank line between
-
-banner_sub("5.6 - read the NEXT frame")
-ok, frame = cap.read()                        # playhead moved on → frame 1
-results = model(frame, verbose=False)
-boxes = results[0].boxes
-fish_boxes = boxes[boxes.cls == 0]            # 5.3's filter in one line
-new_centres = fish_boxes.xywh[:, :2].tolist()
-logger.info(f"new centres: {new_centres}") # oups the order not the same? positions 3 and 4 swapped cause based on confidence level - we need to make sure that positon remain - use distance
+    # 5.1 detect # where are the fish in this picture?"
+    results = model(frame, verbose=False)      # object containing all YOLO found in this frame: boxes, labels, ... results[0] = the only image we gave it
+    boxes = results[0].boxes                   #0 means the first  image I gave YOLO  # results=  all boxes YOLO found (PyTorch tensors: .cls, .conf, .xywh → .tolist() to read them)
+    fish_boxes = boxes[boxes.cls == 0]         # keep fish (class 0), drop reflections (class 1) - boolean mask, like df[mask]
+    new_centres = fish_boxes.xywh[:, :2].tolist()  # x y - [x_centre, y_centre, width, height] per fish ->[:, :2] = [rows, columns] [:, :2] keeps x, y
+    new_bboxes  = fish_boxes.xyxy.tolist()     # for drwawing the boxes - [x1, y1, x2, y2] corners per fish, SAME order as new_centres (entry i = same box)
+    # SORT matches by box overlap, which works for large, slow objects like pedestrians. My fish are small, thin and fast relative to their body size,
+    # so boxes often stop overlapping between frames and IoU collapses to zero. Centre distance to a motion-predicted position degrades gracefully, so I used that instead.
+    if not new_centres:
+        empty_frames += 1 # it counts the frames where YOLO found zero fish.
 
 
-banner_sub("5.7 - match + update every fish")
-for fish in tracks:                     # Fish 1, 2, 3, 4, 5
-    logger.info(f"Fish {fish['id']} before:  {fish}")   # memory BEFORE matching (vx, vy still 0)
-    best_d = float("inf")              # clean whiteboard for EACH fish
-    best_c = None
-    for (nx, ny) in new_centres:
-        d = math.hypot(nx - fish["x"], ny - fish["y"])
-        if d < best_d:
-            best_d = d
-            best_c = (nx, ny)
-    logger.info(f"Fish {fish['id']} nearest detection → ({best_c[0]:.0f}, {best_c[1]:.0f}): {best_d:.1f} px")
-    # calculating velocity (speed plus direction) + position -> save x, y (where it is) and vx, vy (how it just moved)
-    fish["vx"] = best_c[0] - fish["x"]   # sideways move this frame (px/frame) -> subtracting the positions from two frames that sit right next to each other.
-    fish["vy"] = best_c[1] - fish["y"]   # vertical move this frame (+ = down)
-    fish["x"], fish["y"] = best_c        # new position becomes the memory
-    logger.info(f"Fish {fish['id']} updated: {fish}\n")   # memory AFTER: new x, y + real vx, vy
 
-banner_sub("5.8 - read frame 2")
-ok, frame = cap.read()                         # playhead → frame 2
-results = model(frame, verbose=False)
-fish_boxes = results[0].boxes[results[0].boxes.cls == 0]
-new_centres = fish_boxes.xywh[:, :2].tolist()
+"""-------------------------------------"""
+
+    if not tracks: # if tracks is still empty, create the fish
+        # 5.2  birth - First frame: "give each fish a name" - first frame: memory is empty → one new fish per centre (initialisation, runs once)
+        if len(new_centres) != num_fish:       # fail fast: a bad start frame would create phantom / missing fish
+            raise ValueError(f"start frame has {len(new_centres)} fish boxes, expected {num_fish}: pick another start_seconds")
+        for (x, y), bbox in zip(new_centres, new_bboxes):   # each centre + its box found in the first frame (zip = walk both lists side by side)
+            tracks.append({"id": next_id, "x": x, "y": y, "vx": 0, "vy": 0, "bbox": bbox, "missing": 0})  # a new fish is born
+            next_id += 1                       # next fish gets the next number
+        for fish in tracks:
+            logger.info(f"{fish}")             # one fish per line
+    else:
+        # 5.3 match + update (L0: each fish takes its nearest new dot) "which box is which fish now?"
+        taken = set()                          # dots already claimed this frame (to count collisions)
+        for fish in tracks:                    # each fish in memory
+            best_d = float("inf")              # clean whiteboard: smallest distance so far
+            best_c = None                      # ...and the dot that gave it
+            best_b = None                      # ...and that dot's box
+            for (nx, ny), bbox in zip(new_centres, new_bboxes):  # each new dot + its box
+                d = math.hypot(nx - fish["x"], ny - fish["y"])  # distance from where the fish was (Pythagoras)
+                if d < best_d:                 # closer than the best so far?
+                    best_d = d                 # remember the new smallest distance
+                    best_c = (nx, ny)          # remember which dot
+                    best_b = bbox              # remember its box
+            if best_c is None:                 # no fish boxes this frame → nothing to match, keep the old position
+                continue                       # skip THIS fish (not the whole frame)
+            if best_c in taken:                # another fish already took this dot this frame
+                collisions += 1
+            taken.add(best_c)
+            if best_d > max_distance:          # jumped further than a fish can swim in one frame
+                teleports += 1
+            fish["vx"] = best_c[0] - fish["x"] # sideways move this frame (+ = right)
+            fish["vy"] = best_c[1] - fish["y"] # vertical move this frame (+ = down)
+            fish["x"], fish["y"] = best_c      # new position becomes the memory
+            fish["bbox"] = best_b              # ...and so does its box (for drawing)
+        unmatched_detections += len(new_centres) - len(taken)   # boxes nobody took this frame
+
+    # 5.4 draw + write this frame to the video "show what the tracker decided"  grey boxes: what YOLO saw - loured boxes + F1–F5 labels: what the tracker decided
+    for (x1, y1, x2, y2) in fish_boxes.xyxy.tolist():                 # YOLO's fish boxes: thin grey (what the detector saw)
+        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (160, 160, 160), 1)
+    for fish in tracks:                                               # the tracker's fish: coloured box + dot + ID (what the tracker decided)
+        colour = COLOURS[(fish["id"] - 1) % len(COLOURS)]             # same ID → same colour every frame, so a swap is easy to see
+        x1, y1, x2, y2 = (int(v) for v in fish["bbox"])
+        cv2.rectangle(frame, (x1, y1), (x2, y2), colour, 3)           # thick coloured box = the box this fish claimed
+        cx, cy = int(fish["x"]), int(fish["y"])
+        cv2.circle(frame, (cx, cy), 6, colour, -1)                    # -1 = filled circle
+        cv2.putText(frame, f"F{fish['id']}", (x1, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.8, colour, 2)  # label above the box's top-left corner
+    cv2.putText(frame, f"frame {frame_number}  {RUN_TAG}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)  # frame counter: find crossings by frame later
+    out.write(frame)
+
+    if frame_number % int(fps) == 0:           # log once per second of video, not every frame
+        logger.info(f"frame {frame_number}: " + ", ".join(f"F{f['id']} ({f['x']:.0f},{f['y']:.0f})" for f in tracks))  # one line: every fish's position this frame
+    frame_number += 1                          # move the counter on
+
+cap.release()                                  # close the input video
+out.release()                                  # close the output video (without this the .mp4 can be unreadable)
+logger.info(f"processed {frame_number} frames")
+logger.info(f"video saved: {video_path}")
+
+banner(f"SUMMARY - {RUN_TAG}")
+logger.info(f"frames processed : {frame_number}")
+logger.info(f"empty frames     : {empty_frames}   (YOLO found no fish)")
+logger.info(f"collisions       : {collisions}   (two fish matched to one dot)")
+logger.info(f"teleports        : {teleports}   (jump > max_distance = {max_distance} px)")
+logger.info(f"unmatched dets   : {unmatched_detections}   (YOLO saw a fish, no ID claimed it)")
+
+
+# ── TODO: core tracker still to build (commented out so they don't print yet) ──
+# banner_sub("5.7 - prediction: match against x + vx, not last position")
+# banner_sub("5.8 - velocity smoothing: EMA so one jittery box can't throw the prediction")
+# banner_sub("5.9 - one dot, one fish: Hungarian matching (linear_sum_assignment)")
+# banner_sub("5.10 - distance gate: refuse matches beyond max_distance (no teleporting)")
+# banner_sub("5.11 - missing fish (ghosts): missing += 1, coast on prediction, recover")
+# banner_sub("5.12 - calibration window: wait for all num_fish before locking IDs")
+# banner_sub("5.13 - outputs: tracks.parquet, annotated video, crops, run folder")
+# banner_sub("5.14 - refactor: dicts → Track class, matching → associate()")
