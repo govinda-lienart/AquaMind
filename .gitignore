@@ -56,3 +56,7 @@ docs/reid_workshop.md
 .wrangler/
 node_modules/
 docs/*.md
+
+# tracker.py debug snapshots
+test_frame.jpg
+test_detect.jpg
